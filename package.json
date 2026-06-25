@@ -1,0 +1,52 @@
+{
+  "name": "lexi",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:seed": "tsx prisma/seed.ts",
+    "test:chat": "node --env-file=.env --import tsx ./scripts/test-chat.ts",
+    "test:analytics": "node scripts/test-analytics.mjs",
+    "test:narrative": "node scripts/test-narrative.mjs",
+    "test:results": "node scripts/test-results.mjs",
+    "test:notebook": "node scripts/test-notebook-intelligence.mjs",
+    "test:recommendations": "node scripts/test-recommendations.mjs",
+    "test:mastery": "node scripts/test-mastery.mjs",
+    "test:recommendations-v2": "node scripts/test-recommendations-v2.mjs",
+    "test:learning-profile": "node scripts/test-learning-profile.mjs"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
+    "@auth/prisma-adapter": "^2.11.2",
+    "@google/genai": "^2.9.0",
+    "@prisma/client": "^6.19.3",
+    "ai": "^6.0.208",
+    "bcryptjs": "^3.0.3",
+    "mammoth": "^1.12.0",
+    "next": "16.2.9",
+    "next-auth": "^4.24.14",
+    "pdf-parse": "^2.4.5",
+    "prisma": "^6.19.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "tailwindcss": "^4",
+    "tsx": "^4.22.4",
+    "typescript": "^5"
+  }
+}

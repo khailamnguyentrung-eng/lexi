@@ -1,0 +1,673 @@
+{
+  "phases": [
+    {
+      "order": 1,
+      "name": "Foundation",
+      "startSession": 1,
+      "endSession": 8,
+      "goal": "Lấp lỗ hổng kiến thức, ôn chắc 3 thì nền tảng (hiện tại đơn, hiện tại tiếp diễn, quá khứ đơn) và xây nền ngữ pháp - từ vựng qua Units 1-4 (phrasal verbs, so sánh, câu tường thuật mệnh lệnh/yêu cầu, từ để hỏi + to-infinitive, câu tường thuật dạng câu hỏi)."
+    },
+    {
+      "order": 2,
+      "name": "Core",
+      "startSession": 9,
+      "endSession": 16,
+      "goal": "Nắm chắc các cấu trúc ngữ pháp khó qua Units 5-9 (hiện tại hoàn thành, used to/wish, mạo từ và lượng từ, mệnh đề quan hệ, câu bị động), vận dụng thành thạo vào bài tập và các dạng đề thi."
+    },
+    {
+      "order": 3,
+      "name": "Exam Prep",
+      "startSession": 17,
+      "endSession": 24,
+      "goal": "Hoàn thiện Units 10-12 (câu điều kiện loại 1 và 2, câu ghép/phức, tổng ôn phrasal verbs và câu tường thuật), hệ thống hóa toàn bộ ngữ pháp - từ vựng 12 Unit, và thành thạo dạng đề thi tuyển sinh vào 10 để đạt mục tiêu điểm số ≥ 9,5."
+    }
+  ],
+  "sessions": [
+    {
+      "sessionNumber": 1,
+      "phaseOrder": 1,
+      "title": "Kiểm tra đầu vào & ôn nền các thì",
+      "objective": "Đánh giá trình độ đầu vào; ôn chắc 3 thì nền tảng (hiện tại đơn, hiện tại tiếp diễn, quá khứ đơn).",
+      "grammarTopics": ["present_simple", "present_continuous", "past_simple"],
+      "vocabThemes": ["word_family", "collocation", "vocabulary_notebook_setup"],
+      "exercises": [
+        { "type": "test", "description": "Làm Đề test đầu vào (36 câu, 45 phút) - đã có trong bộ đề." },
+        { "type": "review", "description": "Nghỉ ngắn + chữa nhanh các câu nhiều học sinh sai." },
+        { "type": "practice", "description": "Ôn công thức - dấu hiệu - cách dùng 3 thì; bài tập chia động từ và đối chiếu thì." },
+        { "type": "skill_building", "description": "Hướng dẫn lập Sổ tay từ vựng, cách tra Cambridge Dictionary; chốt mục tiêu khóa học." },
+        { "type": "homework", "description": "Giao BTVN và bộ thẻ từ vựng Unit 1." },
+        { "type": "warm_up_sample", "description": "Chia động từ mẫu: 1. She (go) ___ to school every day. 2. Look! It (rain) ___ now. 3. They (visit) ___ Hue last year. Đáp án: 1. goes 2. is raining 3. visited." }
+      ],
+      "resources": [
+        { "label": "Cambridge Dictionary - nghe phát âm & xem ví dụ", "url": "https://dictionary.cambridge.org/" },
+        { "label": "British Council - Grammar (mục verb tenses)", "url": "https://learnenglish.britishcouncil.org/grammar" },
+        { "label": "VietJack - Ngữ pháp Tiếng Anh 9 (tiếng Việt)", "url": "" },
+        { "label": "SBT Global Success Unit 1 - phần Vocabulary & Grammar (chia động từ)", "url": "" },
+        { "label": "Perfect English Grammar - mục Verb Tenses (present/past)", "url": "https://www.perfect-english-grammar.com/" }
+      ],
+      "timeBlocks": [
+        { "label": "diagnostic_test", "startMin": 0, "endMin": 45 },
+        { "label": "break_and_review", "startMin": 45, "endMin": 55 },
+        { "label": "grammar_review", "startMin": 55, "endMin": 95 },
+        { "label": "vocab_notebook_setup", "startMin": 95, "endMin": 115 },
+        { "label": "homework_assignment", "startMin": 115, "endMin": 120 }
+      ],
+      "unitMapping": null,
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 2,
+      "phaseOrder": 1,
+      "title": "Phrasal verbs & củng cố các thì",
+      "objective": "Hiểu và dùng được các phrasal verbs thông dụng; củng cố các thì cơ bản qua ngữ cảnh.",
+      "grammarTopics": ["phrasal_verbs", "present_simple", "present_continuous", "past_simple"],
+      "vocabThemes": ["local_community"],
+      "exercises": [
+        { "type": "warm_up", "description": "Kiểm tra thẻ từ vựng; chữa BTVN." },
+        { "type": "practice", "description": "Dạy phrasal verbs (look up, take after, set up...): nghĩa, vị trí tân ngữ; bài tập nhận diện." },
+        { "type": "practice", "description": "Từ vựng Local community + đọc đoạn tìm thông tin; luyện thì trong đoạn." },
+        { "type": "wrap_up", "description": "Tổng kết, kiểm tra nhanh 5 phrasal verbs, giao BTVN." },
+        { "type": "homework", "description": "SBT Unit 1 - Vocabulary & Grammar (bài về phrasal verbs); tạo bộ Quizlet 20 phrasal verbs + ví dụ." },
+        { "type": "warm_up_sample", "description": "Điền phrasal verb: 1. Please ___ the new word in the dictionary. 2. She ___ her mother; they look alike. Đáp án: 1. look up 2. takes after." }
+      ],
+      "resources": [
+        { "label": "British Council - Grammar (tìm \"phrasal verbs\")", "url": "https://learnenglish.britishcouncil.org/grammar" },
+        { "label": "VietJack - Unit 1 từ vựng & A Closer Look (có video)", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 1",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 3,
+      "phaseOrder": 1,
+      "title": "So sánh tính từ & trạng từ (phần 1)",
+      "objective": "Dùng đúng so sánh bằng, hơn, nhất của tính từ; phân biệt tính từ ngắn/dài.",
+      "grammarTopics": ["comparatives", "superlatives", "as_as_comparison"],
+      "vocabThemes": ["city_life", "pronunciation_sh_zh"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "So sánh tính từ: as...as, -er/more, the -est/the most; bất quy tắc (good/bad/far); bài tập." },
+        { "type": "practice", "description": "Từ vựng City life; phát âm âm /ʃ/, /ʒ/; viết câu so sánh về thành phố." },
+        { "type": "wrap_up", "description": "Tổng kết + BTVN." },
+        { "type": "homework", "description": "SBT Unit 2 - Vocabulary & Grammar; British Council - Bài tập so sánh (PDF, có đáp án riêng)." },
+        { "type": "warm_up_sample", "description": "Hoàn thành: 1. Hanoi is ___ (big) than Hue. 2. This is the ___ (good) restaurant in town. 3. The countryside is ___ (peaceful) than the city. Đáp án: 1. bigger 2. best 3. more peaceful." }
+      ],
+      "resources": [
+        { "label": "So sánh tính từ (British Council Teens: video + bài tập tự chấm)", "url": "https://learnenglishteens.britishcouncil.org/grammar/a1-a2-grammar/comparative-superlative-adjectives" },
+        { "label": "VietJack - Từ vựng Unit 2: City life", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 2",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 4,
+      "phaseOrder": 1,
+      "title": "So sánh (phần 2) + so sánh kép - Mini-test 1",
+      "objective": "Dùng so sánh trạng từ và so sánh kép (the more... the more...); làm Mini-test 1.",
+      "grammarTopics": ["comparative_adverbs", "double_comparatives", "would_rather_prefer"],
+      "vocabThemes": ["city_life_descriptive_adjectives"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "So sánh trạng từ; so sánh kép; \"would rather/prefer\"; bài tập tổng hợp." },
+        { "type": "mini_test", "description": "Mini-test 1 (15′): Thì + So sánh." },
+        { "type": "practice", "description": "Chữa mini-test; mở rộng tính từ miêu tả; viết đoạn ngắn so sánh hai nơi." },
+        { "type": "homework", "description": "Test-English - mục Comparative and superlative adjectives and adverbs; SBT Unit 2 - các bài còn lại." },
+        { "type": "warm_up_sample", "description": "Viết lại: The more you practise, ___ you become. (good) Đáp án: the better." }
+      ],
+      "resources": [
+        { "label": "So sánh trạng từ (British Council Teens: video + bài tập tự chấm)", "url": "https://learnenglishteens.britishcouncil.org/grammar/comparative-superlative-adverbs/term" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 50 },
+        { "label": "mini_test", "startMin": 50, "endMin": 65 },
+        { "label": "review_and_practice", "startMin": 75, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 2",
+      "sessionType": "MINI_TEST"
+    },
+    {
+      "sessionNumber": 5,
+      "phaseOrder": 1,
+      "title": "Câu tường thuật (mệnh lệnh, yêu cầu) + modals lời khuyên",
+      "objective": "Tường thuật mệnh lệnh/yêu cầu (tell/ask sb (not) to V); dùng should/ought to/have to để khuyên.",
+      "grammarTopics": ["reported_commands", "reported_requests", "modals_advice"],
+      "vocabThemes": ["healthy_living"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "Reported commands/requests (khẳng định & phủ định); modals khuyên; bài tập biến đổi câu." },
+        { "type": "practice", "description": "Từ vựng sức khỏe; chức năng giao tiếp: đưa lời khuyên; đóng vai." },
+        { "type": "wrap_up", "description": "Tổng kết + BTVN." },
+        { "type": "homework", "description": "SBT Unit 3 - Vocabulary & Grammar." },
+        { "type": "warm_up_sample", "description": "Tường thuật: 1. \"Open the door,\" she said to him. 2. \"Don't be late,\" the teacher said to us. Đáp án: 1. She told him to open the door. 2. The teacher told us not to be late." }
+      ],
+      "resources": [
+        { "label": "Câu tường thuật (British Council Teens: video + bài tập tự chấm)", "url": "https://learnenglishteens.britishcouncil.org/grammar/b1-b2-grammar/reported-speech" },
+        { "label": "Perfect English Grammar - Reported Requests and Orders", "url": "https://www.perfect-english-grammar.com/grammar-exercises.html" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 3",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 6,
+      "phaseOrder": 1,
+      "title": "Từ để hỏi + to-infinitive (how/what/where to do)",
+      "objective": "Dùng cấu trúc \"wh-word + to-infinitive\" sau know/tell/show/ask...",
+      "grammarTopics": ["wh_word_to_infinitive"],
+      "vocabThemes": ["did_you_know_facts"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "Cấu trúc how/what/where/when + to V; so sánh với mệnh đề; bài tập." },
+        { "type": "practice", "description": "Từ vựng về quá khứ/kỷ niệm; đọc hiểu ngắn; ghép câu." },
+        { "type": "wrap_up", "description": "Tổng kết + BTVN." },
+        { "type": "homework", "description": "SBT Unit 3-4 - phần Grammar." },
+        { "type": "warm_up_sample", "description": "Viết lại: I don't know. + How can I get there? → I don't know ___. Đáp án: how to get there." }
+      ],
+      "resources": [
+        { "label": "British Council - Grammar (verb + to-infinitive)", "url": "https://learnenglish.britishcouncil.org/grammar" },
+        { "label": "VietJack - Ngữ pháp theo Unit", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 50 },
+        { "label": "practice", "startMin": 60, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 4",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 7,
+      "phaseOrder": 1,
+      "title": "Câu tường thuật dạng câu hỏi (Yes/No & Wh-)",
+      "objective": "Tường thuật câu hỏi Yes/No (if/whether) và Wh-; lùi thì, đổi trật tự từ.",
+      "grammarTopics": ["reported_yes_no_questions", "reported_wh_questions", "word_formation"],
+      "vocabThemes": ["remembering_the_past", "word_formation_v_to_n", "word_formation_n_to_adj"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "Reported questions: quy tắc lùi thì, bỏ trợ động từ, đổi đại từ & trạng từ; bài tập." },
+        { "type": "practice", "description": "Word formation (V→N, N→Adj); đọc hiểu; luyện chuyển câu hỏi." },
+        { "type": "review", "description": "Ôn tập Units 1-4 chuẩn bị kiểm tra; giao đề ôn." },
+        { "type": "homework", "description": "SBT Unit 4 - Vocabulary & Grammar." },
+        { "type": "warm_up_sample", "description": "Tường thuật: 1. \"Do you live here?\" he asked me. 2. \"Where do you work?\" she asked me. Đáp án: 1. He asked me if I lived there. 2. She asked me where I worked." }
+      ],
+      "resources": [
+        { "label": "Perfect English Grammar - Reported Yes/No Questions; Reported Wh Questions", "url": "https://www.perfect-english-grammar.com/grammar-exercises.html" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "review", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 4",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 8,
+      "phaseOrder": 1,
+      "title": "Ôn tập & KIỂM TRA ĐỊNH KỲ 1 (Units 1-4)",
+      "objective": "Đánh giá tổng hợp Units 1-4; mục tiêu ≥ 9,0; lập danh sách lỗi cần khắc phục.",
+      "grammarTopics": ["units_1_4_review"],
+      "vocabThemes": ["units_1_4_review"],
+      "exercises": [
+        { "type": "review", "description": "Ôn nhanh sơ đồ ngữ pháp Units 1-4 (hỏi đáp)." },
+        { "type": "checkpoint_test", "description": "Làm bài Kiểm tra định kỳ 1 (Đề test sau 8 buổi - 37 câu, 60 phút, đã có trong bộ đề)." },
+        { "type": "review", "description": "Chấm - chữa chi tiết; ghi \"Sổ lỗi sai\"; bài tập sửa lỗi." },
+        { "type": "homework", "description": "Làm lại toàn bộ câu sai; luyện thêm đúng dạng lỗi tại các link ở Thư viện." }
+      ],
+      "resources": [
+        { "label": "Đề test sau 8 buổi trong file Bộ đề; đối chiếu Đáp án & Giải thích", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up_review", "startMin": 0, "endMin": 20 },
+        { "label": "checkpoint_test", "startMin": 20, "endMin": 80 },
+        { "label": "grading_and_review", "startMin": 80, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Units 1-4",
+      "sessionType": "CHECKPOINT"
+    },
+    {
+      "sessionNumber": 9,
+      "phaseOrder": 2,
+      "title": "Hiện tại hoàn thành (for/since, just/already/yet)",
+      "objective": "Dùng đúng hiện tại hoàn thành với for/since và các trạng từ just/already/yet.",
+      "grammarTopics": ["present_perfect", "for_vs_since", "just_already_yet"],
+      "vocabThemes": ["our_experiences", "pronunciation_ed_endings"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "Công thức has/have + V3; for vs since; vị trí just/already/yet; bài tập." },
+        { "type": "practice", "description": "Từ vựng trải nghiệm; phát âm đuôi -ed; viết câu về trải nghiệm cá nhân." },
+        { "type": "wrap_up", "description": "Tổng kết + BTVN." },
+        { "type": "homework", "description": "SBT Unit 5 - Vocabulary & Grammar; Perfect English Grammar - Present Perfect." },
+        { "type": "warm_up_sample", "description": "Chia thì: 1. I (live) ___ here since 2020. 2. She (just/finish) ___ her homework. Đáp án: 1. have lived 2. has just finished." }
+      ],
+      "resources": [
+        { "label": "British Council - Present perfect: just, yet, still, already", "url": "https://learnenglish.britishcouncil.org/grammar/b1-b2-grammar" },
+        { "label": "VietJack - Unit 5 (có video)", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 5",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 10,
+      "phaseOrder": 2,
+      "title": "Hiện tại hoàn thành ↔ Quá khứ đơn - Mini-test 2",
+      "objective": "Phân biệt và dùng đúng HTHT và QKĐ; làm Mini-test 2.",
+      "grammarTopics": ["present_perfect_vs_past_simple"],
+      "vocabThemes": ["experience_collocations"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "So sánh HTHT vs QKĐ (dấu hiệu, ngữ cảnh); bài tập chọn thì." },
+        { "type": "mini_test", "description": "Mini-test 2 (15′): HTHT vs QKĐ." },
+        { "type": "practice", "description": "Chữa; viết đoạn ngắn dùng cả hai thì." },
+        { "type": "homework", "description": "SBT Unit 5 - các bài còn lại." },
+        { "type": "warm_up_sample", "description": "Chọn thì: 1. I (see) ___ this film yesterday. 2. I (never/be) ___ to Japan. Đáp án: 1. saw 2. have never been." }
+      ],
+      "resources": [
+        { "label": "Test-English - Present perfect vs past simple", "url": "https://www.test-english.com/" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 50 },
+        { "label": "mini_test", "startMin": 50, "endMin": 65 },
+        { "label": "review_and_practice", "startMin": 75, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 5",
+      "sessionType": "MINI_TEST"
+    },
+    {
+      "sessionNumber": 11,
+      "phaseOrder": 2,
+      "title": "\"used to\" + V; Câu ước (wish) ở hiện tại",
+      "objective": "Dùng \"used to\" cho thói quen quá khứ; câu ước (wish + past) cho mong muốn hiện tại.",
+      "grammarTopics": ["used_to", "wish_present"],
+      "vocabThemes": ["vietnamese_lifestyle_then_and_now"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "\"used to\" (kđ/phđ/nghi vấn); wish + V quá khứ (were); bài tập." },
+        { "type": "practice", "description": "Từ vựng \"xưa và nay\"; đọc đối chiếu quá khứ-hiện tại; viết câu wish." },
+        { "type": "wrap_up", "description": "Tổng kết + BTVN." },
+        { "type": "homework", "description": "SBT Unit 6 - Vocabulary & Grammar." },
+        { "type": "warm_up_sample", "description": "Hoàn thành: 1. He ___ (smoke) but he gave up. 2. I wish I ___ (be) taller. Đáp án: 1. used to smoke 2. were." }
+      ],
+      "resources": [
+        { "label": "British Council - Past habits: used to, would", "url": "https://learnenglish.britishcouncil.org/grammar" },
+        { "label": "Test-English - Wishes and regrets: I wish / If only", "url": "https://www.test-english.com/" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 6",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 12,
+      "phaseOrder": 2,
+      "title": "Mạo từ (a/an/the/Ø) & lượng từ (quantifiers)",
+      "objective": "Dùng đúng mạo từ và các lượng từ (some/any/much/many/a few/a little).",
+      "grammarTopics": ["articles", "quantifiers"],
+      "vocabThemes": ["natural_wonders", "two_syllable_word_stress"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "Quy tắc mạo từ; lượng từ với danh từ đếm được/không đếm được; bài tập." },
+        { "type": "practice", "description": "Từ vựng kỳ quan thiên nhiên; trọng âm từ 2 âm tiết; đọc hiểu." },
+        { "type": "wrap_up", "description": "Tổng kết + BTVN." },
+        { "type": "homework", "description": "SBT Unit 7 - Vocabulary & Grammar." },
+        { "type": "warm_up_sample", "description": "Điền: 1. She is ___ honest girl. 2. There isn't ___ water left. Đáp án: 1. an 2. much." }
+      ],
+      "resources": [
+        { "label": "British Council - Articles & Quantifiers", "url": "https://learnenglish.britishcouncil.org/grammar" },
+        { "label": "VietJack - Bài tập Unit 7 (có đáp án)", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 7",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 13,
+      "phaseOrder": 2,
+      "title": "Mệnh đề quan hệ xác định (who/which/that/whose)",
+      "objective": "Dùng đại từ quan hệ và viết/nối câu bằng mệnh đề quan hệ xác định.",
+      "grammarTopics": ["relative_clauses_defining"],
+      "vocabThemes": ["tourism"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "who/which/that/whose/where/when; khi nào lược bỏ; nối câu; bài tập." },
+        { "type": "practice", "description": "Từ vựng du lịch; viết câu mô tả địa danh bằng MĐQH." },
+        { "type": "wrap_up", "description": "Tổng kết + BTVN." },
+        { "type": "homework", "description": "SBT Unit 8 - Vocabulary & Grammar." },
+        { "type": "warm_up_sample", "description": "Nối câu: The man is my uncle. He lives next door. Đáp án: The man who lives next door is my uncle." }
+      ],
+      "resources": [
+        { "label": "Mệnh đề quan hệ (British Council Teens: video + bài tập tự chấm)", "url": "https://learnenglishteens.britishcouncil.org/grammar/b1-b2-grammar/relative-clauses" },
+        { "label": "Perfect English Grammar - Defining Relative Clauses 1-3", "url": "https://www.perfect-english-grammar.com/grammar-exercises.html" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 8",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 14,
+      "phaseOrder": 2,
+      "title": "MĐQH không xác định & rút gọn - Mini-test 3",
+      "objective": "Phân biệt MĐQH xác định/không xác định; rút gọn MĐQH; Mini-test 3.",
+      "grammarTopics": ["relative_clauses_non_defining", "relative_clause_reduction"],
+      "vocabThemes": ["tourism_word_formation"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "MĐQH không xác định (dấu phẩy, không dùng that); rút gọn bằng V-ing/V3/to V; bài tập." },
+        { "type": "mini_test", "description": "Mini-test 3 (15′): Mệnh đề quan hệ." },
+        { "type": "practice", "description": "Chữa; word formation; đọc hiểu du lịch." },
+        { "type": "homework", "description": "SBT Unit 8 - các bài còn lại." },
+        { "type": "warm_up_sample", "description": "Hoàn thành: Ha Long Bay, ___ is in Quang Ninh, attracts many tourists. Đáp án: which." }
+      ],
+      "resources": [
+        { "label": "British Council - Relative clauses: defining & non-defining", "url": "https://learnenglish.britishcouncil.org/grammar/b1-b2-grammar/relative-clauses" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 50 },
+        { "label": "mini_test", "startMin": 50, "endMin": 65 },
+        { "label": "review_and_practice", "startMin": 75, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 8",
+      "sessionType": "MINI_TEST"
+    },
+    {
+      "sessionNumber": 15,
+      "phaseOrder": 2,
+      "title": "Câu bị động (các thì) & bị động với modals",
+      "objective": "Chuyển câu chủ động sang bị động ở các thì và với động từ khuyết thiếu.",
+      "grammarTopics": ["passive_voice_tenses", "passive_voice_modals"],
+      "vocabThemes": ["world_englishes", "phrasal_verbs_review"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "Quy tắc bị động theo từng thì; bị động modal (must be done...); bài tập biến đổi." },
+        { "type": "practice", "description": "Từ vựng về tiếng Anh toàn cầu; phrasal verbs (look up, pick up...); đọc hiểu." },
+        { "type": "review", "description": "Ôn tập Units 5-9 chuẩn bị kiểm tra; giao đề ôn." },
+        { "type": "homework", "description": "SBT Unit 9 - Vocabulary & Grammar." },
+        { "type": "warm_up_sample", "description": "Bị động: 1. People speak English worldwide. 2. We must finish the work today. Đáp án: 1. English is spoken worldwide. 2. The work must be finished today." }
+      ],
+      "resources": [
+        { "label": "Perfect English Grammar - Passive (Present/Past/Present Perfect/Future...)", "url": "https://www.perfect-english-grammar.com/grammar-exercises.html" },
+        { "label": "VietJack - Giải SBT Unit 9", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "review", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 9",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 16,
+      "phaseOrder": 2,
+      "title": "Ôn tập & KIỂM TRA ĐỊNH KỲ 2 (Units 5-9)",
+      "objective": "Đánh giá tổng hợp Units 5-9; mục tiêu ≥ 9,0; cập nhật Sổ lỗi sai.",
+      "grammarTopics": ["units_5_9_review"],
+      "vocabThemes": ["units_5_9_review"],
+      "exercises": [
+        { "type": "review", "description": "Ôn nhanh sơ đồ ngữ pháp Units 5-9." },
+        { "type": "checkpoint_test", "description": "Kiểm tra định kỳ 2 (đề mốc buổi 16 - Units 5-9; có thể yêu cầu giáo viên soạn cùng định dạng)." },
+        { "type": "review", "description": "Chấm - chữa chi tiết; ôn trọng tâm lỗi sai." },
+        { "type": "homework", "description": "Luyện thêm theo dạng lỗi sai tại các link Thư viện (passive, relative clauses, present perfect)." }
+      ],
+      "resources": [
+        { "label": "Đề định kỳ Units 5-9; tham khảo cách ra đề trong file Bộ đề (định dạng chuẩn thi vào 10)", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up_review", "startMin": 0, "endMin": 20 },
+        { "label": "checkpoint_test", "startMin": 20, "endMin": 80 },
+        { "label": "grading_and_review", "startMin": 80, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Units 5-9",
+      "sessionType": "CHECKPOINT"
+    },
+    {
+      "sessionNumber": 17,
+      "phaseOrder": 3,
+      "title": "Câu điều kiện loại 1 (real)",
+      "objective": "Dùng câu điều kiện loại 1 để nói về tình huống có thật/có thể xảy ra ở tương lai.",
+      "grammarTopics": ["conditionals_type_1", "zero_conditional", "unless_as_long_as"],
+      "vocabThemes": ["planet_earth_environment"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "If + hiện tại đơn, will + V; unless/as long as; zero conditional (sự thật); bài tập." },
+        { "type": "practice", "description": "Từ vựng môi trường; đọc hiểu; viết câu điều kiện về bảo vệ môi trường." },
+        { "type": "wrap_up", "description": "Tổng kết + BTVN." },
+        { "type": "homework", "description": "SBT Unit 10 - Vocabulary & Grammar; Perfect English Grammar - First Conditional." },
+        { "type": "warm_up_sample", "description": "Hoàn thành: If we (not protect) ___ forests, animals (lose) ___ their homes. Đáp án: don't protect / will lose." }
+      ],
+      "resources": [
+        { "label": "Câu điều kiện (British Council Teens: video + bài tập tự chấm)", "url": "https://learnenglishteens.britishcouncil.org/grammar/b1-b2-grammar/conditionals" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 10",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 18,
+      "phaseOrder": 3,
+      "title": "Câu điều kiện loại 2 (unreal) - Mini-test 4",
+      "objective": "Dùng câu điều kiện loại 2; phân biệt loại 1 và loại 2; Mini-test 4.",
+      "grammarTopics": ["conditionals_type_2", "conditionals_1_vs_2", "if_i_were_you"],
+      "vocabThemes": ["environment_advanced_vocabulary"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "If + QKĐ, would/could + V; \"If I were you...\"; phân biệt loại 1/2; bài tập." },
+        { "type": "mini_test", "description": "Mini-test 4 (15′): Câu điều kiện." },
+        { "type": "practice", "description": "Chữa; viết câu điều kiện loại 2 theo chủ đề." },
+        { "type": "homework", "description": "SBT Unit 10 - các bài còn lại." },
+        { "type": "warm_up_sample", "description": "Viết lại: I don't have a car, so I can't go there. → If I ___. Đáp án: If I had a car, I could go there." }
+      ],
+      "resources": [
+        { "label": "Test-English - Second conditional; First and second conditionals", "url": "https://www.test-english.com/" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 50 },
+        { "label": "mini_test", "startMin": 50, "endMin": 65 },
+        { "label": "review_and_practice", "startMin": 75, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 10",
+      "sessionType": "MINI_TEST"
+    },
+    {
+      "sessionNumber": 19,
+      "phaseOrder": 3,
+      "title": "Câu điều kiện loại 2 (mở rộng) + câu ghép/phức",
+      "objective": "Củng cố điều kiện loại 2; viết câu ghép (and/but/so) và câu phức (although/because/when...).",
+      "grammarTopics": ["conditionals_type_2", "compound_sentences", "complex_sentences", "connectors"],
+      "vocabThemes": ["changing_roles_in_society"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "Liên từ kết hợp & phụ thuộc; câu ghép/phức; bài tập nối câu." },
+        { "type": "practice", "description": "Từ vựng chủ đề xã hội; đọc hiểu; viết đoạn dùng liên từ." },
+        { "type": "wrap_up", "description": "Tổng kết + BTVN." },
+        { "type": "homework", "description": "SBT Unit 11 - Vocabulary & Grammar." },
+        { "type": "warm_up_sample", "description": "Nối câu: It was raining. We went out. (although) Đáp án: Although it was raining, we went out." }
+      ],
+      "resources": [
+        { "label": "Test-English - However, although, because, so, and time connectors", "url": "https://www.test-english.com/" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 11",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 20,
+      "phaseOrder": 3,
+      "title": "Tổng ôn phrasal verbs & câu tường thuật",
+      "objective": "Hệ thống hóa phrasal verbs và toàn bộ câu tường thuật; từ vựng nghề nghiệp.",
+      "grammarTopics": ["phrasal_verbs", "reported_speech_review"],
+      "vocabThemes": ["career_choices"],
+      "exercises": [
+        { "type": "warm_up", "description": "Warm-up + chữa BTVN." },
+        { "type": "grammar_teach", "description": "Sơ đồ tổng hợp reported speech (statement/command/question); ôn phrasal verbs; bài tập." },
+        { "type": "practice", "description": "Từ vựng nghề nghiệp; viết đoạn ngắn về ước mơ nghề nghiệp." },
+        { "type": "wrap_up", "description": "Tổng kết + BTVN tổng hợp Units 10-12." },
+        { "type": "homework", "description": "SBT Unit 12 - Vocabulary & Grammar." },
+        { "type": "warm_up_sample", "description": "Tường thuật: \"I will become a doctor,\" she said. Đáp án: She said (that) she would become a doctor." }
+      ],
+      "resources": [
+        { "label": "British Council - Reported speech (ôn tổng hợp)", "url": "https://learnenglish.britishcouncil.org/grammar/b1-b2-grammar/reported-speech" },
+        { "label": "VietJack - Ngữ pháp Unit 12", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "warm_up", "startMin": 0, "endMin": 10 },
+        { "label": "grammar_teach", "startMin": 10, "endMin": 55 },
+        { "label": "practice", "startMin": 65, "endMin": 100 },
+        { "label": "wrap_up", "startMin": 100, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Unit 12",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 21,
+      "phaseOrder": 3,
+      "title": "Tổng ôn ngữ pháp toàn chương trình + word formation + trọng âm",
+      "objective": "Vẽ sơ đồ ngữ pháp toàn khóa; luyện word formation và trọng âm; mẹo làm trắc nghiệm.",
+      "grammarTopics": ["grammar_review_all_units", "word_formation", "stress_rules"],
+      "vocabThemes": ["all_12_unit_themes_review"],
+      "exercises": [
+        { "type": "practice", "description": "Cùng học sinh vẽ sơ đồ hệ thống ngữ pháp 12 Unit." },
+        { "type": "grammar_teach", "description": "Luyện word formation (V/N/Adj/Adv) + quy tắc trọng âm; bài tập." },
+        { "type": "practice", "description": "Tổng ôn 12 chủ đề từ vựng (trò chơi/flashcard); mẹo loại trừ trong trắc nghiệm." },
+        { "type": "homework", "description": "Giao đề tổng hợp ngữ pháp; bộ flashcard 12 Unit trên Quizlet." }
+      ],
+      "resources": [
+        { "label": "Test-English - ôn tổng hợp theo cấp độ B1", "url": "https://www.test-english.com/" },
+        { "label": "Cambridge Dictionary - kiểm tra trọng âm & họ từ", "url": "https://dictionary.cambridge.org/" }
+      ],
+      "timeBlocks": [
+        { "label": "grammar_map_building", "startMin": 0, "endMin": 15 },
+        { "label": "word_formation_and_stress", "startMin": 15, "endMin": 60 },
+        { "label": "vocab_review", "startMin": 70, "endMin": 110 },
+        { "label": "homework_assignment", "startMin": 110, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Units 1-12",
+      "sessionType": "REGULAR"
+    },
+    {
+      "sessionNumber": 22,
+      "phaseOrder": 3,
+      "title": "Luyện đề thi vào 10 - Đề số 1",
+      "objective": "Làm trọn 1 đề theo cấu trúc thi vào 10; rút kinh nghiệm.",
+      "grammarTopics": ["exam_practice"],
+      "vocabThemes": ["exam_time_management"],
+      "exercises": [
+        { "type": "mock_exam", "description": "Làm Đề số 1 (bấm giờ như thi thật) - dùng Đề test sau 24 buổi (45 câu, 60 phút) trong bộ đề." },
+        { "type": "review", "description": "Chữa chi tiết từng phần; phân tích dạng bài; mẹo phân bổ thời gian." },
+        { "type": "homework", "description": "Giao làm lại câu sai; đề tuyển sinh vào 10 các năm gần nhất của tỉnh/thành dự thi." }
+      ],
+      "resources": [
+        { "label": "Đề test sau 24 buổi trong file Bộ đề làm đề luyện số 1; hoặc đề tuyển sinh của Sở GD&ĐT", "url": "" },
+        { "label": "VietJack - kho đề/bài tập có đáp án", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "mock_exam", "startMin": 0, "endMin": 55 },
+        { "label": "detailed_review", "startMin": 65, "endMin": 115 },
+        { "label": "homework_assignment", "startMin": 115, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Units 1-12",
+      "sessionType": "MOCK_EXAM"
+    },
+    {
+      "sessionNumber": 23,
+      "phaseOrder": 3,
+      "title": "Luyện đề thi vào 10 - Đề số 2 + ôn sâu điểm yếu",
+      "objective": "Làm Đề số 2; tập trung củng cố phần học sinh còn yếu.",
+      "grammarTopics": ["exam_practice", "weak_point_remediation"],
+      "vocabThemes": ["personalized_weak_areas"],
+      "exercises": [
+        { "type": "mock_exam", "description": "Làm Đề số 2 (bấm giờ)." },
+        { "type": "review", "description": "Chữa; ôn sâu 1-2 dạng yếu nhất (ví dụ viết lại câu/đọc hiểu)." },
+        { "type": "homework", "description": "Đề tự luyện + làm lại các câu sai của Đề 1 & 2." }
+      ],
+      "resources": [
+        { "label": "Perfect English Grammar - luyện đúng dạng còn yếu", "url": "https://www.perfect-english-grammar.com/grammar-exercises.html" }
+      ],
+      "timeBlocks": [
+        { "label": "mock_exam", "startMin": 0, "endMin": 55 },
+        { "label": "targeted_review", "startMin": 65, "endMin": 110 },
+        { "label": "homework_assignment", "startMin": 110, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Units 1-12",
+      "sessionType": "MOCK_EXAM"
+    },
+    {
+      "sessionNumber": 24,
+      "phaseOrder": 3,
+      "title": "Đề thi thử tổng kết + tổng kết khóa",
+      "objective": "Làm đề thi thử tổng kết; chốt kết quả; lập kế hoạch tự học trong năm.",
+      "grammarTopics": ["final_comprehensive_review"],
+      "vocabThemes": ["whole_program_review"],
+      "exercises": [
+        { "type": "mock_exam", "description": "Làm Đề thi thử tổng kết (mock final)." },
+        { "type": "review", "description": "Chấm - chữa; đối chiếu mục tiêu ≥ 9,5; tổng kết tiến bộ." },
+        { "type": "wrap_up", "description": "Định hướng tự học năm lớp 9; bàn giao bộ tài liệu & đề tự luyện." },
+        { "type": "homework", "description": "Bộ đề ôn tập tự luyện cho cả năm; duy trì flashcard & 1 đề/tuần." }
+      ],
+      "resources": [
+        { "label": "Dùng đề tổng kết; tổng hợp toàn bộ link Thư viện cho học sinh tự học tiếp", "url": "" }
+      ],
+      "timeBlocks": [
+        { "label": "mock_final_exam", "startMin": 0, "endMin": 60 },
+        { "label": "grading_and_progress_review", "startMin": 60, "endMin": 105 },
+        { "label": "self_study_planning", "startMin": 105, "endMin": 120 }
+      ],
+      "unitMapping": "Global Success Units 1-12",
+      "sessionType": "MOCK_EXAM"
+    }
+  ]
+}

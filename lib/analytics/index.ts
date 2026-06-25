@@ -1,0 +1,139 @@
+/**
+ * Analytics module exports.
+ * Public API for analytics computation across the LEXI application.
+ *
+ * Import hierarchy (no circular deps):
+ *   examBlueprint → (no analytics deps)
+ *   types         → examBlueprint (via Prisma enums)
+ *   confidenceEngine → types
+ *   canonicalTopic  → (no analytics deps)
+ *   sessionAnalytics → examBlueprint, types, confidenceEngine, canonicalTopic
+ *   repository      → types (Prisma queries)
+ *   service         → repository, sessionAnalytics, types
+ *   contracts       → examBlueprint, types, service (mapping only — no Prisma)
+ */
+
+// Blueprint configuration
+export {
+  EXAM_SECTION_WEIGHTS,
+  EXAM_SECTION_DEPTH,
+  SECTION_LABELS,
+  ALL_SECTIONS,
+} from "./examBlueprint";
+
+// Type definitions
+export type {
+  CoverageStatus,
+  SectionCoverage,
+  BlueprintCoverage,
+  SectionBreakdown,
+  ReadinessResult,
+  WrongAttemptDetail,
+  PatternObservation,
+  NotebookContext,
+  WeaknessTopic,
+  SessionAnalyticsResult,
+  SectionDropAnalysis,
+  ComparisonDirection,
+  TopicComparison,
+  SessionComparisonResult,
+} from "./types";
+
+export { ConfidenceTier } from "./types";
+
+// Confidence system
+export {
+  determineWeaknessConfidence,
+  determinePatternConfidence,
+  determineComparisonConfidence,
+  determineSectionDropConfidence,
+  determineReadinessConfidence,
+  STUDENT_CONFIDENCE_LABEL,
+  CONFIDENCE_COLOR,
+  TUTOR_TIER_LABEL,
+} from "./confidenceEngine";
+
+// Canonical topic normalization
+export { canonicalTopic } from "./canonicalTopic";
+
+// Repository (DB queries — import separately, never from inside the engine)
+export type {
+  AttemptWithQuestion,
+  NotebookContextRow,
+} from "./repository";
+export {
+  fetchSessionAttempts,
+  fetchNotebookContext,
+  fetchSessionComparisonData,
+  resolveSessionId,
+} from "./repository";
+
+// Pure analytics engine
+export type { AttemptInput } from "./sessionAnalytics";
+export {
+  computeBlueprintCoverage,
+  computeReadiness,
+  computeWeaknessSignals,
+  computeSessionComparison,
+} from "./sessionAnalytics";
+
+// Service orchestration (repository + engine, no Prisma)
+export type { SessionAnalyticsOutput } from "./service";
+export {
+  getSessionAnalytics,
+  getSessionComparison,
+  enrichWeaknessWithNotebook,
+} from "./service";
+
+// API contracts — stable frontend-facing types and mappers
+// These are the only types frontend components should import from analytics
+export type {
+  ReadinessBand,
+  ConfidenceLevel,
+  SectionCoverageStatus,
+  ReadinessSummary,
+  BlueprintSectionItem,
+  BlueprintCoverageSummary,
+  SectionBreakdownItem,
+  PatternSignal,
+  NotebookRecord,
+  WrongAnswerItem,
+  WeaknessSignalItem,
+  SessionAnalyticsResponse,
+  TopicComparisonItem,
+  SessionComparisonResponse,
+} from "./contracts";
+export {
+  toSessionAnalyticsResponse,
+  toSessionComparisonResponse,
+} from "./contracts";
+
+// Narrative layer — pure deterministic text generation from contract types
+export type {
+  ReadinessNarrative,
+  WeaknessNarrative,
+  ComparisonNarrative,
+} from "./narrative";
+export {
+  generateReadinessNarrative,
+  generateWeaknessNarrative,
+  generateComparisonNarrative,
+} from "./narrative";
+
+// Notebook intelligence — cross-references ErrorNotebookEntry with QuestionAttempt
+// to produce improvement signals and priority summaries per topic
+export type { ImprovementSignal, TopicNotebookSummary } from "./notebookIntelligence";
+export {
+  computeImprovementSignal,
+  getTopicNotebookSummaries,
+  getPriorityReviewTopic,
+} from "./notebookIntelligence";
+
+// Mastery tracking — derives sustained-mastery state from notebook summaries
+// Pure computation layer; no additional DB queries beyond notebookIntelligence.
+export type { MasteryState, TopicMasteryProfile } from "./masteryTracking";
+export {
+  computeTopicMastery,
+  getTopicMasteryProfiles,
+  countByMasteryState,
+} from "./masteryTracking";

@@ -1,0 +1,488 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+//
+// NOTE on datasource provider: this schema targets SQLite for local
+// development because this environment has no local Postgres/Docker
+// available. For production, switch `provider` below to "postgresql"
+// (e.g. Neon) and point DATABASE_URL at it — the schema itself (field
+// names, relations, enums) is portable. A few native-type annotations
+// (Decimal/Text/VarChar) were intentionally omitted since SQLite doesn't
+// support them; re-add `@db.Decimal`, `@db.Text`, `@db.VarChar` to the
+// relevant fields when moving to Postgres if column-level precision matters.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────────────────────────
+// USERS & LEARNER PROFILE
+// ──────────────────────────────────────────────────────────────────
+
+enum Role {
+  STUDENT
+  PARENT
+  TUTOR
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?
+  name         String
+  role         Role     @default(STUDENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile      LearnerProfile?
+  chatSessions ChatSession[]
+  errorEntries ErrorNotebookEntry[]
+  skillMatrix  SkillMatrixEntry[]
+  progress     UserSessionProgress[]
+  attempts     QuestionAttempt[]
+
+  // Future admin content pipeline — unused by the MVP student flow.
+  contentSources          ContentSource[]          @relation("UploadedContentSources")
+  reviewedExtractedDrafts ExtractedQuestionDraft[] @relation("ReviewedExtractedDrafts")
+
+  diagnosticTests DiagnosticTest[]
+  moodEntries     MoodEntry[]
+}
+
+model LearnerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  gradeLevel      String @default("grade9")
+  targetExam      String @default("hanoi_thpt_2027")
+  targetScore     Float
+  currentScore    Float?
+  diagnosticScore Float?
+
+  strengths       String? // JSON array, e.g. ["reading_comprehension"]
+  weaknesses      String? // JSON array; MVP: manual/rule-derived, future: AI-written
+  learningHistory String? // JSON array of timeline events
+
+  preferredAmbientSound String? // future Focus Mode, unused in MVP
+  onboardingCompletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ──────────────────────────────────────────────────────────────────
+// QUESTION BANK — normalized per product requirement
+// ──────────────────────────────────────────────────────────────────
+
+enum QuestionType {
+  PHONETICS_SOUND
+  PHONETICS_STRESS
+  GRAMMAR_MCQ
+  WORD_FORMATION
+  ERROR_IDENTIFICATION
+  CLOZE
+  READING_COMPREHENSION
+  SENTENCE_TRANSFORMATION
+}
+
+enum SkillCategory {
+  PHONETICS_STRESS
+  VOCAB_GRAMMAR
+  COMMUNICATION
+  READING
+  WRITING_TRANSFORMATION
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model Passage {
+  id             String   @id @default(cuid())
+  title          String?
+  bodyText       String
+  passageType    String   @default("reading")
+  sourceProvince String? // future multi-province expansion
+  sourceYear     Int?
+  createdAt      DateTime @default(now())
+
+  questions Question[]
+}
+
+model Question {
+  id                String        @id @default(cuid())
+  questionCode      String        @unique // human-readable, e.g. "DIAG36_Q01"
+  type              QuestionType
+  skill             SkillCategory
+  difficulty        Difficulty    @default(MEDIUM)
+  topic             String // e.g. "reported_speech" — required, normalized
+  promptText        String
+  optionA           String
+  optionB           String
+  optionC           String
+  optionD           String
+  correctOption     String // "A" | "B" | "C" | "D"
+  explanationVi     String
+  commonMistake     String? // explicit normalization field
+  learningObjective String? // explicit normalization field
+  source            String // e.g. "Bo_de_test_Tieng_Anh_9 - diagnostic_36q"
+  sourceExam        String? // nullable now; future "hanoi_2025" etc.
+  tags              String? // JSON object; future-only facets (province, examYear...)
+
+  passageId String?
+  passage   Passage? @relation(fields: [passageId], references: [id])
+
+  curriculumSessionId String?
+  curriculumSession   CurriculumSession? @relation(fields: [curriculumSessionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attempts     QuestionAttempt[]
+  errorEntries ErrorNotebookEntry[]
+
+  @@index([skill, topic])
+  @@index([type])
+}
+
+model QuestionAttempt {
+  id                  String             @id @default(cuid())
+  userId              String
+  user                User               @relation(fields: [userId], references: [id])
+  questionId          String
+  question            Question           @relation(fields: [questionId], references: [id])
+  selectedOption      String
+  isCorrect           Boolean
+  timeSpentSec        Int?
+  attemptedAt         DateTime           @default(now())
+  curriculumSessionId String?
+  curriculumSession   CurriculumSession? @relation(fields: [curriculumSessionId], references: [id])
+
+  @@index([userId, questionId])
+  @@index([userId, curriculumSessionId])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// ERROR NOTEBOOK
+// ──────────────────────────────────────────────────────────────────
+
+enum ErrorStatus {
+  OPEN
+  REVIEWING
+  MASTERED
+}
+
+model ErrorNotebookEntry {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  questionId String?
+  question   Question? @relation(fields: [questionId], references: [id])
+
+  studentAnswer     String
+  correctAnswer     String
+  reason            String
+  concept           String // links to skill matrix
+  occurrenceCount   Int     @default(1)
+  isRemedialFlagged Boolean @default(false)
+
+  // Spaced repetition fields — present now, MVP uses a simple fixed-offset
+  // stub; future SM-2 scheduler only changes the write logic, not the schema.
+  reviewStage    Int       @default(0) // maps to Day 1/3/7/14/30 later
+  nextReviewAt   DateTime?
+  lastReviewedAt DateTime?
+  easeFactor     Float? // unused in MVP, future SM-2 input
+
+  status ErrorStatus @default(OPEN)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, nextReviewAt])
+  @@index([userId, concept])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// SKILL MATRIX / PROGRESS
+// ──────────────────────────────────────────────────────────────────
+
+enum ComputeSource {
+  MANUAL
+  RULE_BASED
+  AI
+}
+
+model SkillMatrixEntry {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  skill          SkillCategory
+  percentage     Float
+  computedBy     ComputeSource @default(MANUAL)
+  lastComputedAt DateTime      @default(now())
+
+  @@unique([userId, skill])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// CURRICULUM / LESSONS — normalized per product requirement
+// ──────────────────────────────────────────────────────────────────
+
+enum SessionType {
+  REGULAR
+  CHECKPOINT
+  MINI_TEST
+  MOCK_EXAM
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model CurriculumPhase {
+  id           String @id @default(cuid())
+  name         String // "Foundation" | "Core" | "Exam Prep"
+  order        Int
+  startSession Int
+  endSession   Int
+  goal         String
+
+  sessions CurriculumSession[]
+}
+
+model CurriculumSession {
+  id            String          @id @default(cuid())
+  phaseId       String
+  phase         CurriculumPhase @relation(fields: [phaseId], references: [id])
+  sessionNumber Int             @unique
+  title         String
+  objective     String // explicit lesson objective field
+  grammarTopics String? // JSON array of topic strings
+  vocabThemes   String? // JSON array
+  exercises     String? // JSON array of {type, description}
+  resources     String? // JSON array of {label, url}
+  timeBlocks    String // JSON array of {label, startMin, endMin}
+  unitMapping   String? // e.g. "Global Success Unit 1"
+  sessionType   SessionType     @default(REGULAR)
+
+  questions     Question[] // related questions, via Question.curriculumSessionId
+  questionAttempts QuestionAttempt[] // attempts submitted in this session context
+  userProgress  UserSessionProgress[]
+}
+
+model UserSessionProgress {
+  id                  String            @id @default(cuid())
+  userId              String
+  user                User              @relation(fields: [userId], references: [id])
+  curriculumSessionId String
+  curriculumSession   CurriculumSession @relation(fields: [curriculumSessionId], references: [id])
+  status              ProgressStatus    @default(NOT_STARTED)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  scoreAchieved       Float?
+
+  @@unique([userId, curriculumSessionId])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// LEXI AI CHATBOT
+// ──────────────────────────────────────────────────────────────────
+
+enum ChatMode {
+  TEACHER
+  ERROR_DETECTIVE
+  PRACTICE_GENERATOR
+  EXAM_COACH
+  MOTIVATION
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model ChatSession {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  mode            ChatMode @default(TEACHER)
+  title           String?
+  contextSnapshot String? // JSON snapshot of what was injected at session start
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  messages ChatMessage[]
+}
+
+model ChatMessage {
+  id            String      @id @default(cuid())
+  chatSessionId String
+  chatSession   ChatSession @relation(fields: [chatSessionId], references: [id])
+  role          MessageRole
+  content       String
+  attachmentUrl String? // unused in MVP, future Error Detective Mode
+  tokensUsed    Int?
+  createdAt     DateTime    @default(now())
+
+  @@index([chatSessionId, createdAt])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// CONTENT IMPORT PIPELINE (admin tooling — /admin/content-import)
+// ──────────────────────────────────────────────────────────────────
+// Flow: admin uploads a PDF/DOCX/image (ContentSource) -> runs an
+// ImportJob (extraction + normalization — currently a placeholder that
+// returns canned sample drafts, see lib/services/contentImport.ts) ->
+// each candidate question becomes an ExtractedQuestionDraft -> human
+// reviews/edits -> approved drafts become real Question rows. A
+// ContentSource can have multiple ImportJobs (e.g. re-run after improving
+// extraction) — job-level status is separate from the source itself.
+
+enum ContentFileType {
+  PDF
+  DOCX
+  IMAGE
+}
+
+model ContentSource {
+  id          String          @id @default(cuid())
+  userId      String // admin who uploaded it
+  user        User            @relation("UploadedContentSources", fields: [userId], references: [id])
+  fileName    String
+  fileType    ContentFileType
+  // Storage location for the raw file — local path or future object-storage
+  // URL (e.g. S3/Vercel Blob). Kept as a plain string so swapping storage
+  // backends later doesn't require a schema change.
+  storagePath String
+  sourceLabel String? // e.g. "Hai Phong 2026 entrance exam" — free text, future tagging
+
+  // Exam tagging metadata — supports the future multi-province/year exam
+  // database (see Question.tags/sourceProvince/sourceYear). Optional and
+  // admin-entered at upload time; nullable since not every source is a
+  // dated provincial exam (e.g. a generic worksheet).
+  province       String? // e.g. "Hà Nội", "Hải Phòng"
+  examYear       Int? // e.g. 2026
+  examType       String? // e.g. "official_exam", "mock_exam", "practice"
+  gradeLevel     String? // e.g. "grade9" — matches LearnerProfile.gradeLevel
+  subject        String? // e.g. "english" — forward-looking, app is English-only today
+  // Original uploaded file name, captured separately from `fileName` in
+  // case a future pipeline step renames/splits files (e.g. unzipping a
+  // multi-file archive) and `fileName` no longer matches what was uploaded.
+  sourceFileName String?
+
+  createdAt DateTime @default(now())
+
+  importJobs ImportJob[]
+}
+
+enum ImportJobStatus {
+  PENDING // job created, not yet run
+  EXTRACTING // AI extraction in progress
+  EXTRACTED // raw text extracted, ready to normalize
+  REVIEWING // drafts created, awaiting human review
+  IMPORTED // all approved drafts written to Question
+  FAILED // extraction/normalization errored
+}
+
+model ImportJob {
+  id              String        @id @default(cuid())
+  contentSourceId String
+  contentSource   ContentSource @relation(fields: [contentSourceId], references: [id])
+
+  status           ImportJobStatus @default(PENDING)
+  rawExtractedText String? // AI extraction output, pre-normalization
+  errorMessage     String? // set when status = FAILED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  drafts ExtractedQuestionDraft[]
+}
+
+enum ReviewStatus {
+  PENDING_REVIEW
+  APPROVED
+  EDITED // admin changed fields before approving
+  REJECTED
+}
+
+model ExtractedQuestionDraft {
+  id          String    @id @default(cuid())
+  importJobId String
+  importJob   ImportJob @relation(fields: [importJobId], references: [id])
+
+  // Proposed fields produced by extraction/normalization, shaped like the
+  // target Question seed format (see prisma/seed-data/questions.json) until
+  // a human approves it. JSON keeps this decoupled from schema changes on
+  // Question itself.
+  normalizedData String
+
+  reviewStatus     ReviewStatus @default(PENDING_REVIEW)
+  reviewedByUserId String?
+  reviewedBy       User?        @relation("ReviewedExtractedDrafts", fields: [reviewedByUserId], references: [id])
+  reviewNote       String?
+
+  // Set once APPROVED and the real row has been created, so re-running
+  // import never duplicates a question.
+  importedQuestionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([importJobId, reviewStatus])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// DIAGNOSTIC TEST
+// ──────────────────────────────────────────────────────────────────
+
+model DiagnosticTest {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  grammarScore    Float
+  vocabularyScore Float
+  readingScore    Float
+  estimatedLevel  String // e.g. "A2", "B1" — free string, simple rule-derived in MVP
+
+  takenAt DateTime @default(now())
+
+  @@index([userId, takenAt])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// LEARNING MOOD TRACKING
+// ──────────────────────────────────────────────────────────────────
+
+enum Mood {
+  GREAT
+  GOOD
+  OKAY
+  TIRED
+  STRESSED
+}
+
+model MoodEntry {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  mood Mood
+  note String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
