@@ -1,150 +1,167 @@
-# Lexi
+# LEXI
 
-AI English coach for a Hanoi grade-10 entrance exam student. Next.js (App
-Router, TypeScript) + Prisma + a multi-provider AI layer (Gemini / Claude /
-Mock). See [PROJECT_STATUS.md](./PROJECT_STATUS.md) for the full
-architecture/schema/feature overview.
+> An adaptive learning system that answers one question for a learner, every day, correctly:
+> **"What should I do next, and why?"**
 
-## Setup
+LEXI turns what a learner *does* into what the system should *suggest they do next* — continuously,
+grounded in evidence, without ever pretending to know more than it does. Today it coaches a Hanoi
+grade-10 entrance-exam student; the architecture is built so that scope is never structurally
+hard-coded. Next.js (App Router, TypeScript) + Prisma + a multi-provider AI layer (Gemini / Claude /
+Mock).
+
+---
+
+## Mission
+
+Not "what is available." Not "what would you like to talk about." **One** recommended action,
+grounded in evidence about what this specific learner has and hasn't mastered, that moves them
+measurably closer to their goal. LEXI is a *learning system with an AI component* — never an AI
+product with a learning skin. Full product constitution: [`docs/LEXI_FOUNDATION.md`](docs/LEXI_FOUNDATION.md).
+
+---
+
+## Architecture
+
+LEXI's design is a **frozen Baseline** — discovered, validated across seven domains, and audited
+against the implementation. Its spine is one closed loop:
+
+```
+Evidence  ─►  Understanding  ─►  Recommendation  ─►  Communication Boundary  ─►  Learner
+ (fact)       (belief, always     (one suggestion,      (fidelity: nothing         │
+   ▲           confidence-          never a command)      added or lost on the way) │
+   └───────────  qualified) ──────────────────────────────────────────────────────┘
+                          the learner's response becomes new Evidence
+```
+
+Four frozen chapters define it, all in [`docs/LEXI_SYSTEM.md`](docs/LEXI_SYSTEM.md):
+
+| Chapter | Answers |
+|---|---|
+| **Ch.1 — Learning Domain Model** | What exists in the learning world? (ontology) |
+| **Ch.2 — Learning Engine** | What does the system believe about the learner? |
+| **Ch.3 — Decision Policy** | Given belief, what does it suggest? |
+| **Ch.4 — Communication Boundary** | When an artifact reaches a consumer, is its authority preserved? |
+
+Five-minute tour of the whole shape: [`docs/HOW_INFORMATION_FLOWS.md`](docs/HOW_INFORMATION_FLOWS.md).
+
+---
+
+## Documentation
+
+All documentation lives in [`docs/`](docs/). Three documents form LEXI's DNA — read them in order:
+
+| Document | Answers | Authority |
+|---|---|---|
+| [`LEXI_FOUNDATION.md`](docs/LEXI_FOUNDATION.md) | *Why LEXI exists* | Philosophy |
+| [`LEXI_SYSTEM.md`](docs/LEXI_SYSTEM.md) | *How LEXI is built* | Architecture & Ontology |
+| [`LEXI_ENGINEERING_CONSTITUTION.md`](docs/LEXI_ENGINEERING_CONSTITUTION.md) | *How LEXI is developed* | Engineering Governance |
+
+Supporting maps: [`DOCUMENT_HIERARCHY.md`](docs/DOCUMENT_HIERARCHY.md) (authority ladder, authoritative
+vs derived), [`BASELINE_ARCHITECTURE.md`](docs/BASELINE_ARCHITECTURE.md) (system map),
+[`GLOSSARY.md`](docs/GLOSSARY.md), [`SYSTEM_INVARIANTS_MATRIX.md`](docs/SYSTEM_INVARIANTS_MATRIX.md).
+Living status is [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md); the full historical record is
+under [`docs/archive/`](docs/archive/).
+
+---
+
+## Getting Started
+
+The dev database is SQLite — zero external services required.
 
 ```bash
 npm install
 npx prisma generate
-npx prisma migrate deploy
-npm run db:seed
-npm run dev
+npx prisma migrate deploy   # create the local dev database from migrations
+npm run db:seed             # seed curriculum, questions, and demo accounts
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and log in with
-`student@lexi.local` / `lexi1234` (or your `STUDENT_*` overrides, see below)
-for the student app, or `admin@lexi.local` / `lexi-admin-1234` (or your
-`ADMIN_*` overrides) for `/admin/content-import`.
+Seeded logins: **student@lexi.local** / **lexi1234** (student app), and
+**admin@lexi.local** / **lexi-admin-1234** for `/admin/content-import` (override with `STUDENT_*` /
+`ADMIN_*` env vars at seed time).
 
-## AI provider setup
+> This project targets a customized build of Next.js — read the relevant guide under
+> `node_modules/next/dist/docs/` before writing framework code (see [`AGENTS.md`](AGENTS.md)).
 
-Lexi's chat and admin content-import normalization both go through the same
-`AIProvider` abstraction (`lib/ai/providers/`), which supports three
-providers — pick one with `AI_PROVIDER` in `.env`:
+### AI provider
 
-| `AI_PROVIDER` value | Needs | Notes |
+Chat and admin content-import normalization go through one `AIProvider` abstraction
+(`lib/ai/providers/`). Pick one with `AI_PROVIDER` in `.env`:
+
+| `AI_PROVIDER` | Needs | Notes |
 |---|---|---|
-| `gemini` (recommended) | `GOOGLE_GEMINI_API_KEY` | **Free tier** — get a key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Default model: `gemini-2.0-flash` (override with `GEMINI_MODEL`). |
-| `anthropic` | `ANTHROPIC_API_KEY` | Paid only, no free tier. Get a key at [console.anthropic.com](https://console.anthropic.com/). |
-| `mock` | nothing | Clearly-labeled canned demo replies — no AI cost, no network calls. |
+| `gemini` (recommended) | `GOOGLE_GEMINI_API_KEY` | **Free tier** — [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Default model `gemini-2.0-flash` (`GEMINI_MODEL` to override). |
+| `anthropic` | `ANTHROPIC_API_KEY` | Paid — [console.anthropic.com](https://console.anthropic.com/). |
+| `mock` | nothing | Clearly-labeled canned replies — no cost, no network. |
 
-**If `AI_PROVIDER` is left unset**, Lexi auto-detects: Gemini first (if
-`GOOGLE_GEMINI_API_KEY` is set), then Claude, then falls back to Mock.
+If unset, LEXI auto-detects (Gemini → Claude → Mock); if a named provider's key is missing it falls
+back to Mock automatically and shows the reason in the UI — a request never fails for a missing key.
+Everything except chat replies and content-import normalization is provider-independent.
 
-**If `AI_PROVIDER` names a provider whose key is missing** (e.g.
-`AI_PROVIDER=gemini` with an empty `GOOGLE_GEMINI_API_KEY`), Lexi falls back
-to Mock automatically — it never lets a request fail because of a missing
-key. Every place an AI call happens shows this transparently:
-- The chat page banner shows the exact reason (e.g. "AI_PROVIDER=gemini
-  nhưng GOOGLE_GEMINI_API_KEY chưa được cấu hình — dùng Mock").
-- The admin content-import "Chạy mẫu AI" and dry-run panels show which
-  provider + model actually ran, what was requested, and the fallback
-  reason if they differ.
+### Content import (`/admin/content-import`)
 
-### Example `.env` for Gemini (recommended — free tier)
+Admins ingest real exam documents here — never by hand-writing JSON. AI extraction/normalization
+produces **drafts**, never live questions; validation auto-rejects malformed drafts; and **only a
+human clicking "Duyệt" creates a real `Question`**. This human review gate is load-bearing
+(Constitution 5.8 — verification independent of generation) and nothing upstream of that click can
+bypass it. A 5-question sample run and a full dry-run (writes nothing to the DB) let admins preview
+before a real import; every run reports provider, model, counts, retries, and timing.
 
-```bash
-AI_PROVIDER="gemini"
-GOOGLE_GEMINI_API_KEY="your-key-from-aistudio.google.com"
-# GEMINI_MODEL="gemini-2.0-flash"   # optional override
-```
-
-### Example `.env` to run with no AI at all (Mock only, zero cost)
-
-```bash
-AI_PROVIDER="mock"
-```
-
-Everything except chat replies and content-import AI normalization works
-identically regardless of provider — dashboard, practice, error notebook,
-progress, and the content-import upload/extract/validate/review/approve
-flow are all provider-independent.
-
-## Content import workflow (`/admin/content-import`)
-
-Admins ingest real exam documents through this page — never by hand-writing
-JSON. The flow:
-
-1. **Upload** a DOCX/PDF/image, optionally with exam metadata: **Tỉnh/TP**
-   (province), **Năm** (exam year), **Loại đề** (exam type, e.g.
-   `official_exam`/`mock_exam`/`practice`), **Lớp** (grade level), **Môn**
-   (subject), and a free-text **Nhãn nguồn** (source name/label, e.g.
-   "Hanoi Entrance Exam 2025"). All metadata is optional and stored on
-   `ContentSource`; every `ImportJob` for that file is linked to it via
-   `contentSourceId`, so the metadata doesn't need to be duplicated anywhere.
-2. **"Chạy mẫu AI" (5-question sample test)** — run extraction + AI
-   normalization + validation on just the first 5 questions before
-   committing to the whole document. Shows a full run report (provider,
-   model, input size, output count, valid/invalid, retries, timing — see
-   below) plus a checklist: 3 items are checked automatically (JSON schema,
-   no missing options, no duplicate question codes); 2 items
-   ("giữ đúng tiếng Việt gốc" and "đáp án/giải thích đúng với nguồn") need
-   the admin to read the source text and the AI draft side by side — these
-   are judgment calls a script can't make reliably, so the UI is explicit
-   about that rather than pretending otherwise.
-3. **"Chạy thử toàn bộ đề bằng AI (dry run)"** — same idea at full scale:
-   chunks the document by exam section, normalizes + validates every chunk,
-   reports the same metrics, and **never writes anything to the database**
-   (no `ImportJob`, `ExtractedQuestionDraft`, or `Question` row). Pure
-   preview before a real run.
-4. **Review and approve** — only after a real (non-dry-run) extraction,
-   each AI-produced draft becomes an `ExtractedQuestionDraft` with
-   `PENDING_REVIEW` (valid) or `REJECTED` (failed validation, with the
-   reason shown). Only a human clicking "Duyệt" creates a real `Question`
-   row — nothing upstream of that click can.
-
-### Every AI normalization run reports
-
-Shown in the UI (chat banner, sample test, dry run) — never an API key:
-
-- **provider** (`gemini` / `claude` / `mock`) and **model**
-- whether this is a **fallback** and **why** (e.g. requested provider's key
-  missing)
-- **chunks processed**, **input size** (chars), **output question count**
-- **valid** / **invalid** counts (post-validation)
-- **retry count** (how many times the JSON-repair prompt was needed)
-- **processing time**
-
-### Organizing source files outside the app
-
-The app only ever receives files through the upload form above — nothing
-is hardcoded into the repository. If you're collecting exam PDFs/DOCX
-files before uploading them, a suggested *local-only* folder structure
-(not part of this repo, just a personal organization scheme) is:
-
-```
-LEXI_DATA/
-  exams/
-    Vietnam/
-      Hanoi/
-        2025/
-        2024/
-      HaiPhong/
-        2025/
-```
-
-This is purely a filing convention for your own filesystem — keep it
-wherever you like outside the project. There is no project-side dependency
-on this structure; every file still goes through the admin upload form.
-
-## All environment variables (`.env`)
+### Environment variables (`.env`)
 
 | Variable | Required for | Notes |
 |---|---|---|
-| `DATABASE_URL` | Everything | SQLite file path locally (`file:./dev.db`); Postgres connection string in production |
-| `NEXTAUTH_SECRET` | Login | Any random string; NextAuth JWT signing secret |
-| `NEXTAUTH_URL` | Login | Base URL, e.g. `http://localhost:3000` |
-| `AI_PROVIDER` | AI features | `gemini` \| `anthropic` \| `mock`. See above. |
-| `GOOGLE_GEMINI_API_KEY` | Gemini only | Free tier — see above |
-| `GEMINI_MODEL` | Optional | Override the Gemini model (default `gemini-2.0-flash`) |
-| `ANTHROPIC_API_KEY` | Claude only | Paid — see above |
-| `STUDENT_EMAIL` / `STUDENT_PASSWORD` / `STUDENT_NAME` | Optional | Override the seeded student's login at `npm run db:seed` time |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | Optional | Override the seeded admin's login — the only account that can reach `/admin/content-import` |
+| `DATABASE_URL` | Everything | SQLite locally (`file:./dev.db`); Postgres in production |
+| `NEXTAUTH_SECRET` / `NEXTAUTH_URL` | Login | JWT signing secret; base URL (e.g. `http://localhost:3000`) |
+| `AI_PROVIDER` | AI features | `gemini` \| `anthropic` \| `mock` |
+| `GOOGLE_GEMINI_API_KEY` / `GEMINI_MODEL` | Gemini | Free tier; optional model override |
+| `ANTHROPIC_API_KEY` | Claude | Paid |
+| `STUDENT_*` / `ADMIN_*` | Optional | Override seeded account logins |
 
-All AI-related keys can be left empty — the app runs fully on Mock with zero
-cost and zero network calls. That's an intentional, supported state, not a
-bug.
+All AI keys may be left empty — the app runs fully on Mock at zero cost. That's a supported state,
+not a bug.
+
+---
+
+## Current Status
+
+**`architecture-v1`** — the first fully **discovered, validated, reconciled, and stabilized**
+architecture.
+
+- **Architecture:** Constitution + Chapters 1–4 frozen; Discovery closed with **no** new chapter forced.
+- **Conformance:** every implemented surface audited against the Baseline. Zero open implementation
+  drift (the two found — D1, D2 — reconciled and verified on the running product).
+- **Governance:** the Engineering Constitution and the full architecture corpus are preserved in
+  version history.
+
+On every audited surface the specification and the implementation have **not** diverged — the
+Baseline behaves as a real operational specification, not decorative design.
+
+---
+
+## Roadmap
+
+```
+Phase 1    Foundation                   ✓  why LEXI exists
+Phase 2    Architecture                 ✓  Ch.1–4, discovered & validated
+Phase 2.5  Repository Stabilization     ✓  audit, reconciliation, history preserved
+           ── architecture-v1 (tag) ──
+Phase 3    Product Evolution            →  recommendation, learning activities,
+                                           conversation evidence, knowledge graph,
+                                           AI teaching — built on a proven foundation
+```
+
+---
+
+## Contributing
+
+Before your first PR, read — in order — [`LEXI_FOUNDATION.md`](docs/LEXI_FOUNDATION.md),
+[`LEXI_SYSTEM.md`](docs/LEXI_SYSTEM.md), and
+[`LEXI_ENGINEERING_CONSTITUTION.md`](docs/LEXI_ENGINEERING_CONSTITUTION.md).
+
+The Engineering Constitution is not a style guide — it is how LEXI is required to be built and
+changed, each principle tied to the real event that earned it (e.g. *"absence is a distinct state,
+never a value"*; *"never amend the Baseline to legitimize an implementation"*). When code and the
+frozen Baseline disagree, **the Baseline wins and the code is fixed** — never the reverse.
+Documentation belongs in `docs/`. Repository history is architectural evidence: commits describe real
+states the project occupied — never split or rewritten to manufacture a cleaner story.
