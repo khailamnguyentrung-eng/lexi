@@ -1,6 +1,6 @@
 # Lexi — Project Status
 
-_Last updated: 2026-06-25 — Phase 1 complete (topic audit + mid-exam prompt)_
+_Last updated: 2026-06-29 — Phase 1 complete; Phase 2 complete; Phase 3 M3.1–M3.4 implemented (684 tests)_
 
 **Starting a new session?** Read [PROJECT_HANDOFF.md](./PROJECT_HANDOFF.md)
 first — it's the condensed entry point. This file is the detailed reference.
@@ -1699,6 +1699,172 @@ Added a 5-second attention-reset prompt shown when a MOCK_EXAM session (sessions
 
 `npx tsc --noEmit` ✓ clean · `npm run build` ✓ clean (35 routes)
 
+---
+
+## 9. Phase 2 Implementation — In Progress
+
+### Phase 2 Milestone M2.1: SM-2 Spaced Retention Engine (✓ Complete — 2026-06-28)
+
+Implemented real SM-2 spaced-repetition scheduling, replacing the fixed-offset stub.
+
+**Files created/modified:**
+- `lib/services/errorNotebook.ts` — Added 3 new exports: `accuracyToQuality()`, `computeSM2Update()`, `applySM2ForSession()`
+- `app/api/curriculum/sessions/[sessionNumber]/complete/route.ts` — Added SM-2 call in try/catch after session complete
+- `scripts/test-sm2.mjs` — New test suite with 43 assertions
+- `package.json` — Added `"test:sm2"` script
+
+**Key design decisions:**
+- **Quality mapping:** Post-session accuracy → SM-2 quality (1–5) — a reasonable approximation given LEXI's coarse attempt data (isCorrect only)
+- **No new schema columns:** Derives next interval iteratively from stage + EF, avoiding a `prevInterval` column
+- **Non-fatal failures:** Wrapped in try/catch so session completion never fails due to SM-2
+- **Backward compatible:** All Phase 1 test suites pass unchanged (284/284)
+
+**Algorithm:**
+- Stage 0 → 1 day, Stage 1 → 6 days, Stage 2+ → iterative multiplication by ease factor
+- Quality < 3 → reset to stage 0, interval = 1 day
+- Quality ≥ 3 → advance stage, compute new interval
+- Ease factor clamped [1.3, 2.5]
+- Only applied to reviewed (lastReviewedAt != null) notebook entries
+
+**Verified:**
+- `npm run test:sm2` ✓ 43/43 passed
+- All Phase 1 test suites passed unchanged (284/284 total)
+- `npx tsc --noEmit` ✓ clean
+- `npm run build` ✓ clean (35 routes)
+
+**Next:** M2.2 (Learning Behavior Engine) — analyze timing, mood, pacing patterns. ✓ Completed 2026-06-29.
+
+---
+
+### Phase 2 Milestone M2.2: Learning Behavior Engine (✓ Complete — 2026-06-29)
+
+**What was implemented:**
+- New `lib/analytics/behaviorEngine.ts` — pure `computeBehaviorProfile()` + repository `getBehaviorProfile()`
+- Five derivation helpers: `deriveTimeOfDay`, `derivePaceProfile`, `deriveAvgDuration`, `deriveResponseTimeSignal`, `deriveMoodContext`
+- `BehaviorProfile` added to `StudentLearningProfile` (additive field, `.catch()` fallback)
+- Barrel exports added to `lib/analytics/index.ts`
+- No schema migration — all data sources (`timeSpentSec`, `startedAt`, `completedAt`, `MoodEntry`) already existed
+
+**Constraints honored:**
+- No AI scoring
+- No event sourcing
+- Response time treated as behavioral observation, not psychological effort inference
+- Mood is contextual signal only — does not determine mastery or difficulty
+- Phase 1 analytics files unchanged
+
+**Verified:**
+- `npm run test:behavior-engine` ✓ 51/51 passed
+- All prior tests (327/327) unchanged
+- `npx tsc --noEmit` ✓ clean
+- `npm run build` ✓ clean (35 routes)
+
+---
+
+### Phase 2 Milestone M2.3: Adaptive Practice Foundation (✓ Complete — 2026-06-29)
+
+**What was implemented:**
+- New `lib/analytics/difficultyCalibration.ts` — three pure functions, no Prisma
+  - `computeDifficultyTarget(attempts, minSamples?)` — accuracy-only, returns EASY/MEDIUM/HARD/null
+  - `computeSelectionWeights(target)` — deterministic weight table
+  - `applyDifficultyWeighting(questions, target, count)` — weighted selection with empty-pool fallback to MEDIUM
+- `getPracticeQuestions(session, userId?)` — optional `userId` extends existing function; all bypass logic is internal
+- `practice/[sessionNumber]/page.tsx` — one-line: passes `user.id` to enable calibration
+
+**Difficulty selection rules:**
+- accuracy > 0.80 → HARD (student mastering — increase challenge)
+- accuracy ≥ 0.50 → MEDIUM (working zone — maintain level)
+- accuracy < 0.50 → EASY (struggling — reduce friction)
+- < 5 topic-matching attempts → null → no calibration (fallback to full set)
+
+**Bypass rules:**
+- `MOCK_EXAM` sessions → full question set unchanged
+- `CHECKPOINT` sessions → unweighted set unchanged
+- Pool ≤ 10 questions → all returned unchanged (no selection needed)
+- `userId` absent → original behavior (existing callers unchanged)
+
+**No schema migration required:** `Question.difficulty` (EASY/MEDIUM/HARD) has existed since the initial migration.
+
+**Verified:**
+- `npm run test:difficulty-calibration` ✓ 47/47 passed
+- All prior tests (378/378) unchanged
+- `npx tsc --noEmit` ✓ clean
+- `npm run build` ✓ clean (35 routes)
+
+**Next:** M2.4 (Learning Signal Engine) — surface deterministic learning observations from StudentLearningProfile. ✓ Completed 2026-06-29.
+
+---
+
+### Phase 2 Milestone M2.4: Learning Signal Engine (✓ Complete — 2026-06-29)
+
+**What was implemented:**
+- New `lib/analytics/learningSignalEngine.ts` — pure `computeLearningSignals(profile, currentStreak)`
+- Service function `getLearningSignals(userId)` — parallel fetch of StudentLearningProfile + streak
+- `LearningSignal` type with severity, confidence, topic, topicLabel, evidence, generatedAt, suppressionKey
+
+**8 deterministic signal types (rule-based, no AI):**
+1. `FIRST_MASTERY` — exactly 1 mastered topic; HIGH severity
+2. `TOPIC_MASTERED` — 2+ mastered topics; MEDIUM severity (one per topic)
+3. `TOPIC_IMPROVING` — IMPROVING masteryState; MEDIUM severity; confidence from occurrence count
+4. `RECURRING_WEAKNESS` — RECURRING signal + ≥3 occurrences; HIGH severity
+5. `RETENTION_RISK` — dueCount > 0 + non-RECURRING; MEDIUM severity; confidence from due count
+6. `LEARNING_MOMENTUM` — learningTrend = PROGRESSING; MEDIUM severity
+7. `PACE_OBSERVATION` — paceProfile = DECLINING + sessionCount ≥ 3; LOW severity
+8. `STREAK_MILESTONE` — streak ∈ {3, 7, 14, 30}; MEDIUM severity
+
+**Signal design:**
+- Cap: max 5 signals per call
+- Sorting: severity DESC (HIGH → MEDIUM → LOW), then topic-specific before global
+- Suppression keys: `{TYPE}` or `{TYPE}_{topic}` or `{TYPE}_{value}` for deduplication
+- Confidence: HIGH/MEDIUM/LOW derived from data abundance and signal reliability
+
+**Deferred signals (documented, not implemented):**
+- "declining" (topic regression) — requires previous-snapshot comparison
+- `EFFORT_RECOGNITION` — requires reliable effort proxy
+- `NOTEBOOK_CLEARED` — requires previous-snapshot comparison
+
+**No schema migration required:** All data comes from StudentLearningProfile + getLearningStreak().
+
+**Key design constraint:** StudentLearningProfile unchanged in M2.4 (M2.5 integrates signals into profile).
+
+**Verified:**
+- `npm run test:learning-signals` ✓ 58/58 passed
+- All prior tests (425/425) unchanged
+- `npx tsc --noEmit` ✓ clean
+- `npm run build` ✓ clean (35 routes)
+- **Total: 483 tests passing** (58 new + 425 prior)
+
+---
+
+### M2.5 — StudentLearningProfile v2 IMPLEMENTED (2026-06-29)
+
+**Files changed:**
+- `lib/analytics/studentLearningProfile.ts` — extended
+- `prisma/schema.prisma` — migration: `targetGoalDate DateTime?` on `LearnerProfile`
+- `lib/analytics/index.ts` — added `GoalCountdown`, `computeGoalCountdown` exports
+- `scripts/test-profile-v2.mjs` — new
+
+**New fields on `StudentLearningProfile`:**
+```
+currentStreak: number              from getLearningStreak(); 0 if never active
+topSignal: LearningSignal | null   highest-priority M2.4 signal; two-pass in service
+goalCountdown: GoalCountdown | null from LearnerProfile.targetGoalDate
+```
+
+**New pure function:** `computeGoalCountdown(targetGoalDate, now)` — returns `{ targetGoalDate, daysRemaining, isUrgent }` where `isUrgent = 0 < daysRemaining <= 30`.
+
+**Schema migration:** `targetGoalDate DateTime?` (nullable, backward-compatible). Field name chosen to support broader learning goals beyond exams.
+
+**Two-pass build:** `buildLearningProfile()` returns `topSignal: null` placeholder; `getStudentLearningProfile()` calls `computeLearningSignals(baseProfile, streak)` afterward and spreads the result to override it.
+
+**Verified:**
+- `npm run test:profile-v2` ✓ 33/33 passed
+- All prior tests (483/483) unchanged
+- `npx tsc --noEmit` ✓ clean
+- `npm run build` ✓ clean (35 routes)
+- **Total: 516 tests passing** (33 new + 483 prior)
+
+---
+
 ## 10. Recommended Next Priorities
 
 1. **Phase 1 — COMPLETE** (2026-06-25)
@@ -1724,9 +1890,185 @@ Added a 5-second attention-reset prompt shown when a MOCK_EXAM session (sessions
    - Provision Postgres instance and test schema swap
    - Browser-test full flow manually
 
-3. Phase 2:
-   - Recovery rate as readiness score component (requires data quality confirmation from real students)
-   - Topic Registry database table (when `TOPIC_ALIASES` grows past 60 entries)
-   - Analytics snapshot caching for tutor dashboard (multiple students)
+3. **Phase 2 — Learning Companion Intelligence (M2.1–M2.5 IMPLEMENTED — COMPLETE)**
 
-4. **(Blocked/Deprioritized) Gemini real-output verification** — investigation closed. Do not test another key without independently confirming nonzero quota on Google's dashboard ([ai.dev/rate-limit](https://ai.dev/rate-limit)). Revisit only with new external information or if `ANTHROPIC_API_KEY` becomes available.
+   Full design: [PHASE2_FINAL_DESIGN.md](./docs/PHASE2_FINAL_DESIGN.md)
+
+   **Approved scope (implementation order):**
+   - **M2.1 SM-2 Spaced Repetition** — ✓ IMPLEMENTED (2026-06-28)
+     Replace fixed-offset stub in `lib/services/errorNotebook.ts`
+     with real SM-2 algorithm. New: `computeSM2Update()` (pure) + `applySM2ForSession()` (service).
+     SM-2 quality derived from post-session accuracy; triggered via
+     `POST /api/curriculum/sessions/[n]/complete`. Backward-compatible: no call site changes.
+     Files: `lib/services/errorNotebook.ts`, `app/api/curriculum/sessions/[n]/complete/route.ts`.
+     Tests: 43 new assertions (all passing), 284 Phase 1 tests green.
+   - **M2.2 Learning Behavior Engine** — ✓ IMPLEMENTED (2026-06-29)
+     New `lib/analytics/behaviorEngine.ts`. Analyzes `timeSpentSec`, session
+     `startedAt`/`completedAt`, `MoodEntry`. Output: `BehaviorProfile`
+     (preferredTimeOfDay, paceProfile, responseTimeSignal, recentMoodContext).
+     Pure function + repository function. No schema changes.
+     Tests: 51 new assertions (all passing).
+   - **M2.3 Adaptive Practice Foundation** — ✓ IMPLEMENTED (2026-06-29)
+     New `lib/analytics/difficultyCalibration.ts`. Extends
+     `getPracticeQuestions(session, userId?)` in `lib/services/curriculum.ts`.
+     Computes `DifficultyTarget` from topic-level accuracy; re-weights question
+     selection using deterministic pool weighting. No AI. No schema migration
+     (`Question.difficulty` already existed). MOCK_EXAM and CHECKPOINT sessions
+     bypass calibration. Backward-compatible (userId optional).
+     Tests: 47 new assertions (all passing).
+   - **M2.4 Learning Signal Engine** — ✓ IMPLEMENTED (2026-06-29)
+     New `lib/analytics/learningSignalEngine.ts`. Pure `computeLearningSignals(profile, currentStreak)`
+     with 8 deterministic, rule-based signal types (FIRST_MASTERY, TOPIC_MASTERED, TOPIC_IMPROVING,
+     RECURRING_WEAKNESS, RETENTION_RISK, LEARNING_MOMENTUM, PACE_OBSERVATION, STREAK_MILESTONE).
+     Service function `getLearningSignals(userId)` pre-fetches profile + streak in parallel.
+     No AI. No schema migration. StudentLearningProfile unchanged (M2.5 integration).
+     Tests: 58 new assertions (all passing).
+   - **M2.5 StudentLearningProfile v2** — ✓ IMPLEMENTED (2026-06-29)
+     Extended `lib/analytics/studentLearningProfile.ts` with 3 new fields:
+     `currentStreak: number`, `topSignal: LearningSignal | null`, `goalCountdown: GoalCountdown | null`.
+     New pure function `computeGoalCountdown()`. Two-pass build in `getStudentLearningProfile()`.
+     Schema migration: `targetGoalDate DateTime?` on `LearnerProfile` (nullable, backward-compatible).
+     Tests: 33 new assertions (all passing).
+
+   **Phase 2 complete. 516 total tests passing. Build clean.**
+
+   **One schema migration completed:**
+   ```
+   ALTER TABLE "LearnerProfile" ADD COLUMN "targetGoalDate" DATETIME;
+   ```
+   All other Phase 2 fields (`easeFactor`, `timeSpentSec`, `startedAt`, `completedAt`,
+   `mood`, `difficulty`) were already in the schema from Phase 1.
+
+   **Backward compatibility confirmed:** All Phase 1 tests (284/284) pass unchanged.
+   Phase 2 is fully additive — no Phase 1 analytics files modified.
+
+   **Previously planned Phase 2 items, now de-prioritised or superseded:**
+   - Recovery rate in readiness score (deferred — requires real student data)
+   - Topic Registry database table (deferred — trigger at >60 TOPIC_ALIASES entries)
+   - Analytics snapshot caching (deferred — no multi-student use case yet)
+
+4. **Phase 3 — Content Intelligence (M3.1 foundation IMPLEMENTED)**
+
+   Full design: [PHASE3_CONTENT_INTELLIGENCE_DESIGN_REVIEW.md](./docs/PHASE3_CONTENT_INTELLIGENCE_DESIGN_REVIEW.md)
+
+   **M3.1 Content Intelligence Foundation** — ✓ IMPLEMENTED (2026-06-29)
+   Schema foundation only. No service layer. No UI. No AI calls.
+   Migration: `20260629065904_add_content_intelligence_foundation`
+
+   New models added:
+   - `KnowledgeUnit` — canonical topic registry (topic unique, label, 5/5/3 global targets,
+     `questions: Question[]` relation, `@@index([topic])`)
+   - `KnowledgeUnitOnSession` — join table: KnowledgeUnit ↔ CurriculumSession (many-to-many)
+   - `QuestionGenerationJob` — minimal generation job foundation (topic, difficulty, targetCount,
+     status, errorMessage; no provider/token tracking — deferred to M3.3+)
+   - `GenerationJobStatus` — enum: PENDING, GENERATING, REVIEWING, COMPLETED, FAILED
+
+   Additive fields on existing models:
+   - `Question.knowledgeUnitId` — nullable FK to KnowledgeUnit
+   - `Question.generatedViaJobId` — nullable FK to QuestionGenerationJob (provenance)
+   - `CurriculumSession.knowledgeUnits` — relation to KnowledgeUnitOnSession
+   - `ExtractedQuestionDraft.generationJobId` — nullable FK to QuestionGenerationJob
+
+   All new FKs nullable. 516 tests passing unchanged. Build clean.
+
+   **M3.2 Knowledge Coverage Intelligence** — ✓ IMPLEMENTED (2026-06-29)
+   Service layer only. No API routes. No UI. No AI calls. No schema changes.
+
+   New files: `lib/services/content-intelligence/`
+   - `types.ts` — shared types: `KnowledgeUnitInput`, `QuestionInput`, `DifficultyBreakdown`,
+     `CoverageReport` (status: COMPLETE | PARTIAL | UNDER_COVERED), `KnowledgeGap` (priority:
+     HIGH | MEDIUM | LOW), `KnowledgeCoverageReport` (aggregate)
+   - `knowledgeCoverage.ts` — pure engine (no Prisma): `computeCoverageReport()`,
+     `computeAllCoverageReports()`. Coverage = per-band question count vs. target, capped at
+     target (surplus does not inflate %). Status: COMPLETE if all bands met; UNDER_COVERED if
+     nothing covered or fill rate < 50%; PARTIAL otherwise. Sorted ascending by %.
+   - `knowledgeGap.ts` — pure engine (no Prisma): `detectGaps()`, `filterGapsByPriority()`.
+     Priority: HIGH if any hard missing, MEDIUM if only medium+easy missing, LOW if only easy
+     missing. Sorted HIGH→MEDIUM→LOW, then total missing descending.
+   - `knowledgeMapping.ts` — service layer (Prisma): `getQuestionsWithoutKnowledgeUnit()`,
+     `assignQuestionToKnowledgeUnit()`, `getAllKnowledgeUnits()`, `getKnowledgeCoverageReport()`
+     (full orchestration: fetches units + questions in parallel → pure engines → aggregate report).
+
+   Test suite: `scripts/test-knowledge-coverage.mjs` — 42 tests, all pure engine functions.
+   `package.json` script: `"test:knowledge-coverage": "node scripts/test-knowledge-coverage.mjs"`
+
+   Topic matching strategy: questions matched to KnowledgeUnit by `q.topic === unit.topic`
+   (covers both FK-linked and unlinked questions — seeded questions have `knowledgeUnitId = null`).
+
+   558 tests passing. Build clean. `npx tsc --noEmit` clean.
+
+   **M3.3 Knowledge Mapping & Content Integration** — ✓ IMPLEMENTED (2026-06-29)
+   Service layer only. No API routes. No UI. No AI calls. No schema changes.
+
+   New file: `lib/services/content-intelligence/questionKnowledgeMapping.ts`
+   - `findMatchingKnowledgeUnitId(topic, units)` — pure function (exported for testing):
+     returns the matching unit id by exact string equality, or null. No fuzzy matching.
+   - `assignQuestionToKnowledgeUnit(questionId, kuId)` — sets `Question.knowledgeUnitId`
+   - `removeQuestionKnowledgeUnit(questionId)` — clears `Question.knowledgeUnitId` to null
+   - `getUnmappedQuestions()` — returns all questions with `knowledgeUnitId = null`
+   - `getQuestionsForKnowledgeUnit(kuId)` — returns FK-linked questions for a unit
+   - `autoAssignKnowledgeUnit(questionId, topic)` — looks up KnowledgeUnit by topic,
+     assigns if found, returns false if not found. Non-throwing by design.
+
+   Updated: `lib/services/content-intelligence/knowledgeMapping.ts`
+   - Removed duplicate `assignQuestionToKnowledgeUnit` and `getQuestionsWithoutKnowledgeUnit`
+     (now canonical in `questionKnowledgeMapping.ts`). Kept aggregate coverage orchestration.
+
+   Updated: `lib/services/content-import/importer.ts`
+   - `approveDraft()` now calls `autoAssignKnowledgeUnit()` after Question creation.
+     Wrapped in try/catch — missing KnowledgeUnit never fails approval (backward compatible).
+     Flow: Draft → Question created → topic lookup → assign if KU exists → draft marked APPROVED.
+
+   Test suite: `scripts/test-knowledge-mapping.mjs` — 46 tests
+   - Topic matching: exact match, case sensitivity, partial match rejection, empty registry
+   - Auto-assign simulation: match/no-match paths, error swallowing
+   - Unmapped detection: filter logic, edge cases
+   - FK vs. topic-string independence: coverage counts unmapped questions; FK list does not
+   - Import flow compatibility: approve with match, without match, with auto-assign error
+
+   `package.json` script: `"test:knowledge-mapping": "node scripts/test-knowledge-mapping.mjs"`
+
+   604 tests passing (558 + 46). Build clean. `npx tsc --noEmit` clean.
+
+   **M3.4 Content Validation Layer** — ✓ IMPLEMENTED (2026-06-29)
+   Pure deterministic engine only. No AI, no schema changes, no UI changes.
+
+   New files: `lib/services/content-intelligence/`
+   - `validationTypes.ts` — shared types: `ValidationSeverity` (LOW/MEDIUM/HIGH),
+     `ValidationStatus` (PASS/WARNING/FAIL), `ValidationIssue`, `QuestionValidationResult`,
+     `QuestionValidationInput`, `KnowledgeUnitValidationInput`, `CoverageValidationInput`,
+     `CoverageValidationResult`. No Prisma types.
+   - `contentValidation.ts` — pure engine (no Prisma):
+     - `validateQuestionCompleteness(q)` — checks promptText, options A–D, correctOption
+       (must be A/B/C/D), explanationVi (MEDIUM if blank), topic. HIGH for structural failures.
+     - `validateKnowledgeMappingQuality(q, unit)` — NOT_MAPPED (MEDIUM) if no kuId; UNIT_NOT_FOUND
+       (HIGH) if kuId set but unit missing; TOPIC_MISMATCH (HIGH) if unit.topic ≠ q.topic.
+     - `validateDifficultyDistribution(input)` — missing HARD → HIGH; missing MEDIUM → MEDIUM;
+       missing EASY → LOW. Surplus above target produces no issue.
+     - `validateQuestion(q, unit?)` — composite: completeness + mapping.
+     - `validateQuestions(questions, units)` — batch with unit map lookup.
+   - `contentValidationService.ts` — service layer (Prisma):
+     - `validateAllQuestions()` — batch, sorted FAIL first.
+     - `validateSingleQuestion(questionId)` — single question.
+     - `validateKnowledgeUnitCoverage(kuId)` — distribution check for one unit.
+     - `validateAllKnowledgeUnitCoverage()` — all units, sorted FAIL first.
+
+   Status derivation: FAIL if any HIGH issue; WARNING if any LOW/MEDIUM (no HIGH); PASS if none.
+
+   Test suite: `scripts/test-content-validation.mjs` — 80 tests
+   - Completeness: valid, missing prompt, whitespace prompt, missing/multi options, invalid
+     correctOption (E/lowercase/empty/all valid values), missing explanation (MEDIUM), missing topic
+   - Mapping quality: correct mapping, not mapped, stale FK, topic mismatch
+   - Distribution: targets met, surplus, missing hard/medium/easy, all gaps, metadata propagation
+   - Composite: PASS, combined issues, severity priority, batch with PASS/FAIL/WARNING mix,
+     unknown kuId in batch, empty batch, deriveStatus all cases
+
+   `package.json` script: `"test:content-validation": "node scripts/test-content-validation.mjs"`
+
+   684 tests passing (604 + 80). Build clean. `npx tsc --noEmit` clean.
+
+   **Remaining Phase 3 milestones:**
+   - M3.5 — Question Generation Pipeline (AIProvider.generateQuestions, GenerationJob flow)
+   - M3.6 — Ingestion Enhancements (OCR, smart chunking, Passage extraction)
+
+5. **(Blocked/Deprioritized) Gemini real-output verification** — investigation closed. Do not test another key without independently confirming nonzero quota on Google's dashboard ([ai.dev/rate-limit](https://ai.dev/rate-limit)). Revisit only with new external information or if `ANTHROPIC_API_KEY` becomes available.
