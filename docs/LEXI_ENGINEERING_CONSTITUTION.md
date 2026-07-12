@@ -197,9 +197,9 @@ heuristic is convenient.
 **Review question.** *Am I changing the rule, or the code?* Only the second is allowed here.
 
 ### M7 — History describes reality; it never manufactures it
-**Principle.** Git history is architectural evidence. Never rewrite it, or artificially split or
-reorder commits, merely to produce a cleaner narrative. A commit must represent a real state the
-project actually occupied.
+**Principle.** **Repository history is architectural evidence. It must describe reality, never
+manufacture it.** Never rewrite it, or artificially split or reorder commits, merely to produce a
+cleaner narrative. A commit must represent a real state the project actually occupied.
 **Why it exists.** The same discipline as M2 (the audit never manufactures evidence to complete
 itself), one layer down into version control: a fabricated history is a fabricated audit trail. If
 commits describe states the repository never held, the history stops being a record of what
