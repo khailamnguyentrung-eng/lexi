@@ -1,7 +1,7 @@
 # LEXI Phase 2 — Learning Companion Intelligence
 ## Final Architecture Design
 
-_Created: 2026-06-25. This is a design document only. No code has been written._
+_Created: 2026-06-25. Updated: 2026-06-29. M2.1, M2.2, M2.3, M2.4, M2.5 implemented and verified. Phase 2 complete._
 
 ---
 
@@ -220,6 +220,17 @@ export async function applySM2ForSession(
 
 `nextReviewDate()` and `isFinalStage()` keep their existing signatures. No callers change. SM-2 is additive: if a session completes without a matching notebook entry for any practiced topic, nothing changes. Entries with `status === MASTERED` are skipped.
 
+#### Implementation Status
+
+✓ **IMPLEMENTED (2026-06-28)**
+- `accuracyToQuality()` pure function
+- `computeSM2Update()` pure SM-2 engine
+- `applySM2ForSession()` service orchestrator
+- Route integration with try/catch
+- 43 test assertions (all passing)
+- 284 Phase 1 tests remain green
+- Build verified clean (35 routes)
+
 ---
 
 ### M2.2 — Learning Behavior Engine
@@ -307,6 +318,19 @@ Passes to `computeBehaviorProfile()`.
 
 Signals with insufficient data return `null` — not shown to the student. The `BehaviorProfile` itself is always returned (even all-null), so consumers can render empty states.
 
+#### Implementation Status
+
+✓ **IMPLEMENTED (2026-06-29)**
+- `SessionTimeOfDay`, `PaceProfile`, `ResponseTimeSignal`, `MoodContext`, `BehaviorProfile` types
+- `computeBehaviorProfile()` pure function with 5 derivation helpers
+- `getBehaviorProfile()` repository function (3-query Promise.all)
+- `StudentLearningProfile.behaviorProfile` field (additive, with `.catch()` fallback)
+- 51 test assertions (all passing)
+- 327 Phase 1 + M2.1 tests remain green
+- Build verified clean
+- Note: `effortSignal` renamed to `responseTimeSignal` to reflect observed response-time
+  behavior rather than inferred psychological effort (per implementation constraints)
+
 ---
 
 ### M2.3 — Adaptive Practice Foundation
@@ -369,6 +393,25 @@ When `userId` is provided and `session.sessionType !== "MOCK_EXAM"` and `session
 - Sessions with exactly the right number of questions (no selection needed): return as-is regardless
 
 **Backward compatibility:** All existing callers (`practice/[sessionNumber]/page.tsx`, `practice/topic/[topic]/page.tsx`) work unchanged — `userId` is simply absent, returning to current behavior.
+
+#### Implementation Status
+
+✓ **IMPLEMENTED (2026-06-29)**
+- `computeDifficultyTarget()` — pure function, accuracy-only input (no mood, no behavior profile, no self-report)
+- `computeSelectionWeights()` — deterministic weight table for EASY/MEDIUM/HARD targets
+- `applyDifficultyWeighting()` — generic weighted selection with empty-pool redistribution to MEDIUM
+- `getPracticeQuestions(session, userId?)` — optional userId parameter; all bypass rules inside function
+- `practice/[sessionNumber]/page.tsx` — one-line change to pass `user.id`
+- No schema migration — `Question.difficulty` already existed since initial migration
+- 47 new test assertions (all passing); 378 prior tests remain green
+- Build verified clean (35 routes)
+
+**Bypass rules confirmed in implementation:**
+- `MOCK_EXAM` → full question set returned unchanged
+- `CHECKPOINT` → unweighted question set returned unchanged
+- `userId` absent → original behavior (all questions, no selection)
+- Pool size ≤ `TARGET_PRACTICE_COUNT` (10) → all questions returned unchanged
+- `< 5` topic-matching attempts → `null` target → no weighting applied
 
 ---
 
@@ -433,6 +476,85 @@ Returns signals sorted by `priority` DESC. Empty array is valid (no signals toda
 #### Suppression logic
 
 Each `LearningSignal` has a `suppressionKey`. The same key is not shown twice within 3 sessions. Suppression state is tracked as a small in-memory list in the session-boundary code, not persisted to the DB (losing it on restart is acceptable — the signal just shows again next session if conditions still hold).
+
+#### Implementation Status
+
+✓ **IMPLEMENTED (2026-06-29)**
+- `learningSignalEngine.ts` — pure `computeLearningSignals(profile, currentStreak)` function
+- 8 signal types (all condition-driven, deterministic):
+  - `FIRST_MASTERY` — exactly 1 mastered topic; HIGH severity
+  - `TOPIC_MASTERED` — 2+ mastered topics; MEDIUM severity per topic
+  - `TOPIC_IMPROVING` — IMPROVING masteryState; MEDIUM severity; confidence from occurrence count
+  - `RECURRING_WEAKNESS` — RECURRING signal + ≥3 occurrences; HIGH severity
+  - `RETENTION_RISK` — dueCount > 0 + non-RECURRING; MEDIUM severity; confidence from due count
+  - `LEARNING_MOMENTUM` — learningTrend = PROGRESSING; MEDIUM severity; confidence from BehaviorProfile tier
+  - `PACE_OBSERVATION` — paceProfile = DECLINING + sessionCount ≥ 3; LOW severity
+  - `STREAK_MILESTONE` — streak ∈ {3, 7, 14, 30}; MEDIUM severity
+- `getLearningSignals(userId)` — service function; parallel fetch of StudentLearningProfile + streak
+- Signal cap = 5; sorting by severity DESC, then topic-specific before global
+- 58 test assertions (all passing)
+- 483 total tests passing (58 new + 425 prior)
+- Build verified clean (35 routes)
+
+**Deferred signals (explicitly NOT included — documented in plan):**
+- "declining" (topic regression) — requires historical snapshot
+- `EFFORT_RECOGNITION` — requires reliable effort proxy (timeSpentSec is not one)
+- `NOTEBOOK_CLEARED` — requires previous-snapshot comparison
+
+**Design constraints honored:**
+- No schema migration — all data comes from StudentLearningProfile + getLearningStreak()
+- No AI — all signals are rule-based observations
+- No event sourcing — signals are computed on-demand
+- StudentLearningProfile not modified in M2.4 (M2.5 integrates signals into profile)
+- Suppression key format enables deduplication (caller's responsibility)
+
+---
+
+### M2.5 — StudentLearningProfile v2 IMPLEMENTATION STATUS
+
+**Status:** IMPLEMENTED — 2026-06-29
+
+**Files changed:**
+- `lib/analytics/studentLearningProfile.ts` — extended (no new file)
+- `prisma/schema.prisma` — migration: `targetGoalDate DateTime?` added to `LearnerProfile`
+- `lib/analytics/index.ts` — added `GoalCountdown`, `computeGoalCountdown` exports
+- `scripts/test-profile-v2.mjs` — new: 33 test assertions
+
+**New types added:**
+```typescript
+interface GoalCountdown {
+  targetGoalDate: string;  // "YYYY-MM-DD"
+  daysRemaining: number;   // positive = future, 0 = today, negative = past
+  isUrgent: boolean;       // 0 < daysRemaining <= 30
+}
+```
+
+**New pure function:** `computeGoalCountdown(targetGoalDate: Date | null, now: Date): GoalCountdown | null`
+
+**New fields on `StudentLearningProfile`:**
+```typescript
+currentStreak: number;              // from getLearningStreak()
+topSignal: LearningSignal | null;   // highest-priority signal; two-pass in service
+goalCountdown: GoalCountdown | null; // from LearnerProfile.targetGoalDate
+```
+
+**New fields on `LearningProfileContext`:**
+```typescript
+currentStreak: number;
+targetGoalDate: Date | null;
+```
+
+**Two-pass pattern in `getStudentLearningProfile()`:**
+`buildLearningProfile(ctx)` → base profile with `topSignal: null` placeholder →
+`computeLearningSignals(baseProfile, streak)` → `return { ...baseProfile, topSignal: signals[0] ?? null }`
+
+**Design constraints honored:**
+- `targetExamDate` renamed to `targetGoalDate` (supports broader learning goals beyond exams)
+- Profile remains flat — no nested objects
+- `topSignal` derived-only, not persisted
+- M2.1–M2.4 engines unchanged
+- 33 new tests; 516 total passing (33 new + 483 prior)
+- Schema migration backward-compatible (nullable field, no default)
 
 ---
 
