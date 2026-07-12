@@ -196,6 +196,25 @@ was absorbed downstream. That track record is the asset; protect it.
 heuristic is convenient.
 **Review question.** *Am I changing the rule, or the code?* Only the second is allowed here.
 
+### M7 — History describes reality; it never manufactures it
+**Principle.** Git history is architectural evidence. Never rewrite it, or artificially split or
+reorder commits, merely to produce a cleaner narrative. A commit must represent a real state the
+project actually occupied.
+**Why it exists.** The same discipline as M2 (the audit never manufactures evidence to complete
+itself), one layer down into version control: a fabricated history is a fabricated audit trail. If
+commits describe states the repository never held, the history stops being a record of what
+happened and becomes a story told after the fact.
+**Failure mode.** Forcing a "reconciliation-only" commit when the fix already lives inside
+uncommitted code — inventing a fictional intermediate state to make the story tidy; splitting one
+real change into several staged commits it never existed as; rewriting a commit so the past looks
+more deliberate than it was.
+**Review question.** *Did this repository actually exist in the state this commit claims?* If not,
+the commit is fiction, not history.
+*(Earned from Phase 2.5 — D1 and D2 could not be isolated into a standalone "reconciliation" commit
+because the fixes already lived in never-committed implementation files. Forcing the split would
+have described a state the project never occupied; the honest path was one implementation-baseline
+commit that says, in its message, that it includes the reconciliation.)*
+
 ---
 
 ## Part III — The Constitution protects the Constitution
