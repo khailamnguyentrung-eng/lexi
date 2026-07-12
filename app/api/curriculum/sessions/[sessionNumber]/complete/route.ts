@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
+import { applySM2ForSession } from "@/lib/services/errorNotebook";
 
 export async function POST(
   _request: Request,
@@ -38,6 +39,12 @@ export async function POST(
       scoreAchieved,
     },
   });
+
+  try {
+    await applySM2ForSession(user.id, session.id);
+  } catch (e) {
+    console.error("[SM-2] applySM2ForSession failed silently:", e);
+  }
 
   return NextResponse.json({ progress });
 }

@@ -22,6 +22,11 @@ export async function getSkillMatrix(userId: string) {
       label: SKILL_LABELS_VI[skill],
       percentage: entry?.percentage ?? 0,
       computedBy: entry?.computedBy ?? "MANUAL",
+      // Distinguishes "no evidence yet" (no entry) from a genuine 0%. Consumers
+      // must not present a percentage as a mastery claim when hasData is false —
+      // showing "0%" for an unattempted skill collapses Ignorance into
+      // Confident-low (LEXI_SYSTEM Ch.2 §2.7; Constitution 5.2/5.10).
+      hasData: entry !== undefined,
     };
   });
 }

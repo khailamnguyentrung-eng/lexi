@@ -155,14 +155,24 @@ export default async function DashboardPage() {
               <div key={s.skill}>
                 <div className="mb-1 flex justify-between text-xs text-zinc-600">
                   <span>{s.label}</span>
-                  <span>{s.percentage}%</span>
+                  {s.hasData ? (
+                    <span>{s.percentage}%</span>
+                  ) : (
+                    <span className="text-zinc-400">Chưa đủ dữ liệu</span>
+                  )}
                 </div>
-                <div className="h-2 w-full rounded-full bg-zinc-100">
-                  <div
-                    className="h-2 rounded-full bg-lexi-success"
-                    style={{ width: `${s.percentage}%` }}
-                  />
-                </div>
+                {/* No filled bar without evidence — an empty rail with
+                    "Chưa đủ dữ liệu" reads as "no data yet", never as 0% mastery. */}
+                {s.hasData ? (
+                  <div className="h-2 w-full rounded-full bg-zinc-100">
+                    <div
+                      className="h-2 rounded-full bg-lexi-success"
+                      style={{ width: `${s.percentage}%` }}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-2 w-full rounded-full bg-zinc-50" />
+                )}
               </div>
             ))}
           </div>

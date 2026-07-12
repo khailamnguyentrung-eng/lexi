@@ -20,7 +20,7 @@ export default async function PracticePage({
 
   if (!session) notFound();
 
-  const questions = await getPracticeQuestions(session);
+  const questions = await getPracticeQuestions(session, user.id);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">

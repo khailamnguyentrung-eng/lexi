@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { MarkReviewedButton } from "./MarkReviewedButton";
+import { LensFloatingAssistant } from "@/components/lens/LensFloatingAssistant";
 
 const STATUS_LABEL: Record<string, string> = {
   OPEN: "Mới",
@@ -67,6 +68,12 @@ export default async function ErrorEntryDetailPage({
             <MarkReviewedButton entryId={entry.id} />
           </div>
         )}
+      </div>
+
+      {/* Lens — available during error review to dig deeper into the mistake */}
+      <div className="rounded-3xl border border-zinc-100 bg-white p-6">
+        <p className="mb-3 text-xs text-zinc-500">Vẫn còn thắc mắc về lỗi này?</p>
+        <LensFloatingAssistant />
       </div>
     </div>
   );

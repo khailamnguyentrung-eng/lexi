@@ -137,3 +137,50 @@ export {
   getTopicMasteryProfiles,
   countByMasteryState,
 } from "./masteryTracking";
+
+// Difficulty calibration — adaptive question selection (M2.3)
+export type {
+  DifficultyTarget,
+  AttemptForCalibration,
+  DifficultyWeights,
+} from "./difficultyCalibration";
+export {
+  computeDifficultyTarget,
+  computeSelectionWeights,
+  applyDifficultyWeighting,
+} from "./difficultyCalibration";
+
+// Behavior engine — observed session signals (M2.2)
+// Pure engine + repository; no schema changes required.
+export type {
+  SessionTimeOfDay,
+  PaceProfile,
+  ResponseTimeSignal,
+  MoodContext,
+  BehaviorProfile,
+  SessionDataPoint,
+  MoodDataPoint,
+} from "./behaviorEngine";
+export {
+  computeBehaviorProfile,
+  getBehaviorProfile,
+} from "./behaviorEngine";
+
+// StudentLearningProfile v2 additions (M2.5)
+export type { GoalCountdown } from "./studentLearningProfile";
+export { computeGoalCountdown } from "./studentLearningProfile";
+
+// Learning Signal Engine — deterministic observations from profile data (M2.4)
+// Pure engine + service function; no schema changes required.
+// StudentLearningProfile integration deferred to M2.5.
+export type {
+  SignalType,
+  SignalSeverity,
+  SignalConfidence,
+  SignalEvidence,
+  LearningSignal,
+} from "./learningSignalEngine";
+export {
+  computeLearningSignals,
+  getLearningSignals,
+} from "./learningSignalEngine";

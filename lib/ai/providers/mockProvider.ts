@@ -1,4 +1,4 @@
-import type { AIProvider, NormalizedQuestionDraft } from "./types";
+import type { AIProvider, NormalizedQuestionDraft, GenerateQuestionsInput, GenerateQuestionsResult } from "./types";
 
 // Used when no real AI provider is configured (no ANTHROPIC_API_KEY or
 // GOOGLE_GEMINI_API_KEY, or AI_PROVIDER=mock explicitly), so the chat UI
@@ -12,6 +12,40 @@ const TEMPLATES = [
   (question: string) =>
     `Lexi ghi nhận câu hỏi: "${question}" — nhưng hiện tại đang ở chế độ demo nên chưa thể trả lời sâu được. Hãy nhờ quản trị viên cấu hình AI thật, hoặc xem lại "Vì sao" trong phần luyện tập để ôn lại nhé.`,
 ];
+
+// Canned generation drafts — clearly labeled placeholders for the generation
+// pipeline when no real provider is configured. Returns at most 2 drafts
+// regardless of targetCount so demo mode doesn't flood the review queue.
+function buildMockGeneratedDrafts(
+  topic: string,
+  topicLabel: string,
+  difficulty: string,
+  targetCount: number,
+): NormalizedQuestionDraft[] {
+  const prefix = topic.toUpperCase().replace(/_/g, "").slice(0, 8);
+  const diffShort = difficulty.slice(0, 3);
+  const source = `generated:${topic}:${difficulty}`;
+  const count = Math.min(targetCount, 2); // cap mock output at 2
+
+  return Array.from({ length: count }, (_, i) => ({
+    questionCode: `GEN_${prefix}_${diffShort}_${String(i + 1).padStart(2, "0")}`,
+    type: "GRAMMAR_MCQ",
+    skill: "VOCAB_GRAMMAR",
+    difficulty,
+    topic,
+    promptText: `(mẫu AI demo — ${topicLabel}, ${difficulty}) Câu ${i + 1}: Chọn đáp án đúng. (Cấu hình AI_PROVIDER thật để có câu hỏi thực sự)`,
+    optionA: "Lựa chọn A (mẫu demo)",
+    optionB: "Lựa chọn B (mẫu demo)",
+    optionC: "Lựa chọn C (mẫu demo)",
+    optionD: "Lựa chọn D (mẫu demo)",
+    correctOption: "A",
+    explanationVi: `Đây là câu hỏi mẫu về chủ điểm ${topicLabel} ở mức ${difficulty}. Admin cần cấu hình AI_PROVIDER (Gemini hoặc Claude) để nhận câu hỏi thực sự từ AI.`,
+    commonMistake: null,
+    learningObjective: `Ôn luyện kiến thức về ${topicLabel} ở mức ${difficulty}.`,
+    source,
+    sourceExam: null,
+  }));
+}
 
 // Canned drafts for the content-import pipeline when no real provider is
 // configured — same purpose as the chat templates above: clearly labeled
@@ -75,5 +109,12 @@ export const mockProvider: AIProvider = {
   },
   async generateExplanation({ promptText, correctOption }) {
     return `(Giải thích mẫu — chế độ demo) Đáp án đúng cho câu "${promptText.slice(0, 80)}" là ${correctOption}. Cấu hình AI_PROVIDER thật để có giải thích chi tiết.`;
+  },
+
+  async generateQuestions({ topic, topicLabel, difficulty, targetCount }: GenerateQuestionsInput): Promise<GenerateQuestionsResult> {
+    return {
+      drafts: buildMockGeneratedDrafts(topic, topicLabel, difficulty, targetCount),
+      retryCount: 0,
+    };
   },
 };

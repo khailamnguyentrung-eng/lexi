@@ -23,6 +23,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import type { ReadinessResult } from "./types";
+import { ConfidenceTier } from "./types";
 import { getTopicNotebookSummaries } from "./notebookIntelligence";
 import type { TopicNotebookSummary, ImprovementSignal } from "./notebookIntelligence";
 import {
@@ -38,6 +39,14 @@ import {
 import type { PracticeRecommendation } from "@/lib/services/practiceRecommendation";
 import { getSkillMatrix } from "@/lib/services/skillMatrix";
 import { getCurrentMission } from "@/lib/services/curriculum";
+import { getBehaviorProfile } from "./behaviorEngine";
+import type { BehaviorProfile } from "./behaviorEngine";
+import { computeLearningSignals } from "./learningSignalEngine";
+import type { LearningSignal } from "./learningSignalEngine";
+import { getLearningStreak } from "@/lib/services/streak";
+import { assembleLearnerModel } from "@/lib/services/learner-intelligence/learnerProfileBuilder";
+import type { LearnerModel } from "@/lib/services/learner-intelligence/learnerProfileBuilder";
+import type { AttemptRecord, ExplicitPreferences } from "@/lib/services/learner-intelligence/types";
 
 // ─────────────────────────────────────────────────────────
 // Types
@@ -89,6 +98,22 @@ export interface SkillSnapshot {
   skill: string;
   label: string;
   percentage: number;
+  // False when there is no evidence for this skill yet (no SkillMatrixEntry).
+  // Consumers must not render `percentage` as a mastery claim when false —
+  // "0%" for an unattempted skill collapses Ignorance into Confident-low
+  // (LEXI_SYSTEM Ch.2 §2.7; Constitution 5.2/5.10).
+  hasData: boolean;
+}
+
+/**
+ * Countdown to a student's self-declared learning goal deadline
+ * (e.g. upcoming exam, end of term, personal milestone).
+ * Stored as LearnerProfile.targetGoalDate; null when not set.
+ */
+export interface GoalCountdown {
+  targetGoalDate: string; // ISO date string "YYYY-MM-DD"
+  daysRemaining: number;  // positive = future, 0 = today, negative = past
+  isUrgent: boolean;      // 0 < daysRemaining <= 30
 }
 
 /**
@@ -107,6 +132,13 @@ export interface LearningProfileContext {
   nextSessionNumber: number | null;
   nextSessionTitle: string | null;
   nextSessionObjective: string | null;
+  behaviorProfile: BehaviorProfile;
+  currentStreak: number;
+  targetGoalDate: Date | null;
+  // Phase 5 additions (M5.5)
+  allAttempts: AttemptRecord[];
+  learningSignals: LearningSignal[];
+  explicitPreferences?: ExplicitPreferences;
 }
 
 /**
@@ -146,11 +178,43 @@ export interface StudentLearningProfile {
   nextSessionNumber: number | null;
   nextSessionTitle: string | null;
   nextSessionObjective: string | null;
+  behaviorProfile: BehaviorProfile;
+
+  // Phase 2 additions (M2.2–M2.5)
+  currentStreak: number;              // consecutive active days from getLearningStreak()
+  topSignal: LearningSignal | null;   // highest-priority signal from M2.4; set by two-pass in service
+  goalCountdown: GoalCountdown | null; // derived from LearnerProfile.targetGoalDate
+
+  // Phase 5 additions (M5.5)
+  learnerModel: LearnerModel;          // five-engine intelligence snapshot
 }
 
 // ─────────────────────────────────────────────────────────
 // Pure helpers
 // ─────────────────────────────────────────────────────────
+
+/**
+ * Compute goal countdown from a stored goal date and the current time.
+ * Pure — no DB access. Takes `now` as a parameter for testability.
+ *
+ * daysRemaining uses Math.ceil so that "less than one full day left" rounds
+ * up to 1, not 0 (a student with 23 hours remaining still has "1 day left").
+ */
+export function computeGoalCountdown(
+  targetGoalDate: Date | null,
+  now: Date
+): GoalCountdown | null {
+  if (!targetGoalDate) return null;
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const daysRemaining = Math.ceil(
+    (targetGoalDate.getTime() - now.getTime()) / msPerDay
+  );
+  return {
+    targetGoalDate: targetGoalDate.toISOString().split("T")[0],
+    daysRemaining,
+    isUrgent: daysRemaining > 0 && daysRemaining <= 30,
+  };
+}
 
 /**
  * Build mastery summary from mastery profiles.
@@ -259,6 +323,19 @@ export function buildLearningProfile(
     (p) => p.masteryState === "IMPROVING" || p.masteryState === "STABLE"
   );
 
+  // Assemble Phase 5 learner model.
+  // learningSignals may be [] on first pass — getStudentLearningProfile()
+  // overrides this with real signals in the same two-pass pattern as topSignal.
+  const learnerModel = assembleLearnerModel({
+    masteryProfiles: ctx.masteryProfiles,
+    activeWeaknesses,
+    learningSignals: ctx.learningSignals,
+    attempts: ctx.allAttempts,
+    skillAccuracies: ctx.skillSnapshot,
+    behaviorProfile: ctx.behaviorProfile,
+    explicitPreferences: ctx.explicitPreferences,
+  });
+
   return {
     userId: ctx.userId,
     generatedAt: ctx.generatedAt,
@@ -272,6 +349,14 @@ export function buildLearningProfile(
     nextSessionNumber: ctx.nextSessionNumber,
     nextSessionTitle: ctx.nextSessionTitle,
     nextSessionObjective: ctx.nextSessionObjective,
+    behaviorProfile: ctx.behaviorProfile,
+    currentStreak: ctx.currentStreak,
+    goalCountdown: computeGoalCountdown(ctx.targetGoalDate, new Date()),
+    // topSignal is null here — getStudentLearningProfile() overrides it
+    // in a two-pass step after the base profile is built, because
+    // computeLearningSignals() requires the completed profile as input.
+    topSignal: null,
+    learnerModel,
   };
 }
 
@@ -291,28 +376,62 @@ export function buildLearningProfile(
  *
  * Fetch plan:
  *   Parallel: topicSummaries, skillMatrix, currentMission,
- *             mostRecentCompletedSession, allQuestionTopics
+ *             mostRecentCompletedSession, allQuestionTopics, behaviorProfile,
+ *             allUserAttempts (for Phase 5 learner model engines)
  *   Sequential (if session found): getSessionAnalytics (for readiness + weaknesses)
  *   Pure: mastery derivation, recommendation computation, profile assembly
  */
 export async function getStudentLearningProfile(
   userId: string
 ): Promise<StudentLearningProfile> {
-  const [topicSummaries, skillEntries, mission, recentCompleted, allQuestionTopics] =
-    await Promise.all([
-      getTopicNotebookSummaries(userId),
-      getSkillMatrix(userId),
-      getCurrentMission(userId),
-      prisma.userSessionProgress.findFirst({
-        where: { userId, status: "COMPLETED" },
-        orderBy: { curriculumSession: { sessionNumber: "desc" } },
-        select: {
-          curriculumSessionId: true,
-          curriculumSession: { select: { sessionNumber: true } },
-        },
-      }),
-      prisma.question.findMany({ select: { topic: true } }),
-    ]);
+  const [
+    topicSummaries,
+    skillEntries,
+    mission,
+    recentCompleted,
+    allQuestionTopics,
+    behaviorProfile,
+    streak,
+    learnerGoalData,
+    rawAllAttempts,
+  ] = await Promise.all([
+    getTopicNotebookSummaries(userId),
+    getSkillMatrix(userId),
+    getCurrentMission(userId),
+    prisma.userSessionProgress.findFirst({
+      where: { userId, status: "COMPLETED" },
+      orderBy: { curriculumSession: { sessionNumber: "desc" } },
+      select: {
+        curriculumSessionId: true,
+        curriculumSession: { select: { sessionNumber: true } },
+      },
+    }),
+    prisma.question.findMany({ select: { topic: true } }),
+    getBehaviorProfile(userId).catch(() => ({
+      preferredTimeOfDay: null,
+      paceProfile: null,
+      avgSessionDurationMin: null,
+      responseTimeSignal: null,
+      recentMoodContext: null,
+      sessionCount: 0,
+      confidenceTier: ConfidenceTier.OBSERVED,
+    })),
+    getLearningStreak(userId).catch(() => 0),
+    prisma.learnerProfile
+      .findUnique({ where: { userId }, select: { targetGoalDate: true } })
+      .catch(() => null),
+    // Phase 5 (M5.5): all attempts for performance + problem-solving engines
+    prisma.questionAttempt.findMany({
+      where: { userId },
+      select: { isCorrect: true, attemptedAt: true },
+      orderBy: { attemptedAt: "asc" },
+    }).catch(() => [] as { isCorrect: boolean; attemptedAt: Date }[]),
+  ]);
+
+  const allAttempts: AttemptRecord[] = rawAllAttempts.map((a) => ({
+    isCorrect: a.isCorrect,
+    attemptedAt: a.attemptedAt.toISOString(),
+  }));
 
   // Derive mastery from already-fetched summaries — no extra DB query
   const masteryProfiles: TopicMasteryProfile[] = topicSummaries.map((s) => ({
@@ -333,6 +452,7 @@ export async function getStudentLearningProfile(
     skill: e.skill,
     label: e.label,
     percentage: e.percentage,
+    hasData: e.hasData,
   }));
 
   // Fetch analytics for the most recently completed session
@@ -365,7 +485,7 @@ export async function getStudentLearningProfile(
     masteryByTopic,
   });
 
-  return buildLearningProfile({
+  const baseProfile = buildLearningProfile({
     userId,
     generatedAt: new Date().toISOString(),
     topicSummaries,
@@ -377,5 +497,30 @@ export async function getStudentLearningProfile(
     nextSessionNumber: mission?.sessionNumber ?? null,
     nextSessionTitle: mission?.title ?? null,
     nextSessionObjective: mission?.objective ?? null,
+    behaviorProfile,
+    currentStreak: streak,
+    targetGoalDate: learnerGoalData?.targetGoalDate ?? null,
+    // Phase 5 (M5.5): learningSignals starts empty — overridden below after signals are computed
+    allAttempts,
+    learningSignals: [],
+    explicitPreferences: undefined,
   });
+
+  // Two-pass: computeLearningSignals requires the completed profile as input.
+  // Override the null/empty placeholders set by buildLearningProfile.
+  const signals = computeLearningSignals(baseProfile, streak);
+
+  // Re-assemble learnerModel with real signals so KnowledgeState.confidenceTier
+  // benefits from behavioral signal count when topic count is low.
+  const learnerModel = assembleLearnerModel({
+    masteryProfiles,
+    activeWeaknesses: baseProfile.activeWeaknesses,
+    learningSignals: signals,
+    attempts: allAttempts,
+    skillAccuracies: skillSnapshot,
+    behaviorProfile,
+    explicitPreferences: undefined,
+  });
+
+  return { ...baseProfile, topSignal: signals[0] ?? null, learnerModel };
 }

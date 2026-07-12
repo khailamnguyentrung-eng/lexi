@@ -1,10 +1,18 @@
 // Runtime fallback wrapper: if a configured provider fails at API call time,
 // automatically degrade to mockProvider rather than surfacing an error.
 // Wraps the AIProvider interface without modifying any provider implementations
-// or call sites. Only normalizeQuestions and generateExplanation fall back;
-// chat remains pass-through so the route's existing error handling stays in place.
+// or call sites. Only normalizeQuestions, generateExplanation, and generateQuestions
+// fall back; chat remains pass-through so the route's existing error handling stays in place.
 
-import type { AIProvider, ChatMessageInput, GenerateExplanationInput, NormalizeQuestionsInput, NormalizeQuestionsResult } from "./types";
+import type {
+  AIProvider,
+  ChatMessageInput,
+  GenerateExplanationInput,
+  GenerateQuestionsInput,
+  GenerateQuestionsResult,
+  NormalizeQuestionsInput,
+  NormalizeQuestionsResult,
+} from "./types";
 
 export function withRuntimeFallback(primary: AIProvider, fallback: AIProvider): AIProvider {
   return {
@@ -43,6 +51,20 @@ export function withRuntimeFallback(primary: AIProvider, fallback: AIProvider): 
           `[AI FALLBACK ACTIVE] ${primary.name} generateExplanation failed (${errMsg}). Using ${fallback.name}.`
         );
         return fallback.generateExplanation(input);
+      }
+    },
+
+    // Fall back on any error. Mock returns clearly labeled placeholder drafts
+    // that the human review gate will flag before any Question row is created.
+    async generateQuestions(input: GenerateQuestionsInput): Promise<GenerateQuestionsResult> {
+      try {
+        return await primary.generateQuestions(input);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `[AI FALLBACK ACTIVE] ${primary.name} generateQuestions failed (${errMsg}). Using ${fallback.name}.`
+        );
+        return fallback.generateQuestions(input);
       }
     },
   };

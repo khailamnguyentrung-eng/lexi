@@ -71,6 +71,7 @@ model LearnerProfile {
 
   preferredAmbientSound String? // future Focus Mode, unused in MVP
   onboardingCompletedAt DateTime?
+  targetGoalDate        DateTime? // student's learning goal deadline (exam date, term end, etc.)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -142,6 +143,12 @@ model Question {
 
   curriculumSessionId String?
   curriculumSession   CurriculumSession? @relation(fields: [curriculumSessionId], references: [id])
+
+  // Content Intelligence (M3.1) — nullable; null for seeded/extracted questions
+  knowledgeUnitId    String?
+  knowledgeUnit      KnowledgeUnit?        @relation(fields: [knowledgeUnitId], references: [id])
+  generatedViaJobId  String?
+  generatedViaJob    QuestionGenerationJob? @relation("GeneratedQuestions", fields: [generatedViaJobId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -275,9 +282,10 @@ model CurriculumSession {
   unitMapping   String? // e.g. "Global Success Unit 1"
   sessionType   SessionType     @default(REGULAR)
 
-  questions     Question[] // related questions, via Question.curriculumSessionId
+  questions        Question[] // related questions, via Question.curriculumSessionId
   questionAttempts QuestionAttempt[] // attempts submitted in this session context
-  userProgress  UserSessionProgress[]
+  userProgress     UserSessionProgress[]
+  knowledgeUnits   KnowledgeUnitOnSession[] // M3.1: topics that this session covers
 }
 
 model UserSessionProgress {
@@ -417,6 +425,13 @@ enum ReviewStatus {
   REJECTED
 }
 
+// Validation outcome from contentValidation.ts, stored on GeneratedQuestionDraft.
+enum DraftValidationStatus {
+  PASS    // no issues
+  WARNING // low/medium severity issues only
+  FAIL    // at least one high-severity issue — draft cannot be approved
+}
+
 model ExtractedQuestionDraft {
   id          String    @id @default(cuid())
   importJobId String
@@ -437,10 +452,133 @@ model ExtractedQuestionDraft {
   // import never duplicates a question.
   importedQuestionId String?
 
+  // Content Intelligence (M3.1) — null for extraction-origin drafts
+  generationJobId String?
+  generationJob   QuestionGenerationJob? @relation("GenerationDrafts", fields: [generationJobId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([importJobId, reviewStatus])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// CONTENT INTELLIGENCE (Phase 3 — M3.1 foundation)
+// ──────────────────────────────────────────────────────────────────
+// KnowledgeUnit: canonical topic registry. One row per topic string,
+// recording display label and target question counts per difficulty band.
+// Bridges Question.topic (a plain string) to CurriculumSession (via join
+// table) and enables the content gap analysis engine.
+//
+// QuestionGenerationJob: minimal foundation for admin-triggered AI
+// generation. Full provider/cost fields deferred to M3.3+. Drafts produced
+// by a job reuse the existing ExtractedQuestionDraft → approveDraft() flow.
+
+model KnowledgeUnit {
+  id                String   @id @default(cuid())
+  topic             String   @unique // must match Question.topic exactly (canonical snake_case)
+  label             String           // human-readable Vietnamese label
+  targetEasyCount   Int      @default(5)
+  targetMediumCount Int      @default(5)
+  targetHardCount   Int      @default(3)
+
+  sessions        KnowledgeUnitOnSession[]
+  questions       Question[]
+  generatedDrafts GeneratedQuestionDraft[] @relation("GeneratedDraftsForUnit")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([topic]) // fast lookup during coverage computation
+}
+
+model KnowledgeUnitOnSession {
+  knowledgeUnit       KnowledgeUnit     @relation(fields: [knowledgeUnitId], references: [id])
+  knowledgeUnitId     String
+  curriculumSession   CurriculumSession @relation(fields: [curriculumSessionId], references: [id])
+  curriculumSessionId String
+
+  @@id([knowledgeUnitId, curriculumSessionId])
+}
+
+enum GenerationJobStatus {
+  PENDING    // job created, not yet run
+  GENERATING // AI call in progress
+  REVIEWING  // drafts created, awaiting human review
+  COMPLETED  // all drafts reviewed
+  FAILED     // AI call or draft creation errored
+}
+
+model QuestionGenerationJob {
+  id           String              @id @default(cuid())
+  topic        String
+  difficulty   Difficulty
+  targetCount  Int
+  status       GenerationJobStatus @default(PENDING)
+  errorMessage String?             // set when status = FAILED
+
+  drafts          ExtractedQuestionDraft[] @relation("GenerationDrafts")
+  questions       Question[]               @relation("GeneratedQuestions")
+  generatedDrafts GeneratedQuestionDraft[] @relation("GeneratedDrafts")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ──────────────────────────────────────────────────────────────────
+// GENERATED QUESTION DRAFT (Phase 3 — M4.3)
+// ──────────────────────────────────────────────────────────────────
+// Separate from ExtractedQuestionDraft: generated content has a different
+// provenance (QuestionGenerationJob, not ImportJob) and different lifecycle
+// needs. Using a separate model keeps import and generation audit trails clean.
+
+model GeneratedQuestionDraft {
+  id String @id @default(cuid())
+
+  // Generation job that produced this draft
+  generationJobId String
+  generationJob   QuestionGenerationJob @relation("GeneratedDrafts", fields: [generationJobId], references: [id])
+
+  // Topic registry entry the draft was generated for
+  knowledgeUnitId String
+  knowledgeUnit   KnowledgeUnit @relation("GeneratedDraftsForUnit", fields: [knowledgeUnitId], references: [id])
+
+  // Question content — all fields needed to create a Question row at approval.
+  // questionType and questionSkill are stored as String (not enum) because the
+  // AI output string is validated at approval time, matching how importer.ts
+  // handles the normalizedData cast.
+  questionCode      String
+  topic             String
+  difficulty        Difficulty
+  promptText        String
+  optionA           String
+  optionB           String
+  optionC           String
+  optionD           String
+  correctOption     String   // "A" | "B" | "C" | "D"
+  explanationVi     String
+  commonMistake     String?
+  learningObjective String?
+  questionType      String   // QuestionType value, cast to enum at approval
+  questionSkill     String   // SkillCategory value, cast to enum at approval
+  source            String   // "generated:<topic>:<difficulty>"
+
+  // Review lifecycle — reuses existing ReviewStatus enum
+  status     ReviewStatus @default(PENDING_REVIEW)
+  reviewNote String?
+
+  // Validation result written at draft creation by contentValidation.ts.
+  // FAIL drafts are blocked from approval.
+  validationStatus DraftValidationStatus @default(PASS)
+  validationIssues String?               // JSON: ValidationIssue[]
+
+  // Set when APPROVED — prevents duplicate Question creation on re-approval
+  approvedQuestionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([generationJobId, status])
 }
 
 // ──────────────────────────────────────────────────────────────────

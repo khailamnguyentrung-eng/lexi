@@ -1,6 +1,11 @@
 import { getGeminiClient, GEMINI_MODEL } from "@/lib/ai/geminiClient";
-import { NORMALIZE_SYSTEM_PROMPT, normalizeWithRetry } from "./normalizationCore";
-import type { AIProvider, ChatMessageInput } from "./types";
+import {
+  NORMALIZE_SYSTEM_PROMPT,
+  GENERATE_QUESTIONS_SYSTEM_PROMPT,
+  normalizeWithRetry,
+  generateWithRetry,
+} from "./normalizationCore";
+import type { AIProvider, ChatMessageInput, GenerateQuestionsInput, GenerateQuestionsResult } from "./types";
 
 // Gemini uses "model" where Anthropic/our ChatMessageInput use
 // "assistant" — translate at the boundary so the rest of the codebase
@@ -41,5 +46,15 @@ export const geminiProvider: AIProvider = {
     const studentLine = studentAnswer ? `\nHọc sinh đã chọn: ${studentAnswer}` : "";
     const user = `Câu hỏi: ${promptText}\nA. ${optionA}\nB. ${optionB}\nC. ${optionC}\nD. ${optionD}\nĐáp án đúng: ${correctOption}${studentLine}`;
     return callGemini(system, [{ role: "user", content: user }]);
+  },
+
+  async generateQuestions({ topic, topicLabel, difficulty, targetCount }: GenerateQuestionsInput): Promise<GenerateQuestionsResult> {
+    return generateWithRetry(
+      (messages) => callGemini(GENERATE_QUESTIONS_SYSTEM_PROMPT, messages),
+      topic,
+      topicLabel,
+      difficulty,
+      targetCount,
+    );
   },
 };

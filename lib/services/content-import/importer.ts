@@ -9,6 +9,7 @@ import type { ContentFileType, ContentSource } from "@prisma/client";
 import { fileExtractor } from "./extractor";
 import { normalizeWithAI } from "./ai-normalizer";
 import type { NormalizedQuestionDraft } from "./normalizer";
+import { autoAssignKnowledgeUnit } from "@/lib/services/content-intelligence/questionKnowledgeMapping";
 
 // Step 1: register an uploaded file. Actual byte storage (local disk vs.
 // object storage) is intentionally outside this function — callers pass
@@ -149,6 +150,15 @@ export async function approveDraft(draftId: string, reviewedByUserId: string) {
       sourceExam: data.sourceExam,
     },
   });
+
+  // Attempt topic-based KnowledgeUnit assignment. Non-throwing: missing
+  // KnowledgeUnit never fails approval — backward compatible with all
+  // existing questions and topics that predate the KnowledgeUnit registry.
+  try {
+    await autoAssignKnowledgeUnit(created.id, data.topic);
+  } catch {
+    // auto-assign failure is non-critical; coverage still works via topic matching
+  }
 
   const updated = await prisma.extractedQuestionDraft.update({
     where: { id: draftId },

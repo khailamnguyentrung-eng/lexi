@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { nextReviewDate } from "@/lib/services/errorNotebook";
+import { parseJsonBody } from "@/lib/api/parseJsonBody";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -19,10 +20,18 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json();
-  const { questionId, studentAnswer, correctAnswer, reason, concept } = body;
+  const body = await parseJsonBody(request);
+  if (body === null || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  const { questionId, studentAnswer, correctAnswer, reason, concept } = body as Record<string, unknown>;
 
-  if (!studentAnswer || !correctAnswer || !reason || !concept) {
+  if (
+    typeof studentAnswer !== "string" || !studentAnswer ||
+    typeof correctAnswer !== "string" || !correctAnswer ||
+    typeof reason !== "string" || !reason ||
+    typeof concept !== "string" || !concept
+  ) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
@@ -41,7 +50,7 @@ export async function POST(request: Request) {
   const entry = await prisma.errorNotebookEntry.create({
     data: {
       userId: user.id,
-      questionId: questionId ?? null,
+      questionId: typeof questionId === "string" ? questionId : null,
       studentAnswer,
       correctAnswer,
       reason,

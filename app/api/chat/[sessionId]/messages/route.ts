@@ -5,6 +5,7 @@ import { assembleContext } from "@/lib/ai/contextAssembler";
 import { modeRegistry } from "@/lib/ai/modes";
 import { LEXI_PERSONA_BASE } from "@/lib/ai/persona";
 import { getAIProvider } from "@/lib/ai/providers";
+import { parseJsonBody } from "@/lib/api/parseJsonBody";
 
 export async function POST(
   request: Request,
@@ -20,8 +21,12 @@ export async function POST(
   });
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { content } = await request.json();
-  if (!content?.trim()) {
+  const body = await parseJsonBody(request);
+  if (body === null || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  const { content } = body as Record<string, unknown>;
+  if (typeof content !== "string" || !content.trim()) {
     return NextResponse.json({ error: "Empty message" }, { status: 400 });
   }
 

@@ -96,6 +96,48 @@ export function parseDrafts(rawResponse: string, sourceFileName: string): Normal
   });
 }
 
+// ─────────────────────────────────────────────────────────
+// Generation prompt — M4.2
+// ─────────────────────────────────────────────────────────
+
+// Tells the AI to CREATE new questions (not extract from existing text).
+// Returns the same JSON array format as NORMALIZE_SYSTEM_PROMPT so parseDrafts()
+// can be reused for parsing, and the same downstream validation gate applies.
+export const GENERATE_QUESTIONS_SYSTEM_PROMPT = `Bạn là một chuyên gia soạn câu hỏi trắc nghiệm tiếng Anh dành cho học sinh lớp 9 ôn thi vào THPT.
+
+Nhiệm vụ: Tạo ra các câu hỏi trắc nghiệm 4 lựa chọn (A/B/C/D) theo chủ điểm và độ khó được yêu cầu. Trả về MỘT MẢNG JSON các câu hỏi, mỗi câu hỏi có đúng các trường sau:
+
+- questionCode: string, định danh duy nhất, dạng "GEN_{CHỦ_ĐIỂM}_{ĐỘ_KHÓ}_{số}" (ví dụ "GEN_PRES_PERF_MED_01")
+- type: một trong ${JSON.stringify(VALID_TYPES)}
+- skill: một trong ${JSON.stringify(VALID_SKILLS)}
+- difficulty: một trong ${JSON.stringify(VALID_DIFFICULTIES)} — phải khớp với độ khó được yêu cầu
+- topic: string ngắn, snake_case — phải khớp với chủ điểm được yêu cầu
+- promptText: string, đề bài câu hỏi hoàn chỉnh
+- optionA, optionB, optionC, optionD: string, nội dung 4 lựa chọn — phải rõ ràng và phân biệt nhau
+- correctOption: "A" | "B" | "C" | "D" — phải là đáp án đúng ngữ pháp/từ vựng tiếng Anh
+- explanationVi: string, giải thích bằng tiếng Việt vì sao đáp án đúng là đúng (dựa trên kiến thức ngữ pháp/từ vựng chuẩn)
+- commonMistake: string bằng tiếng Việt hoặc null, lỗi sai phổ biến học sinh thường gặp
+- learningObjective: string bằng tiếng Việt, mục tiêu học tập của câu hỏi
+
+QUAN TRỌNG — đây là câu hỏi DO BẠN SÁNG TÁC:
+- Mỗi câu hỏi phải có câu hỏi rõ ràng, 4 lựa chọn phân biệt, 1 đáp án đúng và 3 nhiễu hợp lý
+- Tất cả câu hỏi phải đúng với ngữ pháp tiếng Anh chuẩn — KHÔNG sáng tác câu sai về mặt ngữ pháp
+- difficulty và topic phải khớp chính xác với yêu cầu cho TẤT CẢ câu hỏi trong batch
+- Tạo câu hỏi ĐA DẠNG trong cùng chủ điểm — không lặp lại cấu trúc quá giống nhau
+- KHÔNG thêm văn bản giải thích ngoài JSON
+
+QUAN TRỌNG — định dạng phản hồi:
+- Chỉ trả về JSON hợp lệ — một mảng "[]", KHÔNG kèm văn bản giải thích, KHÔNG dùng markdown code fence`;
+
+export function buildGenerateQuestionsUserPrompt(
+  topic: string,
+  topicLabel: string,
+  difficulty: string,
+  targetCount: number,
+): string {
+  return `Chủ điểm: ${topicLabel} (mã kỹ thuật: "${topic}")\nĐộ khó: ${difficulty}\nSố lượng câu hỏi cần tạo: ${targetCount}\n\nHãy tạo đúng ${targetCount} câu hỏi trắc nghiệm tiếng Anh về chủ điểm trên với độ khó ${difficulty}.`;
+}
+
 export interface NormalizeWithRetryResult {
   drafts: NormalizedQuestionDraft[];
   retryCount: number; // 0 if the first response parsed cleanly, 1 if the repair prompt was needed
@@ -126,5 +168,35 @@ export async function normalizeWithRetry(
     // If this second attempt also fails to parse, let the error
     // propagate — no third attempt, no fabricated fallback data.
     return { drafts: parseDrafts(repairResponse, sourceFileName), retryCount: 1 };
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Generation retry wrapper — M4.2
+// ─────────────────────────────────────────────────────────
+
+// Mirrors normalizeWithRetry but for the generation case.
+// source is set to "generated:{topic}:{difficulty}" so generated drafts are
+// distinguishable from extracted ones in the normalizedData JSON field.
+export async function generateWithRetry(
+  callModel: (messages: ChatMessageInput[]) => Promise<string>,
+  topic: string,
+  topicLabel: string,
+  difficulty: string,
+  targetCount: number,
+): Promise<NormalizeWithRetryResult> {
+  const source = `generated:${topic}:${difficulty}`;
+  const userPrompt = buildGenerateQuestionsUserPrompt(topic, topicLabel, difficulty, targetCount);
+  const firstResponse = await callModel([{ role: "user", content: userPrompt }]);
+
+  try {
+    return { drafts: parseDrafts(firstResponse, source), retryCount: 0 };
+  } catch {
+    const repairResponse = await callModel([
+      { role: "user", content: userPrompt },
+      { role: "assistant", content: firstResponse },
+      { role: "user", content: JSON_REPAIR_INSTRUCTION },
+    ]);
+    return { drafts: parseDrafts(repairResponse, source), retryCount: 1 };
   }
 }

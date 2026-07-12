@@ -28,14 +28,24 @@ export default async function ProgressPage() {
             <div key={s.skill}>
               <div className="mb-1 flex justify-between text-sm text-zinc-700">
                 <span>{s.label}</span>
-                <span className="font-medium">{s.percentage}%</span>
+                {s.hasData ? (
+                  <span className="font-medium">{s.percentage}%</span>
+                ) : (
+                  <span className="text-xs text-zinc-400">Chưa đủ dữ liệu</span>
+                )}
               </div>
-              <div className="h-3 w-full rounded-full bg-zinc-100">
-                <div
-                  className="h-3 rounded-full bg-lexi-primary"
-                  style={{ width: `${s.percentage}%` }}
-                />
-              </div>
+              {/* Only draw a filled bar when there is evidence — an empty rail with
+                  "Chưa đủ dữ liệu" reads as "no data yet", never as 0% mastery. */}
+              {s.hasData ? (
+                <div className="h-3 w-full rounded-full bg-zinc-100">
+                  <div
+                    className="h-3 rounded-full bg-lexi-primary"
+                    style={{ width: `${s.percentage}%` }}
+                  />
+                </div>
+              ) : (
+                <div className="h-3 w-full rounded-full bg-zinc-50" />
+              )}
             </div>
           ))}
         </div>

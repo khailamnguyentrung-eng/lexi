@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { estimateLevel } from "@/lib/services/diagnosticTest";
+import { parseJsonBody } from "@/lib/api/parseJsonBody";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -19,10 +20,14 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json();
-  const grammarScore = Number(body.grammarScore);
-  const vocabularyScore = Number(body.vocabularyScore);
-  const readingScore = Number(body.readingScore);
+  const body = await parseJsonBody(request);
+  if (body === null || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  const parsedBody = body as Record<string, unknown>;
+  const grammarScore = Number(parsedBody.grammarScore);
+  const vocabularyScore = Number(parsedBody.vocabularyScore);
+  const readingScore = Number(parsedBody.readingScore);
 
   if ([grammarScore, vocabularyScore, readingScore].some((n) => Number.isNaN(n) || n < 0 || n > 10)) {
     return NextResponse.json({ error: "Scores must be numbers between 0 and 10." }, { status: 400 });

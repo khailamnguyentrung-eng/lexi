@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { splitForUnderline } from "@/lib/phonetics";
 import { getCorrectMessage, getIncorrectIntro } from "@/lib/ai/encouragement";
+import { LensFloatingAssistant } from "@/components/lens/LensFloatingAssistant";
 
 interface QuizQuestion {
   id: string;
@@ -49,6 +50,15 @@ export function PracticeQuiz({
   const correctMessage = useMemo(() => getCorrectMessage(), [current?.id]);
   const incorrectIntro = useMemo(() => getIncorrectIntro(), [current?.id]);
 
+  // Tracks when the current question was first shown, so handleAnswer can
+  // report timeSpentSec — feeds the response-time signals in the learner
+  // intelligence layer (PerformanceState, ProblemSolvingState), which
+  // otherwise never receive real timing data.
+  const questionShownAtRef = useRef(Date.now());
+  useEffect(() => {
+    questionShownAtRef.current = Date.now();
+  }, [current?.id]);
+
   useEffect(() => {
     if (!midExamPrompt) return;
     setMidExamCountdown(5);
@@ -69,7 +79,8 @@ export function PracticeQuiz({
     if (feedback || submitting) return;
     setSubmitting(true);
 
-    const body: Record<string, string> = { selectedOption: option };
+    const timeSpentSec = Math.round((Date.now() - questionShownAtRef.current) / 1000);
+    const body: Record<string, string | number> = { selectedOption: option, timeSpentSec };
     if (curriculumSessionId) body.curriculumSessionId = curriculumSessionId;
 
     const res = await fetch(`/api/questions/${current.id}/attempt`, {
@@ -219,6 +230,12 @@ export function PracticeQuiz({
                   Ghi vào sổ lỗi
                 </Link>
               )}
+            </div>
+
+            {/* Lens — only available after the student has seen the explanation */}
+            <div className="mt-4 border-t border-lexi-primary/10 pt-3">
+              <p className="mb-2 text-xs text-zinc-500">Vẫn còn thắc mắc?</p>
+              <LensFloatingAssistant />
             </div>
           </div>
         )}

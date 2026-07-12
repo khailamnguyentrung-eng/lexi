@@ -1,6 +1,11 @@
 import { getClaudeClient, CLAUDE_MODEL } from "@/lib/ai/claudeClient";
-import { NORMALIZE_SYSTEM_PROMPT, normalizeWithRetry } from "./normalizationCore";
-import type { AIProvider, ChatMessageInput } from "./types";
+import {
+  NORMALIZE_SYSTEM_PROMPT,
+  GENERATE_QUESTIONS_SYSTEM_PROMPT,
+  normalizeWithRetry,
+  generateWithRetry,
+} from "./normalizationCore";
+import type { AIProvider, ChatMessageInput, GenerateQuestionsInput, GenerateQuestionsResult } from "./types";
 
 async function callClaude(system: string, messages: ChatMessageInput[]) {
   const claude = getClaudeClient();
@@ -37,5 +42,15 @@ export const claudeProvider: AIProvider = {
     const studentLine = studentAnswer ? `\nHọc sinh đã chọn: ${studentAnswer}` : "";
     const user = `Câu hỏi: ${promptText}\nA. ${optionA}\nB. ${optionB}\nC. ${optionC}\nD. ${optionD}\nĐáp án đúng: ${correctOption}${studentLine}`;
     return callClaude(system, [{ role: "user", content: user }]);
+  },
+
+  async generateQuestions({ topic, topicLabel, difficulty, targetCount }: GenerateQuestionsInput): Promise<GenerateQuestionsResult> {
+    return generateWithRetry(
+      (messages) => callClaude(GENERATE_QUESTIONS_SYSTEM_PROMPT, messages),
+      topic,
+      topicLabel,
+      difficulty,
+      targetCount,
+    );
   },
 };
