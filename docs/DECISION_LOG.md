@@ -119,6 +119,8 @@ Each entry includes what was decided, the reason, and what was explicitly reject
 
 ## M6.4 — LEXI UI consumes LensViewModel instead of intelligence engines
 
+_Removed: 2026-07-13. The standalone `/lens` page and `LensPageContent` described below were deleted per a product decision to retire the feature. This entry is kept as a historical record; the code it describes no longer exists. `lib/services/lens-ai/` (a different subsystem — Explain/OCR/Assistant) is unaffected._
+
 **Decision:** The `/lens` page (`app/(app)/lens/page.tsx`) is a Server Component that calls only `getLearnerLens(userId)` from the Lens service layer. The single data contract crossing from server to client is `LensViewModel`. No learner intelligence engine, no `StudentLearningProfile`, no `LearnerModel`, no `KnowledgeState` or `PerformanceState` type is imported anywhere in the page or its sub-components. `LensPageContent` (the Client Component) accepts `{ viewModel: LensViewModel }` as its only prop.
 
 **Reason:** UI evolution must remain independent from learning intelligence. When the summary section is redesigned (different layout, different metric tiles, new wording), the change must not touch any intelligence engine. When an intelligence engine is refactored (new field names, different confidence calculation), the change must not cascade into the UI. The `LensViewModel` contract is the stable boundary: `getLearnerLens()` promises to return it; the UI promises to consume only it. This boundary was first established in M6.2 (stable service contract) and M6.3 (design system with no engine imports). M6.4 closes the loop by proving the boundary holds under real composition: a page with five sections, theme switching, and link generation — all derived from `LensViewModel` fields alone.
@@ -169,6 +171,8 @@ Each entry includes what was decided, the reason, and what was explicitly reject
 
 ## M6.2 — Lens exposes a stable view contract separate from learner intelligence
 
+_Removed: 2026-07-13. `lensService.ts`, `getLearnerLens()`, and the `LensViewModel` contract described below were deleted along with the standalone Lens feature. This entry is kept as a historical record; the code it describes no longer exists. `lib/services/lens-ai/` (a different subsystem — Explain/OCR/Assistant) is unaffected._
+
 **Decision:** `getLearnerLens(userId)` in `lensService.ts` is the single entry point for all Lens consumers (student dashboard, session results, parent/teacher view). It fetches `StudentLearningProfile v3` and passes it to `assembleLensViewModel()`, which calls all five Phase 6.1 transformers. Consumers receive a `LensViewModel` — they never interact with `StudentLearningProfile`, `LearnerModel`, or any Phase 5 engine output directly.
 
 **Reason:** UI evolution should not require changing intelligence engines. If a dashboard component is updated to show a new layout for strengths, that change must not touch `knowledgeState.ts`, `performanceState.ts`, or any Phase 5 logic. The `LensViewModel` contract is the boundary: intelligence lives below it, presentation lives above it. With `assembleLensViewModel` exported as a pure function, the contract is independently testable without triggering a DB fetch, and UI authors have a single stable type to depend on.
@@ -178,6 +182,8 @@ Each entry includes what was decided, the reason, and what was explicitly reject
 ---
 
 ## M6.1 — LEXI Lens transforms learner intelligence into understandable views
+
+_Removed: 2026-07-13. `lib/services/lens/` (the pure transformer layer described below) was deleted along with the standalone Lens feature. This entry is kept as a historical record; the code it describes no longer exists. `lib/services/lens-ai/` (a different subsystem — Explain/OCR/Assistant) is unaffected._
 
 **Decision:** The Lens layer (`lib/services/lens/`) contains only pure transformer functions that consume `StudentLearningProfile v3` and produce typed view objects (`LearnerSummary`, `LearningInsights`, `Strengths`, `Challenges`, `RecommendedActions`). No new inference rules, no DB access, no AI, no schema changes. The `confidenceTier` and `source` fields are propagated to every output item so the UI can communicate confidence without re-deriving it.
 
