@@ -1,0 +1,86 @@
+[
+  {
+    "topic": "reading_comprehension_detail",
+    "label": "Đọc hiểu: Câu hỏi chi tiết",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "present_perfect",
+    "label": "Thì hiện tại hoàn thành",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "present_simple",
+    "label": "Thì hiện tại đơn",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "comparatives",
+    "label": "So sánh hơn",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "conditionals_type_1",
+    "label": "Câu điều kiện loại 1",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "conditionals_type_2",
+    "label": "Câu điều kiện loại 2",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "reported_speech_statement",
+    "label": "Câu tường thuật: Câu trần thuật",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "phrasal_verbs",
+    "label": "Cụm động từ",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "word_formation_noun",
+    "label": "Cấu tạo từ: Danh từ",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "word_formation_adjective",
+    "label": "Cấu tạo từ: Tính từ",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "word_stress_two_syllables",
+    "label": "Trọng âm: Từ hai âm tiết",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "wh_word_to_infinitive",
+    "label": "Từ để hỏi + động từ nguyên mẫu",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  }
+]

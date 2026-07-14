@@ -27,6 +27,14 @@ interface SeedQuestion {
   curriculumSessionNumber: number | null;
 }
 
+interface SeedKnowledgeUnit {
+  topic: string;
+  label: string;
+  targetEasyCount: number;
+  targetMediumCount: number;
+  targetHardCount: number;
+}
+
 interface SeedCurriculum {
   phases: Array<{ order: number; name: string; startSession: number; endSession: number; goal: string }>;
   sessions: Array<{
@@ -149,6 +157,49 @@ async function seedCurriculum() {
   console.log(`Seeded ${data.phases.length} phases and ${data.sessions.length} curriculum sessions.`);
 }
 
+/**
+ * The canonical topic taxonomy (KU-1, 2026-07-15).
+ *
+ * Seeded BEFORE questions so the registry exists before anything classifies
+ * into it. Deliberately narrow: only the 12 topics that actually carry >=3
+ * questions today, not all 74 distinct `Question.topic` strings. `topic` is
+ * free text entered at import time, so deriving the taxonomy from it wholesale
+ * would inherit its noise — 51 of those 74 are backed by a single question, and
+ * the resulting registry would demand ~840 generated questions to fill gaps
+ * that shouldn't exist. This list is curated instead (Ch.1 §9: Content-Item
+ * curation belongs to a curating authority, not to a script).
+ *
+ * `topic` must match `Question.topic` EXACTLY — coverage matches on the string
+ * (`computeCoverageReport`: `questions.filter(q => q.topic === unit.topic)`),
+ * not on `Question.knowledgeUnitId`. Growing this list is how the taxonomy
+ * grows until the FigJam v2 Pending-KU review queue exists.
+ */
+async function seedKnowledgeUnits() {
+  const units = readJson<SeedKnowledgeUnit[]>("seed-data/knowledge-units.json");
+  if (!units) return;
+
+  for (const u of units) {
+    await prisma.knowledgeUnit.upsert({
+      where: { topic: u.topic },
+      update: {
+        label: u.label,
+        targetEasyCount: u.targetEasyCount,
+        targetMediumCount: u.targetMediumCount,
+        targetHardCount: u.targetHardCount,
+      },
+      create: {
+        topic: u.topic,
+        label: u.label,
+        targetEasyCount: u.targetEasyCount,
+        targetMediumCount: u.targetMediumCount,
+        targetHardCount: u.targetHardCount,
+      },
+    });
+  }
+
+  console.log(`Seeded ${units.length} knowledge units.`);
+}
+
 async function seedQuestions() {
   const questions = readJson<SeedQuestion[]>("seed-data/questions.json");
   if (!questions) return;
@@ -228,6 +279,7 @@ async function main() {
   await seedStudent();
   await seedAdmin();
   await seedCurriculum();
+  await seedKnowledgeUnits();
   await seedQuestions();
 }
 

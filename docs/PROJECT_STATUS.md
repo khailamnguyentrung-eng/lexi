@@ -316,36 +316,44 @@ and RT-1's gating/enrichment logic) but have not been folded into a unified coun
 
 ## Pending Milestones
 
-### KU-1 — Nothing creates KnowledgeUnits; the whole content-intelligence stack is unreachable
-**Surfaced 2026-07-15** while verifying M4.5. Pre-existing — M4.5 did not cause it, it exposed it.
+### KU-1 — KnowledgeUnit registry: seeded narrow (Reading 3 adopted, 2026-07-15)
+**Founder ruling: start narrow now (A), grow into the FigJam v2 Pending-KU flow later (B).**
 
-**The evidence:**
-- The dev DB has **0** `KnowledgeUnit` rows (against 122 `Question` rows).
-- `prisma/seed.ts` does not touch the table.
-- `grep -rn "knowledgeUnit.create\|knowledgeUnit.upsert\|knowledgeUnit.createMany" --include=*.ts`
-  across the whole repo returns **nothing**. No API, no UI, no script creates one.
-- `getKnowledgeCoverageReport()` therefore always returns `totalUnits=0, gaps=0`.
+**What shipped.** `prisma/seed-data/knowledge-units.json` + `seedKnowledgeUnits()` in
+`prisma/seed.ts` (runs before `seedQuestions()`), seeding **12 curated KnowledgeUnits** — only the
+topics that actually carry ≥3 questions today, each with a hand-written Vietnamese label and the
+schema's default targets (5 easy / 5 medium / 3 hard). Idempotent: upserts on the unique `topic`.
 
-**The consequence.** Everything built on the KnowledgeUnit registry is currently dead code in
-practice, not just M4.5:
-- **M3.2** coverage intelligence computes over an empty set.
-- **M3.3** question↔KU mapping (`autoAssignKnowledgeUnit` in `approveDraft`) can never match.
-- **M4.1–M4.4** generation has no gap to generate for.
-- **M4.5**'s endpoint would 404 (unit not found) or 400 (no gap) on every real request, forever.
+**Effect — the stack is alive.** Before: `getKnowledgeCoverageReport()` returned
+`totalUnits=0, gaps=0`, and every M3.2/M3.3/M4.x capability was dead code in practice. After:
+`totalUnits=12, gaps=12`, and M4.5's endpoint generates drafts end-to-end against a *seeded* unit
+(verified live: `present_perfect` / HARD → 200, job landed on `REVIEWING`).
 
-M3.1 is recorded above as "Schema only" — accurate, and this is the unnoticed corollary: the
-registry was never populated, and no later milestone took that on.
+**Why 12 and not all 74** — this is the load-bearing decision, recorded so it isn't "simplified"
+later: `Question.topic` is **free text entered at import time**, so deriving the taxonomy from it
+wholesale inherits its noise. 51 of the 74 distinct topics are backed by a **single** question, and
+a 74-unit registry at default targets would demand ~840 generated questions to fill gaps that
+shouldn't exist — the system would busily manufacture content for a taxonomy nobody curated. Ch.1
+§9 assigns Content-Item curation to a *curating authority*; a `SELECT DISTINCT` is not one. The 12
+seeded units cover 49/122 questions (40%) and currently report **113** genuinely missing questions.
 
-**Proven by construction, not inferred.** Creating one `KnowledgeUnit` for the real existing topic
-`comparatives` (which has E=1, M=2, H=0 questions against default targets E=5, M=5, H=3)
-immediately produced a genuine `HIGH`-priority gap `{easy:4, medium:3, hard:3}`, and M4.5's endpoint
-then generated drafts successfully end to end. So the machinery is correct — **only the data is
-missing**. (That temporary unit was removed afterwards; the DB is back to 0.)
+**How the taxonomy grows, today:** edit `knowledge-units.json` and re-run `npm run db:seed`. That
+is the intended, supported path until (B) exists.
 
-**The decision needed** is what populates the registry, and it is a product question, not a coding
-one: seed a curated canonical topic list? derive units from existing `Question.topic` values? build
-an admin CRUD screen? Each implies a different owner for the taxonomy — and Ch.1 §9 already assigns
-Content-Item curation to a "curating authority," so this touches who that is in practice.
+**Still open — (B), the FigJam v2 knowledge-graph flow.** The v2 design has import → chunk →
+*create Pending KnowledgeUnit when nothing matches* → human review/merge/rename queue
+(`autoAssignKnowledgeUnit` today just `return false`s when no unit matches — it never creates one).
+The FigJam review already flagged the governance half (dedup/merge/canonical naming/Pending-KU
+queue) as unresolved. Not built, deliberately deferred.
+
+**Known inconsistency, not fixed here (out of scope, no reachable consumer).** Coverage matches on
+the **topic string** (`computeCoverageReport`: `questions.filter(q => q.topic === unit.topic)`), not
+on `Question.knowledgeUnitId`. The seed does not backfill that FK, so all 122 existing questions
+still have `knowledgeUnitId: null` while newly-approved drafts get it set by
+`autoAssignKnowledgeUnit`. Nothing reachable depends on the FK today — M3.3's
+`getUnmappedQuestions`/`assignQuestionToKnowledgeUnit` have no HTTP surface — so backfilling it now
+would serve nothing. Flagged because the same relationship being represented two ways is a real
+smell, and it belongs to M3.3's scope, not KU-1's.
 
 ### M3.5 — Ingestion Enhancements
 Real OCR for IMAGE files (Tesseract.js or cloud OCR).
