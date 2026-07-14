@@ -259,6 +259,24 @@ thresholds are explicitly still open). New endpoint `POST /api/recommendations/a
 (surfaces requesting guidance through Eligibility → Decision Policy, instead of reading
 `practiceRecommendation.ts` output directly) remains explicitly out of scope, deferred.
 
+#### M8.4 — Review Action as Evidence (RV-1) ✓ (2026-07-14)
+Reconciles finding **RV-1** (re-scoped 2026-07-14, see `docs/RV1_REVIEW_EVIDENCE_DESIGN.md`): the
+learner-initiated `mark_reviewed` path (`PATCH /api/error-notebook/[id]/route.ts`) previously
+mutated `reviewStage`/`lastReviewedAt`/`nextReviewAt`/`status` in place with no append-only trace of
+the learner's own review response. New append-only Prisma model `ReviewEngagement` (Task 1);
+`mark_reviewed` now writes it after the retention update, snapshotting `concept` and
+`reviewStageBefore` from the pre-update entry (Task 2). The write is additive and
+non-blocking (Constitution 5.4) — wrapped in try/catch, logged not thrown, verified via live
+fault-injection (broken FK still returns 200 and advances retention state, no Evidence row
+created). Session-driven `applySM2ForSession()` is untouched — confirmed no
+`reviewEngagement` reference in `lib/services/errorNotebook.ts`; its Evidence is already the
+`QuestionAttempt` rows.
+**Audit status: partially reconciled** — the §3.3 Inv 5 / §3.1 "Consumed" gap is closed; the
+Q3/Q5 calling-convention concern (SM-2 not routed through Decision Policy) is recorded as **not**
+a Ch.1–4 obligation per the design's re-scope, not tracked as remaining Drift; review-Recommendation
+issuance (materialising due-review items as issued Recommendations, FK-linking responses to them)
+remains explicitly deferred, same precedent as RT-1.
+
 ---
 
 ## Current Total: 2173 tests passing
@@ -290,13 +308,15 @@ Surfaces (Home, Results) currently read `practiceRecommendation.ts` output direc
 Eligibility → Decision Policy request/response orchestration was explicitly deferred out of M8.3's
 scope — tracked as an open audit finding, not yet designed.
 
-### RV-1 — Review/SM-2 Decision Policy reconciliation
-Audit finding (Confirmed Drift, unreconciled): `lib/services/errorNotebook.ts`'s SM-2 scheduling
-computes and persists review outcomes independently of Decision Policy/Runtime, with no request
-path through either. No reconciliation design started yet.
+### Review-Recommendation issuance
+Due-review items at `/error-notebook` are computed by SM-2 and displayed directly — they are never
+issued through the Option B `RecommendationIssuance` path (which serves practice recommendations
+only). M8.4 therefore records review Evidence that is not FK-linked to an issued Recommendation.
+Materialising review items as issued Recommendations is the review half of the Recommendation
+pipeline; deliberately deferred on the RT-1 precedent, not yet designed.
 
 ### `reconciliation/lx1-lens-optionb-rt1` → `main`
-Phase 8 (M8.1–M8.3) is complete on its feature branch but not yet pushed or merged. Decision
+Phase 8 (M8.1–M8.4) is complete on its feature branch but not yet pushed or merged. Decision
 pending: open a PR, or continue staging further work on the branch first.
 
 ---
