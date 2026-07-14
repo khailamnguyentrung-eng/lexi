@@ -145,6 +145,8 @@ Engines are separate from StudentLearningProfile — profile is a snapshot contr
 
 ### Phase 6 — LEXI Lens
 
+**Removed 2026-07-13.** The standalone `/lens` page, nav entry, `lib/services/lens/`, and its page-only UI components were deleted per a product decision to retire the feature. The M6.1–M6.4 history below is kept as-is (repository history is architectural evidence, not rewritten) — none of it describes currently-existing code. `lib/services/lens-ai/` (Phase 7, below) is a different, unaffected capability.
+
 #### M6.4 — Learner Lens Experience Prototype ✓ (2026-06-30)
 First real LEXI learner experience screen. Route `/lens` — server-rendered, theme-aware, responsive.
 `app/(app)/lens/page.tsx`: Server Component — `getCurrentUser()` → `getLearnerLens(userId)` → `LensViewModel` → `LensPageContent`. Zero engine imports.

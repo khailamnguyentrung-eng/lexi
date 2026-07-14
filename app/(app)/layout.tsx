@@ -8,7 +8,6 @@ const NAV_ITEMS = [
   { href: "/chat", label: "Hỏi Lexi", icon: "💬" },
   { href: "/error-notebook", label: "Sổ lỗi sai", icon: "📓" },
   { href: "/progress", label: "Tiến độ", icon: "📊" },
-  { href: "/lens", label: "Lens", icon: "🔍" },
   { href: "/profile", label: "Hồ sơ", icon: "👤" },
 ];
 
