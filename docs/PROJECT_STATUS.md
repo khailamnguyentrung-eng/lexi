@@ -1,6 +1,17 @@
 # LEXI — Project Status
 
-_Last updated: 2026-06-30_
+_Last updated: 2026-07-14_
+
+---
+
+> **Architecture note.** Since 2026-07-10, product/system semantics are governed by the frozen
+> **Architecture Baseline v1.0** (`LEXI_FOUNDATION.md`, `LEXI_SYSTEM.md` Ch.1–4) — see
+> `docs/DOCUMENT_HIERARCHY.md`. This file is an **implementation status log only** (never
+> authoritative); where it appears to describe a rule rather than a fact, the Baseline wins.
+>
+> A parallel **Phase 3 conformance audit** (Sprint 1–2) has been auditing existing surfaces against
+> that Baseline since 2026-07-12 and is tracked in project memory, not yet in a committed doc. Some
+> findings from that audit are what Phase 8 below reconciles.
 
 ---
 
@@ -206,7 +217,55 @@ Mock provider degrades gracefully: `AI_PARSE_ERROR` flag set, raw text used as e
 
 ---
 
+### Phase 8 — Recommendation & Assistance Evidence Reconciliation
+
+**Not yet on `main`.** All of Phase 8 lives on branch `reconciliation/lx1-lens-optionb-rt1`, split
+into 4 dependency-ordered commits (`f753dab` → `470fb2f` → `a9fc72e` → `efa9a96`); not pushed, no
+PR opened yet. Driven by the Phase 3 conformance audit (Sprint 2) referenced in the banner above —
+each milestone below closes a specific named finding from that audit's Finding Registry.
+
+#### M8.1 — Lens-AI Assistance Persistence (LX-1) ✓ (2026-07-13)
+Closes a Constitution 5.5 / Rule 7 gap: `assistFromCapture()` previously produced a response with
+no trace in the learner's record. New append-only Prisma model `AssistanceExchange` + 2 enums
+(`AssistanceCaptureType`, `AssistanceStyleType`). `lib/services/lens-ai/assistance/assistant.ts`
+persists every exchange. Migration: `20260712181228_add_assistance_exchange`.
+**Audit status: CLOSED (Reconciled → Verified → Closed).**
+
+#### Lens feature removal (2026-07-13)
+The standalone `/lens` page, `lib/services/lens/`, its nav entry, and page-only UI components
+deleted per an explicit product decision (see the Phase 6 note above) — not an audit finding, and
+unrelated to `lens-ai`.
+
+#### M8.2 — Recommendation Issuance as Evidence (Option B) ✓ (2026-07-13/14)
+Reconciles finding **H-1/H-2** (Recommendation Contract/Lifecycle), governed by the **PD3 Founder
+Ruling (Reading A)**: a Home/Results-page recommendation is a Ch.3 Recommendation, not a pre-Ch.3
+heuristic. New append-only Prisma model `RecommendationIssuance` persisting Action, Intent, Basis
+(including Goal citation — a snapshot, not a live FK, since `LearnerProfile` is mutable), Procedure,
+As-of, plus Rationale/Firmness enrichment. `lib/services/recommendationIssuance.ts`
+(`resolveRecommendationIssuance`) sits between the pure `computeRecommendations()` and both real
+consumers (Home dashboard, Results page), gating writes on identity-match so repeated reads don't
+create duplicate rows. 3 migrations: `add_recommendation_issuance`,
+`enrich_recommendation_issuance`, `recommendation_issuance_goal_citation`.
+**Audit status: feature-complete against all 5 originally-scoped Contract fields.**
+
+#### M8.3 — Recommendation Response / "Consumed" (RT-1) ✓ (2026-07-14)
+Reconciles the Evidence half of finding **RT-1** — Ch.3 §3.1 Lifecycle "Consumed": the learner's
+response to a recommended Action becomes Evidence. New append-only Prisma model
+`RecommendationResponse` (`ACCEPTED` only for now — `OVERRIDDEN`/`IGNORED` deferred, their §3.5
+thresholds are explicitly still open). New endpoint `POST /api/recommendations/accept` +
+`AcceptRecommendationLink` component wired into the dashboard and results page. Migration:
+`20260713165016_add_recommendation_response`.
+**Audit status: partially reconciled** — Evidence-recording is done; Runtime-authority orchestration
+(surfaces requesting guidance through Eligibility → Decision Policy, instead of reading
+`practiceRecommendation.ts` output directly) remains explicitly out of scope, deferred.
+
+---
+
 ## Current Total: 2173 tests passing
+
+**This count predates Phase 8** (last full count taken 2026-06-30). M8.1–M8.3 shipped with their
+own targeted verification (`scripts/test-lens-assistance.mjs`; direct-function tests for Option B
+and RT-1's gating/enrichment logic) but have not been folded into a unified count yet.
 
 ---
 
@@ -225,6 +284,20 @@ Passage extraction for READING_COMPREHENSION questions.
 Duplicate detection (exact code match + fuzzy promptText match).
 AI-assisted semantic validation (correctOption consistency check).
 SemanticValidationResult model + DraftReviewCard warnings.
+
+### RT-1 — Recommendation Runtime orchestration
+Surfaces (Home, Results) currently read `practiceRecommendation.ts` output directly. Building real
+Eligibility → Decision Policy request/response orchestration was explicitly deferred out of M8.3's
+scope — tracked as an open audit finding, not yet designed.
+
+### RV-1 — Review/SM-2 Decision Policy reconciliation
+Audit finding (Confirmed Drift, unreconciled): `lib/services/errorNotebook.ts`'s SM-2 scheduling
+computes and persists review outcomes independently of Decision Policy/Runtime, with no request
+path through either. No reconciliation design started yet.
+
+### `reconciliation/lx1-lens-optionb-rt1` → `main`
+Phase 8 (M8.1–M8.3) is complete on its feature branch but not yet pushed or merged. Decision
+pending: open a PR, or continue staging further work on the branch first.
 
 ---
 
