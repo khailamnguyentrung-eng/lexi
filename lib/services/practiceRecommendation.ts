@@ -127,6 +127,12 @@ export interface RecommendationContext {
  * Compute prioritized recommendations from pre-fetched data.
  * Pure function — no DB access, deterministic.
  *
+ * MAINTENANCE — if you change these priority tiers or how a recommendation is
+ * selected, bump PROCEDURE_ID's version suffix in
+ * lib/services/recommendationIssuance.ts. That constant is compared as
+ * Ch.3 §3.1 "Procedure" identity; leaving it unbumped means an old and a new
+ * ranking silently register as the same procedure.
+ *
  * Priority tiers (mastery-aware v2):
  *   1.  RECURRING_MISTAKE — reviewed but still wrong; NEEDS_REVIEW/IMPROVING only
  *   2.  DUE_REVIEW        — spaced-rep schedule; STABLE topics deferred after tier 3

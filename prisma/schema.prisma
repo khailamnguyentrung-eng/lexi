@@ -54,6 +54,7 @@ model User {
   moodEntries     MoodEntry[]
 
   assistanceExchanges AssistanceExchange[]
+  recommendationIssuances RecommendationIssuance[]
 }
 
 model LearnerProfile {
@@ -677,4 +678,93 @@ model AssistanceExchange {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// RECOMMENDATION ISSUANCE (H-1/H-2 reconciliation, Option B — PD3 Reading A)
+// ──────────────────────────────────────────────────────────────────
+// Ch.3 §3.1: a Recommendation itself has "no stored identity, computed fresh,
+// ephemeral — never a durable record updated in place. What IS permanent is
+// the fact of its issuance" (Ch.1 Invariant 12). This table IS that fact —
+// append-only, one row per issuance, never updated. "Current" is deliberately
+// NOT a stored flag: it is the most recent row per userId (the same
+// latest-wins idiom already used by ChatSession's own "current session"
+// lookup), which is one of the "conforming implementations" Ch.3 §3.1
+// explicitly permits ("retire-then-publish, publish-then-flip, and
+// transactional replacement are all conforming"). Supersession is therefore
+// implicit: an old row simply stops being the most recent one.
+
+enum RecommendationSuggestedAction {
+  REVIEW_NOTEBOOK
+  PRACTICE_TOPIC
+  ADVANCE_SESSION
+}
+
+enum RecommendationPriorityLabel {
+  RECURRING_MISTAKE
+  DUE_REVIEW
+  WEAKNESS_SIGNAL
+  CURRICULUM_PROGRESS
+}
+
+// Firmness (Ch.3 §3.1) — how strongly the recommendation is offered, bounded
+// above by belief-confidence (5.10). Mirrors the RecommendationConfidence union
+// (LOW/MEDIUM/HIGH); a closed domain set, so an enum per this schema's
+// "closed set → enum" convention.
+enum RecommendationFirmness {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model RecommendationIssuance {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Identity-bearing fields (Ch.3 §3.1 Fields) — compared in Phase 3 to
+  // detect whether a new computation actually supersedes the current one.
+  // Exactly one of topic/sessionNumber is set, mirroring PracticeRecommendation's
+  // own shape (Action).
+  topic           String?
+  sessionNumber   Int?
+  suggestedAction RecommendationSuggestedAction // Intent
+  priorityLabel   RecommendationPriorityLabel   // Basis provenance handle — which evidence category this was computed from (not a stored Understanding reference; none exists to point to)
+  procedure       String                        // Decision Procedure identity, e.g. "computeRecommendations@v1" — provenance only, never "what did the procedure contain"
+
+  // Basis — Goal citation (Ch.3 §3.1 Fields; Inv 2 requires every Goal served
+  // to be cited). Goal is represented as scalar LearnerProfile fields, not a
+  // separate entity (PR-1's already-accepted compatible reading: single-goal
+  // is a valid "zero-or-more, never assumed one" subset). LearnerProfile is
+  // mutable (PR-2 Layer 1: a Learner Declaration, updated in place, not
+  // append-only) — so citing it here means SNAPSHOTTING the Goal values in
+  // effect at issuance time, never a live FK to the current profile row,
+  // which would silently drift as the profile changes later. Still not a
+  // pointer to a stored Understanding (none exists to point to, per Basis's
+  // priorityLabel field above) — this closes the Goal-citation half of Basis
+  // specifically, not the Understanding-pointer half, which the architecture
+  // does not currently support persisting.
+  goalTargetExam  String?   // snapshot of LearnerProfile.targetExam
+  goalTargetScore Float?    // snapshot of LearnerProfile.targetScore
+  goalTargetDate  DateTime? // snapshot of LearnerProfile.targetGoalDate
+
+  // Required, non-identity (Ch.3 §3.1). Carries the timestamp of the most
+  // recent QuestionAttempt the computation could have reflected — an
+  // evidence-freshness proxy, NOT a real Understanding-version identifier
+  // (no durable Understanding exists anywhere in this codebase to version).
+  // Falls back to the write moment only for learners with zero attempts.
+  asOf DateTime
+
+  // ── Phase 4 (Evidence enrichment) — the remaining §3.1 Contract fields ──
+  // Representational, NON-identity: never participate in the supersession
+  // comparison (Phase 3 unchanged); stored so the issuance Evidence is a
+  // faithful record of the whole Recommendation that was issued, not just the
+  // identity subset — supporting §3.1 Invariant 5's "stay auditable". Nullable
+  // because they are enrichment, not required by PD3's four named obligations.
+  rationale String?                 // Rationale — the "why" text presented to the learner (prescriptive, references the belief it derived from)
+  firmness  RecommendationFirmness? // Firmness — how strongly offered, bounded by basis-confidence
+
+  issuedAt DateTime @default(now())
+
+  @@index([userId, issuedAt])
 }

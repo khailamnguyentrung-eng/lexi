@@ -37,6 +37,7 @@ import {
   computeRecommendations,
 } from "@/lib/services/practiceRecommendation";
 import type { PracticeRecommendation } from "@/lib/services/practiceRecommendation";
+import { resolveRecommendationIssuance } from "@/lib/services/recommendationIssuance";
 import { getSkillMatrix } from "@/lib/services/skillMatrix";
 import { getCurrentMission } from "@/lib/services/curriculum";
 import { getBehaviorProfile } from "./behaviorEngine";
@@ -418,7 +419,7 @@ export async function getStudentLearningProfile(
     })),
     getLearningStreak(userId).catch(() => 0),
     prisma.learnerProfile
-      .findUnique({ where: { userId }, select: { targetGoalDate: true } })
+      .findUnique({ where: { userId }, select: { targetGoalDate: true, targetExam: true, targetScore: true } })
       .catch(() => null),
     // Phase 5 (M5.5): all attempts for performance + problem-solving engines
     prisma.questionAttempt.findMany({
@@ -476,7 +477,7 @@ export async function getStudentLearningProfile(
   }
 
   // Compute recommendations from shared data — no duplicate fetches
-  const recommendations = computeRecommendations({
+  const candidateRecommendations = computeRecommendations({
     topicSummaries,
     weaknessSignalTopics,
     nextSessionNumber: mission?.sessionNumber ?? null,
@@ -484,6 +485,35 @@ export async function getStudentLearningProfile(
     questionCountByTopic,
     masteryByTopic,
   });
+
+  // Issuance boundary (Ch.3 §3.1) — H-1/H-2 reconciliation, Option B Phases 1-4.
+  // Goal citation (Basis, Inv 2) snapshotted from the same LearnerProfile fetch
+  // already made above for goalCountdown — no duplicate query.
+  //
+  // As-of: the timestamp of the most recent QuestionAttempt this computation
+  // could have reflected — already fetched above (rawAllAttempts) for the
+  // Learning Signal engine, so this costs no extra query. This is NOT a real
+  // Understanding-version identifier (none exists anywhere in this codebase
+  // to point to) — it is the closest available proxy for "how fresh is the
+  // evidence this belief reflects," which is what §3.1's "belief is
+  // time-relative" rationale for As-of actually cares about. Falls back to
+  // the write moment only when a learner has no attempts at all yet (nothing
+  // to be "as of").
+  const mostRecentEvidenceAt =
+    rawAllAttempts.length > 0
+      ? rawAllAttempts[rawAllAttempts.length - 1].attemptedAt
+      : new Date();
+
+  const recommendations = await resolveRecommendationIssuance(
+    userId,
+    candidateRecommendations,
+    {
+      targetExam: learnerGoalData?.targetExam ?? null,
+      targetScore: learnerGoalData?.targetScore ?? null,
+      targetGoalDate: learnerGoalData?.targetGoalDate ?? null,
+    },
+    mostRecentEvidenceAt
+  );
 
   const baseProfile = buildLearningProfile({
     userId,
