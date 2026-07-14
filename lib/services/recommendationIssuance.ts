@@ -122,6 +122,55 @@ function isSameRecommendation(
  * evidence this reflects" signal. Still not a real Understanding-version
  * identifier (none exists to point to anywhere in this codebase); still
  * non-identity, unchanged in isSameRecommendation().
+ *
+ * ── Why Case B leaves the current row's Goal snapshot and As-of "stale" ──
+ * Raised by the 2026-07-14 whole-branch review: if the learner edits their Goal
+ * (or evidence moves) but the computed Recommendation is unchanged, Case B
+ * writes nothing, so the row that IS current still carries the Goal and As-of
+ * captured at first issuance. This is conforming, and deliberately so — it is
+ * not an oversight to fix later:
+ *
+ *   - A row here is Evidence of a PAST EVENT: "at T1 a Recommendation was
+ *     issued, derived from the Goal as it stood at T1, against evidence as of
+ *     T1." That statement stays true forever; nothing about it goes stale.
+ *   - §3.3 Invariant 6 fixes the evaluation frame: "Evaluated against issue-time
+ *     information... A later outcome never retroactively validates or
+ *     invalidates it." A Goal edit at T2 cannot make the T1 citation wrong.
+ *   - §3.1's Retired clause settles the "shouldn't it re-issue?" question in
+ *     the negative, by name: retirement is "deliberately *not* triggered by
+ *     every change to Understanding or Goals... does not automatically retire —
+ *     whether and when to recompute in that case is a Policy/Resolution
+ *     decision (§3.4, §3.5), not an artifact-level rule." §3.5 leaves staleness
+ *     open by design.
+ *
+ * The rejected alternative, recorded so it is not re-proposed: putting Goal into
+ * isSameRecommendation()'s identity would make every Goal edit append a new
+ * issuance row for advice that did not change — manufacturing fake re-issuances
+ * and corrupting exactly the repetition/fatigue reasoning §3.1 Inv 5 and §3.2's
+ * Recommendation-History closure exist to support.
+ *
+ * ── Concurrency: duplicate issuance rows are possible, and are detectable ──
+ * Also raised by the 2026-07-14 review. findFirst-then-create is not atomic, so
+ * two concurrent profile reads that both need to write (Case A: both see no
+ * previous issuance; or Case C: both see the same superseded latest) can both
+ * create — two rows recording one issuance. Evidence is append-only (Ch.1 Inv
+ * 4), so there is no repair path: the extra row is permanent.
+ *
+ * Not fixed with a transaction, deliberately: Prisma's SQLite transactions are
+ * BEGIN DEFERRED, so neither reader takes a write lock and both still observe
+ * the same `latest` — a $transaction here would add ceremony without closing
+ * the window. A unique constraint is also wrong: identity A → B → A is a
+ * legitimate sequence (a superseded Recommendation can genuinely become current
+ * again), so (userId, identity) is not unique.
+ *
+ * The tolerance is safe because the artifact is self-diagnosing: Case B
+ * guarantees a genuine sequence NEVER produces two ADJACENT rows with the same
+ * identity — if the latest already has identity A, computing A writes nothing.
+ * So adjacent same-identity rows can only be a race artifact. Any consumer
+ * reasoning about repetition/fatigue (the one thing duplicates would corrupt,
+ * per §3.2's Recommendation-History closure) must collapse adjacent
+ * same-identity rows; that rule is always correct and never merges a real
+ * re-issuance, because a real re-issuance is never adjacent to its twin.
  */
 export async function resolveRecommendationIssuance(
   userId: string,

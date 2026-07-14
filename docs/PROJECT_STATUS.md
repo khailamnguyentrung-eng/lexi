@@ -332,6 +332,38 @@ only). M8.4 therefore records review Evidence that is not FK-linked to an issued
 Materialising review items as issued Recommendations is the review half of the Recommendation
 pipeline; deliberately deferred on the RT-1 precedent, not yet designed.
 
+### GC-1 — Goal citation may violate §3.3 Inv 2 (open, needs a ruling)
+**Surfaced 2026-07-14** while resolving a whole-branch review finding. Not yet audited to a
+disposition; recorded here rather than acted on, because closing it means reversing a decision
+already recorded as a fix.
+
+`grep -cin "goal\|targetScore\|targetExam" lib/services/practiceRecommendation.ts` returns **0** —
+the Goal provably does not participate in computing a Recommendation. `computeRecommendations()`
+consumes only topic summaries, weakness signals, next-session info, question counts, and mastery.
+Yet `RecommendationIssuance` cites `goalTargetExam`/`goalTargetScore`/`goalTargetDate` as Basis.
+
+The tension is between two frozen invariants:
+- **§3.1 Inv 2** (artifact): Basis names "the Understanding + Goal(s) it **derived from**." Derived
+  from zero Goals ⇒ citing zero Goals is the conforming output.
+- **§3.3 Inv 2** (policy): "the Basis **cannot cite what it did not use** — never a plausible-looking
+  provenance attached after selection."
+
+The Goal-citation fix (2026-07-13) was made to close a §3.1 Inv 2 gap ("no Goal was cited at all").
+On this reading it may have opened a §3.3 Inv 2 one instead, by citing three values the policy never
+saw. Candidate readings, none adopted:
+1. **Violation** — remove or deprecate the citation (columns cannot be dropped; Evidence is
+   append-only, so this needs an additive deprecation, not a `DROP`).
+2. **The deeper defect is a goal-blind policy** — §3.4 names "serves no active Goal" as a
+   Compatibility-breaking falsification, so the real fix is making `computeRecommendations()`
+   actually consume the Goal. Behavioural change, much larger.
+3. **The citation is context, not provenance** — weak as written, since §3.1 defines Basis verbatim
+   as "computed from"; would require renaming the columns and stating they are not Basis.
+
+Note this is upstream of the "stale Goal citation" question the same review raised: that one
+resolved as **conforming** (§3.1's Retired clause excludes Goal changes from auto-retirement; §3.3
+Inv 6 fixes evaluation at issue-time — reasoning recorded in `recommendationIssuance.ts`). If GC-1
+resolves as reading 1, the staleness question becomes moot rather than settled.
+
 ### Route-handler test infrastructure — decision needed (n=3)
 Three consecutive reconciliations (M8.2 Option B, M8.3 RT-1, M8.4 RV-1) have shipped Evidence
 writes verified only by throwaway live scripts that were never committed. Each was individually
