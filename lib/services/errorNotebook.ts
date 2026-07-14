@@ -17,6 +17,18 @@ export function isFinalStage(stage: number) {
   return stage >= REVIEW_INTERVALS_DAYS.length - 1;
 }
 
+// RV-1 (Ch.3 §3.3 Inv 5 / §3.1 "Consumed"): true exactly when a review
+// ADVANCES the entry to MASTERED — i.e. the entry was at the final stage AND
+// was not already MASTERED beforehand. Extracted as a pure function (not
+// inlined at the route.ts call site) specifically so it is unit-testable:
+// the original inline version (`wasFinalStage` alone) double-counted an
+// idempotent re-review of an already-mastered entry, caught only by a live
+// whole-branch review, not by anything committed. See
+// scripts/test-review-engagement.mjs.
+export function didAchieveMastery(statusBefore: string, wasFinalStage: boolean): boolean {
+  return statusBefore !== "MASTERED" && wasFinalStage;
+}
+
 // ── SM-2 Engine ───────────────────────────────────────────────────────────────
 
 export interface SM2UpdateInput {

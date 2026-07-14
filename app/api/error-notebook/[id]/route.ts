@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { isFinalStage, nextReviewDate } from "@/lib/services/errorNotebook";
+import { isFinalStage, nextReviewDate, didAchieveMastery } from "@/lib/services/errorNotebook";
 import { parseJsonBody } from "@/lib/api/parseJsonBody";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -52,11 +52,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // are the true pre-review state; `concept` is snapshotted because the
     // non-review branch below can edit it later.
     //
-    // reachedMastery (design §8): true exactly when this review ADVANCED the
-    // entry to MASTERED — i.e. the entry was at the final stage AND was not
-    // already MASTERED beforehand. Guards against double-counting an idempotent
-    // re-review of an already-mastered entry (reachable via direct PATCH; the
-    // UI hides the button once status is MASTERED).
+    // reachedMastery: see didAchieveMastery() (errorNotebook.ts) — extracted
+    // as a pure, unit-tested function after a prior version of this inline
+    // expression double-counted an idempotent re-review of an already-mastered
+    // entry (caught only by live review, not by anything committed).
     //
     // Never blocks the learner (Constitution 5.4): the learner's "I reviewed
     // this" must take effect even if recording it fails, so a write failure
@@ -69,7 +68,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           concept: entry.concept,
           reviewStageBefore: entry.reviewStage,
           reviewStageAfter: newStage,
-          reachedMastery: entry.status !== "MASTERED" && wasFinalStage,
+          reachedMastery: didAchieveMastery(entry.status, wasFinalStage),
         },
       });
     } catch (err) {

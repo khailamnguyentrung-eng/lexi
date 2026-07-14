@@ -363,18 +363,36 @@ mandatory" already forecloses the alternative reading that the real defect was a
 needing to be fixed. Full reasoning trail preserved in git history (this file, commits `fe5e0fb`,
 `f40c91c`).
 
-### Route-handler test infrastructure — decision needed (n=3)
-Three consecutive reconciliations (M8.2 Option B, M8.3 RT-1, M8.4 RV-1) have shipped Evidence
-writes verified only by throwaway live scripts that were never committed. Each was individually
-defensible — this project has no route-handler test framework, and the committed `.mjs` scripts are
-pure-logic only (`test-lens-assistance.mjs` carries an explicit note that it *omits* its own
-Evidence-write step). The accumulating property is that **no committed artifact would catch a
-regression in any of the three**.
+### Route-handler test infrastructure — RESOLVED (2026-07-15): extract + pure-test, not a new framework
+Three consecutive reconciliations (M8.2 Option B, M8.3 RT-1, M8.4 RV-1) shipped Evidence writes
+verified only by throwaway live scripts that were never committed — and RV-1's `reachedMastery`
+regression (double-counted mastery events; caught only by a live whole-branch review, by nothing
+committed) is the concrete proof the gap is real, not hypothetical.
 
-Raised by the M8.4 final review. By this project's own promotion criterion (a pattern is promoted
-on the second-or-later independent instance, not on n=1), three data points is past the threshold
-where this stops being an observation. Not a defect in any one milestone; a real decision about
-whether route handlers get test infrastructure.
+**Decision.** Do not adopt a new test framework (Jest/Vitest + Next.js route-handler mocking) —
+unproven necessary against Rule 4, and inconsistent with the project's existing all-`.mjs`,
+zero-new-dependency test convention. Instead: **decision-bearing logic inside a route handler gets
+extracted into a small pure, exported function, and gets a committed `.mjs` test** — the same
+pattern `computeSM2Update`/`accuracyToQuality` already established for `errorNotebook.ts`, just
+applied deliberately going forward rather than only when logic happened to already be extracted.
+DB-write mechanics (append-only, snapshot correctness, non-blocking-on-failure) remain verified via
+live browser + a throwaway script per change — accepted explicitly, not silently punted: those
+properties are structural (enforced by never calling `.update()`/`.delete()` on an Evidence model,
+and by every write being wrapped in the same try/catch shape) rather than case-by-case decision
+logic, so they are lower-value to re-verify by committed test than a *decision* like
+`reachedMastery` is.
+
+**First application: `didAchieveMastery()`.** Extracted from the `mark_reviewed` branch of
+`app/api/error-notebook/[id]/route.ts` into `lib/services/errorNotebook.ts`, alongside
+`isFinalStage`. Covered by `scripts/test-review-engagement.mjs` (`npm run test:review-engagement`),
+9 assertions including the exact regression case. Verified the test is not vacuous: reverted the
+function to the original buggy expression (`wasFinalStage` alone) and confirmed the suite fails at
+exactly the regression case (exit 1), then restored it (confirmed via `git diff` — no residual
+change).
+
+**Not backfilled, and stated as such:** Option B's `isSameRecommendation`/`buildRecommendationIdentity`
+and RT-1's ownership-check logic are comparable candidates for the same treatment but were not
+touched here — optional future work, not required by this decision.
 
 ### `reconciliation/lx1-lens-optionb-rt1` → `main`
 Phase 8 (M8.1–M8.4) is complete on its feature branch but not yet pushed or merged. The branch has
