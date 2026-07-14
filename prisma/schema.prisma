@@ -56,6 +56,7 @@ model User {
   assistanceExchanges AssistanceExchange[]
   recommendationIssuances RecommendationIssuance[]
   recommendationResponses RecommendationResponse[]
+  reviewEngagements ReviewEngagement[]
 }
 
 model LearnerProfile {
@@ -216,6 +217,8 @@ model ErrorNotebookEntry {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  reviewEngagements ReviewEngagement[]
 
   @@index([userId, nextReviewAt])
   @@index([userId, concept])
@@ -808,4 +811,55 @@ model RecommendationResponse {
 
   @@index([userId, respondedAt])
   @@index([recommendationIssuanceId])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// REVIEW ENGAGEMENT (RV-1 reconciliation — Ch.3 §3.3 Inv 5 / §3.1 "Consumed")
+// ──────────────────────────────────────────────────────────────────
+// An immutable record of one learner-initiated review: the learner opened a
+// past mistake and reported having reviewed it. Ch.3 §3.1 Lifecycle "Consumed"
+// — "Only the targeted Learner's own response to the recommended Action —
+// accepted, overridden, or ignored — becomes Evidence"; §3.3 Invariant 5
+// requires that response be recorded as Evidence. Under BI-02's ruling
+// (review/SM-2 scheduling is within Decision Policy jurisdiction), "review
+// concept X, it is due" is a Recommendation with Intent = review, so the
+// learner's "I reviewed it" is that Recommendation's Consumed response.
+//
+// Append-only (Ch.1 Invariant 4): reviewing the same entry twice creates two
+// rows; no row is ever updated. Deliberately SEPARATE from ErrorNotebookEntry,
+// whose reviewStage/nextReviewAt/easeFactor are a mutable Understanding-layer
+// retention projection — that projection is not Evidence and is left unchanged.
+//
+// NOT FK-linked to a RecommendationIssuance: review items are not currently
+// issued through the Issuance path (Option B serves practice recommendations
+// only), so there is no issuance to point at. This is Evidence of the review
+// engagement itself. Materialising review Recommendations is deferred work,
+// per the RT-1 precedent — see docs/RV1_REVIEW_EVIDENCE_DESIGN.md §3.
+
+model ReviewEngagement {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  errorNotebookEntryId String
+  errorNotebookEntry   ErrorNotebookEntry @relation(fields: [errorNotebookEntryId], references: [id])
+
+  // Snapshot at review time. ErrorNotebookEntry.concept is mutable (the same
+  // PATCH route's non-review branch edits it), so an Evidence record must
+  // capture what was true when the review happened, never resolve it live
+  // later. Same discipline as RecommendationIssuance's Goal citation snapshot.
+  concept String
+
+  // Light enrichment — makes the Evidence self-describing ("what did this
+  // review accomplish") at zero query cost: the route already holds the
+  // pre-update entry and computes the new stage. Representational, not
+  // identity-bearing.
+  reviewStageBefore Int
+  reviewStageAfter  Int
+  reachedMastery    Boolean
+
+  reviewedAt DateTime @default(now())
+
+  @@index([userId, reviewedAt])
+  @@index([errorNotebookEntryId])
 }
