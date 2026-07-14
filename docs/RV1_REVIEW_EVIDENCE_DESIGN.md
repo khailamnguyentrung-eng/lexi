@@ -89,10 +89,27 @@ Explicitly out of scope, and each for a stated reason — not by omission:
 
 ## 5. Data model
 
-New append-only Prisma model. Working name `ReviewEngagement`, **subject to the same
-boundary-test naming discipline** LX-1 used before freezing `AssistanceExchange` (candidate names
-must be tested against what they permit and forbid; a name implying a mutable request/fulfilment
-lifecycle would violate Ch.1 Inv 4 and must be rejected).
+New append-only Prisma model, named `ReviewEngagement`. The boundary-test naming discipline LX-1
+used before freezing `AssistanceExchange` (candidate names tested against what they permit and
+forbid; a name implying a mutable request/fulfilment lifecycle would violate Ch.1 Inv 4 and must be
+rejected) has been applied, with this outcome:
+
+- **`ReviewEngagement` — ADOPTED.** "Engagement" denotes the learner's act of engaging with the
+  review. It implies no request/fulfilment lifecycle, so nothing about it invites a mutable
+  `status` field later — which is the specific failure mode this test is meant to catch (a name
+  that permits mutation would erode Ch.1 Inv 4 append-only). It collides with no reserved Ch.1
+  term.
+- **`ReviewRequest` — rejected.** Implies pending→fulfilled mutation; would invite in-place
+  updates, violating Inv 4. Same reason `AssistanceRequest` was rejected during LX-1.
+- **`ReviewSession` — rejected.** "Session" was already killed as an entity candidate by Ch.1's own
+  minimality test; reusing it here would smuggle back a rejected concept.
+- **`ReviewEvent` — rejected.** "Event" carries no domain meaning — every Evidence row is an event,
+  so the name distinguishes nothing.
+- **`ReviewCompletion` — rejected.** Over-claims: the system never verifies the learner actually
+  reviewed anything, only that they reported doing so.
+- **`ReviewResponse` — rejected.** Would imply symmetry with RT-1's `RecommendationResponse`, which
+  is FK-linked to an issuance. This model deliberately is not (design §3), so the name would
+  advertise a link that does not exist.
 
 ```prisma
 model ReviewEngagement {
@@ -140,7 +157,8 @@ One additive write inside the existing `mark_reviewed` branch of
 3. Then create the `ReviewEngagement` row using values already in hand:
    - `reviewStageBefore: entry.reviewStage`
    - `reviewStageAfter: newStage`
-   - `reachedMastery: wasFinalStage`
+   - `reachedMastery: entry.status !== "MASTERED" && wasFinalStage` (true only when this review
+     advanced the entry to `MASTERED`; see §8)
    - `concept: entry.concept`
 
 No new service file, no repository layer, no new infrastructure — consistent with LX-1's approved
@@ -165,7 +183,10 @@ action). It is not a claim that the Evidence write is guaranteed.
 - **Snapshot integrity:** editing `entry.concept` after a review does not alter the recorded
   `concept` on the existing `ReviewEngagement` row.
 - **Enrichment correctness:** `reviewStageBefore`/`After` match the actual transition;
-  `reachedMastery` is true exactly when the review advanced the entry to `MASTERED`.
+  `reachedMastery` is true exactly when the review advanced the entry to `MASTERED` — i.e. the
+  entry was at the final stage (stage 4) **and** was not already `MASTERED` beforehand. An
+  idempotent re-review of an already-`MASTERED` entry (reachable via direct PATCH, not through the
+  UI) must record `reachedMastery: false`, since it advanced nothing.
 - **Non-blocking:** a failing Evidence write still returns the successful entry update.
 - **No regression:** `applySM2ForSession()` writes no `ReviewEngagement` rows (its Evidence is the
   attempts).
@@ -186,7 +207,6 @@ On completion, RV-1 moves from **Confirmed Drift (unreconciled)** to **partially
 
 ## 10. Open, not resolved here
 
-- The frozen entity name (`ReviewEngagement` is a working name pending boundary tests, §5).
 - Whether review items should eventually be issued as Recommendations (§3) — a scope decision, not
   an audit finding.
 - OVERRIDDEN / IGNORED analogues for review ("learner skipped a due review") — these need the same

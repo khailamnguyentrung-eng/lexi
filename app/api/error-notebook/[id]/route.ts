@@ -52,6 +52,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // are the true pre-review state; `concept` is snapshotted because the
     // non-review branch below can edit it later.
     //
+    // reachedMastery (design §8): true exactly when this review ADVANCED the
+    // entry to MASTERED — i.e. the entry was at the final stage AND was not
+    // already MASTERED beforehand. Guards against double-counting an idempotent
+    // re-review of an already-mastered entry (reachable via direct PATCH; the
+    // UI hides the button once status is MASTERED).
+    //
     // Never blocks the learner (Constitution 5.4): the learner's "I reviewed
     // this" must take effect even if recording it fails, so a write failure
     // leaves an Evidence gap rather than failing the action. Logged, not thrown.
@@ -63,7 +69,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           concept: entry.concept,
           reviewStageBefore: entry.reviewStage,
           reviewStageAfter: newStage,
-          reachedMastery: wasFinalStage,
+          reachedMastery: entry.status !== "MASTERED" && wasFinalStage,
         },
       });
     } catch (err) {
