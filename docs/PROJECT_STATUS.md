@@ -100,6 +100,33 @@ Pure deterministic quality engine for generated drafts. No Prisma, no AI calls, 
 Quality is informational only — assists human review, never triggers auto-approve or auto-reject.
 **88 tests**
 
+#### M4.5 — Admin Generation Endpoint ✓ (2026-07-15)
+`POST /api/admin/question-generation` — the HTTP entry point the M4.1–M4.4 pipeline never had.
+Orchestration only, no new generation logic: `requireAdmin()` → validate body
+(`knowledgeUnitId`, `difficulty`, `requestedCount`) → resolve the `KnowledgeUnit` → find its gap in
+`getKnowledgeCoverageReport()` → `createGenerationJob()` → `generateDraftsForGap()`, which already
+owns the job status machine and AI-provider fallback.
+
+**Synchronous by decision.** Considered returning `jobId` immediately and generating in the
+background; rejected because this project has no queue/worker, and an un-awaited generation on a
+route handler can be frozen/killed on serverless the moment the response is sent — stranding the job
+in `GENERATING` forever, *invisibly*. A synchronous timeout at least surfaces to the caller. Not a
+one-way door: the job record and status machine already exist, so adding a real runner later is
+additive. `requestedCount` is already double-bounded (`createGenerationJob` clamps `[1,20]`,
+`deriveCountFromGap` clamps to the real gap), so generation time is bounded by existing code.
+
+The gap is resolved **before** the job is created, so a non-viable request leaves no orphan `FAILED`
+row. `knowledgeUnits` is passed explicitly to `generateDraftsForGap()` rather than relying on its
+`[]` default — that parameter feeds M3.4 mapping-quality validation, and `[]` would silently weaken
+validation on every generated draft.
+
+**Verified live** (no committed test — per the test-infrastructure decision below, this route has no
+decision logic of its own; it sequences already-tested functions): 403 for logged-out *and* for a
+logged-in non-admin student; 400/400/404 on bad difficulty / non-positive count / unknown unit; 200
+happy path returning 2 drafts with the job landing on `REVIEWING`; 400 on a fully-covered unit with
+**no job row created**. Provider was Mock (no AI key set) — the drafts are canned samples, so this
+proves the wiring, not AI output quality.
+
 ---
 
 ### Phase 5 — Learner Model Intelligence
@@ -289,9 +316,36 @@ and RT-1's gating/enrichment logic) but have not been folded into a unified coun
 
 ## Pending Milestones
 
-### M4.5 — Admin API endpoint
-Wire `generateDraftsForGap()` into a POST `/api/admin/question-generation` handler.
-Requires auth guard (ADMIN role), request validation, KnowledgeUnit lookup, and job creation.
+### KU-1 — Nothing creates KnowledgeUnits; the whole content-intelligence stack is unreachable
+**Surfaced 2026-07-15** while verifying M4.5. Pre-existing — M4.5 did not cause it, it exposed it.
+
+**The evidence:**
+- The dev DB has **0** `KnowledgeUnit` rows (against 122 `Question` rows).
+- `prisma/seed.ts` does not touch the table.
+- `grep -rn "knowledgeUnit.create\|knowledgeUnit.upsert\|knowledgeUnit.createMany" --include=*.ts`
+  across the whole repo returns **nothing**. No API, no UI, no script creates one.
+- `getKnowledgeCoverageReport()` therefore always returns `totalUnits=0, gaps=0`.
+
+**The consequence.** Everything built on the KnowledgeUnit registry is currently dead code in
+practice, not just M4.5:
+- **M3.2** coverage intelligence computes over an empty set.
+- **M3.3** question↔KU mapping (`autoAssignKnowledgeUnit` in `approveDraft`) can never match.
+- **M4.1–M4.4** generation has no gap to generate for.
+- **M4.5**'s endpoint would 404 (unit not found) or 400 (no gap) on every real request, forever.
+
+M3.1 is recorded above as "Schema only" — accurate, and this is the unnoticed corollary: the
+registry was never populated, and no later milestone took that on.
+
+**Proven by construction, not inferred.** Creating one `KnowledgeUnit` for the real existing topic
+`comparatives` (which has E=1, M=2, H=0 questions against default targets E=5, M=5, H=3)
+immediately produced a genuine `HIGH`-priority gap `{easy:4, medium:3, hard:3}`, and M4.5's endpoint
+then generated drafts successfully end to end. So the machinery is correct — **only the data is
+missing**. (That temporary unit was removed afterwards; the DB is back to 0.)
+
+**The decision needed** is what populates the registry, and it is a product question, not a coding
+one: seed a curated canonical topic list? derive units from existing `Question.topic` values? build
+an admin CRUD screen? Each implies a different owner for the taxonomy — and Ch.1 §9 already assigns
+Content-Item curation to a "curating authority," so this touches who that is in practice.
 
 ### M3.5 — Ingestion Enhancements
 Real OCR for IMAGE files (Tesseract.js or cloud OCR).
