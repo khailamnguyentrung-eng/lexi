@@ -1,4 +1,5 @@
 import { getAIProvider } from "@/lib/ai/providers/index";
+import { prisma } from "@/lib/db/prisma";
 import { validateCapturePayload } from "../capture";
 import { extractTextFromImage } from "../understanding/imageProcessor";
 import type { AssistanceStyle, CapturePayload, LensFlag, LensResponse, LensStep } from "../types";
@@ -86,7 +87,7 @@ export function parseAssistanceResponse(
  */
 export async function assistFromCapture(
   payload: CapturePayload,
-  _userId?: string,
+  userId: string,
   aiProvider = getAIProvider(),
 ): Promise<LensResponse> {
   validateCapturePayload(payload);
@@ -123,5 +124,28 @@ export async function assistFromCapture(
     messages: [{ role: "user", content: plan.buildUserMessage(text) }],
   });
 
-  return parseAssistanceResponse(rawResponse, payload.id, plan.style, ocrFlags);
+  const response = parseAssistanceResponse(rawResponse, payload.id, plan.style, ocrFlags);
+
+  // ── Persist the exchange as Evidence (LX-1 / Constitution 5.5 / Rule 7) ───
+  // Append-only: one row per completed exchange. Only the AI-answered path
+  // reaches here — the empty-capture early return above is a validation
+  // rejection, not an exchange, and is intentionally not recorded.
+  await prisma.assistanceExchange.create({
+    data: {
+      userId,
+      captureType: payload.type,
+      capturedText: text,
+      assistanceStyle: plan.style,
+      responseContent: JSON.stringify({
+        explanation: response.explanation,
+        steps: response.steps,
+        relatedTopics: response.relatedTopics,
+      }),
+      confidence: response.confidence,
+      flags: JSON.stringify(response.flags),
+      providerName: aiProvider.name,
+    },
+  });
+
+  return response;
 }

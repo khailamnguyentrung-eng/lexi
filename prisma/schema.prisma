@@ -52,6 +52,8 @@ model User {
 
   diagnosticTests DiagnosticTest[]
   moodEntries     MoodEntry[]
+
+  assistanceExchanges AssistanceExchange[]
 }
 
 model LearnerProfile {
@@ -619,6 +621,58 @@ model MoodEntry {
 
   mood Mood
   note String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// LENS ASSISTANCE (LX-1 reconciliation)
+// ──────────────────────────────────────────────────────────────────
+// An immutable record of one AI-assistance exchange: the learner
+// captured an external stimulus (selected text / screenshot / image),
+// and Lexi returned one non-graded assistance response. This is an
+// Evidence-layer Fact (Ch.1 §3.2 — "an interaction"), not a Projection.
+// Closes the Constitution 5.5 / Rule 7 gap where assistFromCapture()
+// produced a response that left no trace in the learner's record.
+//
+// Append-only by design (Ch.1 Invariant 4): "regenerate" creates a new
+// row, never mutates an existing one — matching the frozen
+// AssistanceExchange domain identity.
+
+enum AssistanceCaptureType {
+  TEXT_SELECTION
+  IMAGE_UPLOAD
+  SCREENSHOT_REGION
+}
+
+enum AssistanceStyleType {
+  GUIDED_STEPS
+  VOCABULARY_MEANING
+  CONCEPT_EXPLANATION
+  SUMMARY
+  GENERAL_HELP
+}
+
+model AssistanceExchange {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  captureType     AssistanceCaptureType
+  capturedText    String // the literal selection or OCR-extracted text the AI reasoned over (never the raw image bytes)
+  assistanceStyle AssistanceStyleType
+  responseContent String // JSON-serialized produced content (explanation string or steps[]) — same convention as ChatSession.contextSnapshot
+  confidence      Float
+  flags           String // JSON-serialized LensFlag[] — preserves response caveats (OCR_CONFIDENCE_LOW, AI_PARSE_ERROR, …)
+
+  // Infrastructure/provider-registry identity (which AI provider served this
+  // exchange), NOT a closed domain category — deliberately a String, not an
+  // enum, because the provider set is an infra concern expected to grow, unlike
+  // the domain-fixed captureType/assistanceStyle above. Stands in for the Ch.1
+  // §3.1 Evaluator; a full Evaluator entity remains a pre-existing system Gap.
+  providerName String
 
   createdAt DateTime @default(now())
 
