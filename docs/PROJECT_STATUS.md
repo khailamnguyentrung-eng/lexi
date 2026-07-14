@@ -332,53 +332,36 @@ only). M8.4 therefore records review Evidence that is not FK-linked to an issued
 Materialising review items as issued Recommendations is the review half of the Recommendation
 pipeline; deliberately deferred on the RT-1 precedent, not yet designed.
 
-### GC-1 — What does Basis's Goal mean? (Pending — semantic ambiguity, decision-class)
-**Surfaced 2026-07-14** while resolving a whole-branch review finding. **Not a Drift** — a
-compatible reading survives (below), and this project's own rule is that a finding must defeat every
-compatible reading to be Confirmed. Recorded for a ruling, not acted on.
+### GC-1 — What does Basis's Goal mean? — CLOSED, Founder Ruling Applied (2026-07-15)
+**Ruling: Reading A ("Serves") adopted.** Basis's Goal citation names the Goal the Action *serves* —
+which the learner is trying to advance — not the Goal the policy algorithmically consumed as an
+input. Rationale as-ruled: the product's own priority is to always foreground the learner's personal
+goal in what it shows them, independent of whether today's ranking algorithm happens to read Goal
+fields when selecting an Action. **Current code conforms as-is; no code change required.**
 
-**The observation.** `grep -cin "goal\|targetScore\|targetExam" lib/services/practiceRecommendation.ts`
-returns **0** — the Goal does not participate in computing a Recommendation. `computeRecommendations()`
-consumes only topic summaries, weakness signals, next-session info, question counts, and mastery.
-Yet `RecommendationIssuance` cites `goalTargetExam`/`goalTargetScore`/`goalTargetDate` as Basis.
+**Consequence.** The three `goal*` columns on `RecommendationIssuance` stay exactly as implemented.
+The "stale Goal citation" question the same review raised (already resolved as conforming — see
+`recommendationIssuance.ts`) is unaffected and stays resolved, not reopened.
 
-**Two frozen clauses read literally, and they diverge here:**
+**Recorded, not silently dropped: an unresolved tension in Reading A.** Because every learner holds
+at most one Goal today (single-goal schema, PR-1), and the code cites that Goal on *every*
+recommendation unconditionally, Reading A as currently implemented cannot distinguish "this Action
+serves the Goal" from "this Action does not" — the citation is not yet falsifiable. That is a
+property of today's implementation, not of the ruling: Reading A is coherent and the ruling stands
+regardless. It becomes load-bearing only if the codebase ever supports multiple concurrent Goals
+(PR-1's already-permitted "zero-or-more, never assumed one" case) — at that point, citing *every*
+Goal rather than only the one(s) actually advanced would need re-examination against this same
+ruling. Logged as a watch item, not reopening GC-1.
 
-| Clause | Verbatim | Applied to a goal-blind policy |
-|---|---|---|
-| §3.1 Basis field | "the Basis must cite every Goal it actually **served**" — its own example is "a single Action may legitimately **advance** more than one active Goal" | The Action does serve the learner's Goal ⇒ **citing it is correct** |
-| §3.3 Inv 2 | "the Basis **cannot cite what it did not use** — never a plausible-looking provenance attached after selection" | The policy never read the Goal ⇒ **citing it is wrong** |
-
-**Why this is an ambiguity, not a defect.** §3.1's Basis field cites *§3.3 Invariant 2* as the
-authority for its "served" requirement — the frozen text treats "served" and "took part in
-producing" as the same thing. They only come apart when a policy is goal-blind, and §3.2 explicitly
-permits exactly that: "never what every Policy *must* use... a Learner may (momentarily) hold no
-Active Goal... the violation would be depending on something *not* on this list, **not leaving
-something on it unused**." The authors did not anticipate the divergence; neither clause is wrong.
-
-**Ruled out on the evidence** (recorded so it is not re-proposed): "the real defect is that the
-policy is goal-blind, so `computeRecommendations()` must consume the Goal." §3.2's "available, not
-mandatory" forecloses this — a goal-blind policy is conforming.
-
-**The ruling needed — one question:** does Basis's Goal mean *the Goal the Action serves*, or *the
-Goal the policy consumed*?
-- **"Serves"** ⇒ current code conforms; close GC-1. §3.1/§3.3 may then get an **editorial**
-  clarification (no amendment process needed — `DOCUMENT_HIERARCHY.md` exempts changes that do not
-  alter meaning).
-- **"Consumed"** ⇒ the citation is provenance the policy never used; deprecate the three `goal*`
-  columns **additively** (never `DROP` — Evidence is append-only, Ch.1 Inv 4).
-
-**Stakes: low, and it does not block a merge.** This is provenance metadata on an Evidence row, not
-learner-visible behaviour; no learner is affected either way. It is a pre-existing audit question
-about the 2026-07-13 Goal-citation fix, not a regression introduced by this branch.
-
-**Do not dig further.** This is decision-class by the project's own exit-path discipline: evidence
-cannot move it, only a ruling can.
-
-Related, and already settled: the same review's "stale Goal citation" concern resolved as
-**conforming** (§3.1's Retired clause excludes Goal changes from auto-retirement; §3.3 Inv 6 fixes
-evaluation at issue-time — reasoning recorded in `recommendationIssuance.ts`). If GC-1 resolves as
-"consumed", that question becomes moot rather than reopened.
+**Original analysis, kept for provenance:** `grep -cin "goal\|targetScore\|targetExam"
+lib/services/practiceRecommendation.ts` returns **0** — the Goal does not participate in computing a
+Recommendation. Two frozen clauses read literally seemed to diverge: §3.1's Basis field says cite
+every Goal "actually **served**"; §3.3 Inv 2 says the Basis "cannot cite what it did **not use**."
+§3.1 itself cites §3.3 Inv 2 as authority for "served," treating the two as one concept — they only
+came apart for a goal-blind policy, a case the frozen text did not anticipate. §3.2's "available, not
+mandatory" already forecloses the alternative reading that the real defect was a goal-blind policy
+needing to be fixed. Full reasoning trail preserved in git history (this file, commits `fe5e0fb`,
+`f40c91c`).
 
 ### Route-handler test infrastructure — decision needed (n=3)
 Three consecutive reconciliations (M8.2 Option B, M8.3 RT-1, M8.4 RV-1) have shipped Evidence

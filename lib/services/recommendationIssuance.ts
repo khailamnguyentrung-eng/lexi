@@ -26,6 +26,18 @@ const PROCEDURE_ID = "computeRecommendations@practiceRecommendation.ts#v1";
  * learner raises their targetScore) does not by itself make an already-issued
  * Recommendation "a different one" — it is recorded for traceability, never
  * compared in isSameRecommendation().
+ *
+ * GC-1 (Founder Ruling, 2026-07-15, docs/PROJECT_STATUS.md): "the Goal(s) it
+ * derived from" (§3.1 Basis) means the Goal the Action SERVES — what the
+ * learner is trying to advance — not the Goal computeRecommendations() reads
+ * as an algorithmic input (it currently reads none; grep confirms zero Goal
+ * references in practiceRecommendation.ts). Citing the learner's Goal here is
+ * therefore conforming as-is, by ruling, not merely by unexamined default.
+ * Watch item, not open: since a learner holds at most one Goal today and it
+ * is cited unconditionally, this citation cannot yet be false — re-examine
+ * this ruling if the schema ever admits concurrent Goals (PR-1's permitted
+ * "zero-or-more" case), where citing every Goal vs. only the one(s) actually
+ * advanced would need to be distinguished for real.
  */
 export interface RecommendationGoalSnapshot {
   targetExam: string | null;
