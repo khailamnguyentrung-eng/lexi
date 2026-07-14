@@ -136,7 +136,11 @@ export async function resolveRecommendationIssuance(
 
   const latest = await prisma.recommendationIssuance.findFirst({
     where: { userId },
-    orderBy: { issuedAt: "desc" },
+    // Tiebreak on id (desc): issuedAt is a SQLite DATETIME set via `new Date()`,
+    // so two rows issued in the same millisecond would otherwise make "which
+    // row is current" non-deterministic — and that row's id is the FK target
+    // RT-1 writes learner responses against.
+    orderBy: [{ issuedAt: "desc" }, { id: "desc" }],
   });
 
   if (latest) {

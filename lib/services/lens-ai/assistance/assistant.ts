@@ -130,22 +130,32 @@ export async function assistFromCapture(
   // Append-only: one row per completed exchange. Only the AI-answered path
   // reaches here — the empty-capture early return above is a validation
   // rejection, not an exchange, and is intentionally not recorded.
-  await prisma.assistanceExchange.create({
-    data: {
-      userId,
-      captureType: payload.type,
-      capturedText: text,
-      assistanceStyle: plan.style,
-      responseContent: JSON.stringify({
-        explanation: response.explanation,
-        steps: response.steps,
-        relatedTopics: response.relatedTopics,
-      }),
-      confidence: response.confidence,
-      flags: JSON.stringify(response.flags),
-      providerName: aiProvider.name,
-    },
-  });
+  //
+  // Never blocks the learner (Constitution 5.4): the AI response was already
+  // generated (and paid for) by the time we get here, so a recording failure
+  // must not discard it — the learner's successful action must take effect
+  // even if recording it fails, leaving an Evidence gap rather than failing
+  // the request. Logged, not thrown.
+  try {
+    await prisma.assistanceExchange.create({
+      data: {
+        userId,
+        captureType: payload.type,
+        capturedText: text,
+        assistanceStyle: plan.style,
+        responseContent: JSON.stringify({
+          explanation: response.explanation,
+          steps: response.steps,
+          relatedTopics: response.relatedTopics,
+        }),
+        confidence: response.confidence,
+        flags: JSON.stringify(response.flags),
+        providerName: aiProvider.name,
+      },
+    });
+  } catch (err) {
+    console.error("[LX-1] Failed to record AssistanceExchange Evidence", err);
+  }
 
   return response;
 }

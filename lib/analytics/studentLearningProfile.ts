@@ -19,6 +19,19 @@
  *   getStudentLearningProfile() fetches all shared data once (one Promise.all),
  *   derives mastery inline from the same summaries, and calls computeRecommendations()
  *   directly — reusing the same data that getAdaptiveRecommendations() would fetch.
+ *
+ * NOT read-only (Option B):
+ *   Since Option B, getStudentLearningProfile() resolves the Recommendation
+ *   issuance boundary (see resolveRecommendationIssuance, Ch.1 Inv 12) and may
+ *   append a RecommendationIssuance Evidence row as a side effect of being
+ *   called. This is deliberate: it is the single shared choke point both
+ *   consuming surfaces (dashboard, results page) pass through, so issuance
+ *   resolution happens exactly once per profile read rather than being
+ *   duplicated at each call site. The write is non-blocking (Constitution
+ *   5.4) — failure degrades to currentIssuanceId: null rather than throwing —
+ *   but it is still a write. Callers that want a pure read must not call this
+ *   function; getLearningSignals() (learningSignalEngine.ts) is aware of this
+ *   and accepts the side effect rather than working around it.
  */
 
 import { prisma } from "@/lib/db/prisma";
@@ -514,6 +527,15 @@ export async function getStudentLearningProfile(
       ? rawAllAttempts[rawAllAttempts.length - 1].attemptedAt
       : new Date();
 
+  // Non-blocking per Constitution 5.4 and this file's own convention (see the
+  // guarded calls above): an Evidence write must never break the learner's
+  // action. Here the "action" is viewing the profile itself, so a transient
+  // failure resolving/persisting the RecommendationIssuance degrades to
+  // currentIssuanceId: null rather than throwing out of the Promise.all on
+  // the dashboard and results pages. Consuming surfaces already treat a null
+  // issuance id as "don't record acceptance" (AcceptRecommendationLink falls
+  // back to a plain Link) — the recommendation still displays; only the
+  // Evidence row is lost, the same trade RV-1 and RT-1 already make.
   const { recommendations, currentIssuanceId } = await resolveRecommendationIssuance(
     userId,
     candidateRecommendations,
@@ -523,7 +545,10 @@ export async function getStudentLearningProfile(
       targetGoalDate: learnerGoalData?.targetGoalDate ?? null,
     },
     mostRecentEvidenceAt
-  );
+  ).catch((err) => {
+    console.error("[Option B] Failed to resolve RecommendationIssuance", err);
+    return { recommendations: candidateRecommendations, currentIssuanceId: null };
+  });
 
   const baseProfile = buildLearningProfile({
     userId,
