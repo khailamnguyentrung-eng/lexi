@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AcceptRecommendationLink } from "@/components/recommendations/AcceptRecommendationLink";
 import type { StudentLearningProfile, LearningTrend } from "@/lib/analytics/studentLearningProfile";
 import type { PracticeRecommendation, SuggestedAction } from "@/lib/services/practiceRecommendation";
 import type { ReadinessResult } from "@/lib/analytics";
@@ -88,7 +89,13 @@ function LearningPositionSection({
 // Section 2a — Recommendation (when intelligence has a suggestion)
 // ─────────────────────────────────────────────────────────
 
-function TodayRecommendationSection({ rec }: { rec: PracticeRecommendation }) {
+function TodayRecommendationSection({
+  rec,
+  issuanceId,
+}: {
+  rec: PracticeRecommendation;
+  issuanceId: string | null;
+}) {
   const isHighPriority = rec.priority <= 2;
   const href = recommendationHref(rec);
 
@@ -121,8 +128,11 @@ function TodayRecommendationSection({ rec }: { rec: PracticeRecommendation }) {
       >
         {rec.reason}
       </p>
-      <Link
+      {/* RT-1: clicking the CTA is the learner ACCEPTING this recommendation —
+          recorded as Evidence against the exact issuance (Ch.3 §3.1 Consumed). */}
+      <AcceptRecommendationLink
         href={href}
+        issuanceId={issuanceId}
         className={`mt-3 inline-block rounded-full px-4 py-2 text-sm font-medium text-white ${
           isHighPriority
             ? "bg-amber-600 hover:bg-amber-700"
@@ -130,7 +140,7 @@ function TodayRecommendationSection({ rec }: { rec: PracticeRecommendation }) {
         }`}
       >
         {recommendationCta(rec.suggestedAction)}
-      </Link>
+      </AcceptRecommendationLink>
     </section>
   );
 }
@@ -296,7 +306,10 @@ export function StudentLearningSummary({
 
       {/* Always show one clear action — recommendation if available, next session otherwise */}
       {topRec ? (
-        <TodayRecommendationSection rec={topRec} />
+        <TodayRecommendationSection
+          rec={topRec}
+          issuanceId={profile.currentRecommendationIssuanceId}
+        />
       ) : (
         <SessionMissionCard
           sessionNumber={profile.nextSessionNumber}

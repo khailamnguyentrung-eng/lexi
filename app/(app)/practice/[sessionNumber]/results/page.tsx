@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { AcceptRecommendationLink } from "@/components/recommendations/AcceptRecommendationLink";
 import { getCurrentUser } from "@/lib/auth/session";
 import { resolveSessionId } from "@/lib/analytics";
 import type { ReadinessBand } from "@/lib/analytics";
@@ -233,8 +234,11 @@ export default async function SessionResultsPage({
           >
             {topRec.reason}
           </p>
-          <Link
+          {/* RT-1: clicking the CTA is the learner ACCEPTING this recommendation —
+              recorded as Evidence against the exact issuance (Ch.3 §3.1 Consumed). */}
+          <AcceptRecommendationLink
             href={recommendationHref(topRec)}
+            issuanceId={profile.currentRecommendationIssuanceId}
             className={`mt-3 inline-block rounded-full px-4 py-2 text-sm font-medium text-white ${
               topRec.priority <= 2
                 ? "bg-amber-600 hover:bg-amber-700"
@@ -242,7 +246,7 @@ export default async function SessionResultsPage({
             }`}
           >
             {recommendationCta(topRec.suggestedAction)}
-          </Link>
+          </AcceptRecommendationLink>
         </div>
       ) : (
         /* No focused recommendation — session was excellent or student is brand new */

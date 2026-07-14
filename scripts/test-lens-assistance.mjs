@@ -223,6 +223,10 @@ function parseAssistanceResponse(rawText, requestId, style, ocrFlags = []) {
 }
 
 // ─── Inlined: assistFromCapture (injectable AI for tests) ─────────────────────
+// NOTE: this is a partial reimplementation of the real assistFromCapture used
+// to exercise intent/parse logic without a DB. Since LX-1 it intentionally
+// OMITS the AssistanceExchange persistence step the real function performs —
+// this script asserts response shape only, not the Evidence write.
 
 async function simulateAssistance(payload, aiProvider, ocrProvider) {
   validateCapturePayload(payload);

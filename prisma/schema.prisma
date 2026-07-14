@@ -52,6 +52,11 @@ model User {
 
   diagnosticTests DiagnosticTest[]
   moodEntries     MoodEntry[]
+
+  assistanceExchanges AssistanceExchange[]
+  recommendationIssuances RecommendationIssuance[]
+  recommendationResponses RecommendationResponse[]
+  reviewEngagements ReviewEngagement[]
 }
 
 model LearnerProfile {
@@ -212,6 +217,8 @@ model ErrorNotebookEntry {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  reviewEngagements ReviewEngagement[]
 
   @@index([userId, nextReviewAt])
   @@index([userId, concept])
@@ -623,4 +630,236 @@ model MoodEntry {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// LENS ASSISTANCE (LX-1 reconciliation)
+// ──────────────────────────────────────────────────────────────────
+// An immutable record of one AI-assistance exchange: the learner
+// captured an external stimulus (selected text / screenshot / image),
+// and Lexi returned one non-graded assistance response. This is an
+// Evidence-layer Fact (Ch.1 §3.2 — "an interaction"), not a Projection.
+// Closes the Constitution 5.5 / Rule 7 gap where assistFromCapture()
+// produced a response that left no trace in the learner's record.
+//
+// Append-only by design (Ch.1 Invariant 4): "regenerate" creates a new
+// row, never mutates an existing one — matching the frozen
+// AssistanceExchange domain identity.
+
+enum AssistanceCaptureType {
+  TEXT_SELECTION
+  IMAGE_UPLOAD
+  SCREENSHOT_REGION
+}
+
+enum AssistanceStyleType {
+  GUIDED_STEPS
+  VOCABULARY_MEANING
+  CONCEPT_EXPLANATION
+  SUMMARY
+  GENERAL_HELP
+}
+
+model AssistanceExchange {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  captureType     AssistanceCaptureType
+  capturedText    String // the literal selection or OCR-extracted text the AI reasoned over (never the raw image bytes)
+  assistanceStyle AssistanceStyleType
+  responseContent String // JSON-serialized produced content (explanation string or steps[]) — same convention as ChatSession.contextSnapshot
+  confidence      Float
+  flags           String // JSON-serialized LensFlag[] — preserves response caveats (OCR_CONFIDENCE_LOW, AI_PARSE_ERROR, …)
+
+  // Infrastructure/provider-registry identity (which AI provider served this
+  // exchange), NOT a closed domain category — deliberately a String, not an
+  // enum, because the provider set is an infra concern expected to grow, unlike
+  // the domain-fixed captureType/assistanceStyle above. Stands in for the Ch.1
+  // §3.1 Evaluator; a full Evaluator entity remains a pre-existing system Gap.
+  providerName String
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// RECOMMENDATION ISSUANCE (H-1/H-2 reconciliation, Option B — PD3 Reading A)
+// ──────────────────────────────────────────────────────────────────
+// Ch.3 §3.1: a Recommendation itself has "no stored identity, computed fresh,
+// ephemeral — never a durable record updated in place. What IS permanent is
+// the fact of its issuance" (Ch.1 Invariant 12). This table IS that fact —
+// append-only, one row per issuance, never updated. "Current" is deliberately
+// NOT a stored flag: it is the most recent row per userId (the same
+// latest-wins idiom already used by ChatSession's own "current session"
+// lookup), which is one of the "conforming implementations" Ch.3 §3.1
+// explicitly permits ("retire-then-publish, publish-then-flip, and
+// transactional replacement are all conforming"). Supersession is therefore
+// implicit: an old row simply stops being the most recent one.
+
+enum RecommendationSuggestedAction {
+  REVIEW_NOTEBOOK
+  PRACTICE_TOPIC
+  ADVANCE_SESSION
+}
+
+enum RecommendationPriorityLabel {
+  RECURRING_MISTAKE
+  DUE_REVIEW
+  WEAKNESS_SIGNAL
+  CURRICULUM_PROGRESS
+}
+
+// Firmness (Ch.3 §3.1) — how strongly the recommendation is offered, bounded
+// above by belief-confidence (5.10). Mirrors the RecommendationConfidence union
+// (LOW/MEDIUM/HIGH); a closed domain set, so an enum per this schema's
+// "closed set → enum" convention.
+enum RecommendationFirmness {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model RecommendationIssuance {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Identity-bearing fields (Ch.3 §3.1 Fields) — compared in Phase 3 to
+  // detect whether a new computation actually supersedes the current one.
+  // Exactly one of topic/sessionNumber is set, mirroring PracticeRecommendation's
+  // own shape (Action).
+  topic           String?
+  sessionNumber   Int?
+  suggestedAction RecommendationSuggestedAction // Intent
+  priorityLabel   RecommendationPriorityLabel   // Basis provenance handle — which evidence category this was computed from (not a stored Understanding reference; none exists to point to)
+  procedure       String                        // Decision Procedure identity, e.g. "computeRecommendations@v1" — provenance only, never "what did the procedure contain"
+
+  // Basis — Goal citation (Ch.3 §3.1 Fields; Inv 2 requires every Goal served
+  // to be cited). Goal is represented as scalar LearnerProfile fields, not a
+  // separate entity (PR-1's already-accepted compatible reading: single-goal
+  // is a valid "zero-or-more, never assumed one" subset). LearnerProfile is
+  // mutable (PR-2 Layer 1: a Learner Declaration, updated in place, not
+  // append-only) — so citing it here means SNAPSHOTTING the Goal values in
+  // effect at issuance time, never a live FK to the current profile row,
+  // which would silently drift as the profile changes later. Still not a
+  // pointer to a stored Understanding (none exists to point to, per Basis's
+  // priorityLabel field above) — this closes the Goal-citation half of Basis
+  // specifically, not the Understanding-pointer half, which the architecture
+  // does not currently support persisting.
+  goalTargetExam  String?   // snapshot of LearnerProfile.targetExam
+  goalTargetScore Float?    // snapshot of LearnerProfile.targetScore
+  goalTargetDate  DateTime? // snapshot of LearnerProfile.targetGoalDate
+
+  // Required, non-identity (Ch.3 §3.1). Carries the timestamp of the most
+  // recent QuestionAttempt the computation could have reflected — an
+  // evidence-freshness proxy, NOT a real Understanding-version identifier
+  // (no durable Understanding exists anywhere in this codebase to version).
+  // Falls back to the write moment only for learners with zero attempts.
+  asOf DateTime
+
+  // ── Phase 4 (Evidence enrichment) — the remaining §3.1 Contract fields ──
+  // Representational, NON-identity: never participate in the supersession
+  // comparison (Phase 3 unchanged); stored so the issuance Evidence is a
+  // faithful record of the whole Recommendation that was issued, not just the
+  // identity subset — supporting §3.1 Invariant 5's "stay auditable". Nullable
+  // because they are enrichment, not required by PD3's four named obligations.
+  rationale String?                 // Rationale — the "why" text presented to the learner (prescriptive, references the belief it derived from)
+  firmness  RecommendationFirmness? // Firmness — how strongly offered, bounded by basis-confidence
+
+  issuedAt DateTime @default(now())
+
+  responses RecommendationResponse[]
+
+  @@index([userId, issuedAt])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// RECOMMENDATION RESPONSE (RT-1 reconciliation — Ch.3 §3.1 "Consumed")
+// ──────────────────────────────────────────────────────────────────
+// Ch.3 §3.1 Lifecycle: "Consumed — read and acted on... Only the targeted
+// Learner's own response to the recommended Action — accepted, overridden,
+// or ignored — becomes Evidence." §3.3 Invariant 5: the learner's response
+// "is recorded as Evidence." This table IS that Evidence — append-only, one
+// row per response event, never updated (Ch.1 Inv 4). Deliberately a
+// SEPARATE table from RecommendationIssuance: consuming a Recommendation
+// must never mutate the issuance record (which is itself append-only
+// Evidence of a different event).
+//
+// Only ACCEPTED is implemented today. OVERRIDDEN and IGNORED are real §3.1
+// response types but both require thresholds Ch.3 §3.5 deliberately leaves
+// open (e.g. how long un-acted-upon counts as "ignored") — the enum starts
+// with the one value whose trigger is unambiguous (the learner clicked the
+// recommended action's own CTA), rather than guessing at the other two.
+
+enum RecommendationResponseType {
+  ACCEPTED
+}
+
+model RecommendationResponse {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  recommendationIssuanceId String
+  recommendationIssuance   RecommendationIssuance @relation(fields: [recommendationIssuanceId], references: [id])
+
+  responseType RecommendationResponseType
+
+  respondedAt DateTime @default(now())
+
+  @@index([userId, respondedAt])
+  @@index([recommendationIssuanceId])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// REVIEW ENGAGEMENT (RV-1 reconciliation — Ch.3 §3.3 Inv 5 / §3.1 "Consumed")
+// ──────────────────────────────────────────────────────────────────
+// An immutable record of one learner-initiated review: the learner opened a
+// past mistake and reported having reviewed it. Ch.3 §3.1 Lifecycle "Consumed"
+// — "Only the targeted Learner's own response to the recommended Action —
+// accepted, overridden, or ignored — becomes Evidence"; §3.3 Invariant 5
+// requires that response be recorded as Evidence. Under BI-02's ruling
+// (review/SM-2 scheduling is within Decision Policy jurisdiction), "review
+// concept X, it is due" is a Recommendation with Intent = review, so the
+// learner's "I reviewed it" is that Recommendation's Consumed response.
+//
+// Append-only (Ch.1 Invariant 4): reviewing the same entry twice creates two
+// rows; no row is ever updated. Deliberately SEPARATE from ErrorNotebookEntry,
+// whose reviewStage/nextReviewAt/easeFactor are a mutable Understanding-layer
+// retention projection — that projection is not Evidence and is left unchanged.
+//
+// NOT FK-linked to a RecommendationIssuance: review items are not currently
+// issued through the Issuance path (Option B serves practice recommendations
+// only), so there is no issuance to point at. This is Evidence of the review
+// engagement itself. Materialising review Recommendations is deferred work,
+// per the RT-1 precedent — see docs/RV1_REVIEW_EVIDENCE_DESIGN.md §3.
+
+model ReviewEngagement {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  errorNotebookEntryId String
+  errorNotebookEntry   ErrorNotebookEntry @relation(fields: [errorNotebookEntryId], references: [id])
+
+  // Snapshot at review time. ErrorNotebookEntry.concept is mutable (the same
+  // PATCH route's non-review branch edits it), so an Evidence record must
+  // capture what was true when the review happened, never resolve it live
+  // later. Same discipline as RecommendationIssuance's Goal citation snapshot.
+  concept String
+
+  // Light enrichment — makes the Evidence self-describing ("what did this
+  // review accomplish") at zero query cost: the route already holds the
+  // pre-update entry and computes the new stage. Representational, not
+  // identity-bearing.
+  reviewStageBefore Int
+  reviewStageAfter  Int
+  reachedMastery    Boolean
+
+  reviewedAt DateTime @default(now())
+
+  @@index([userId, reviewedAt])
+  @@index([errorNotebookEntryId])
 }

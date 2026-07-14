@@ -3,6 +3,7 @@
 
 _Created: 2026-06-29. Phase 5 (Learner Model Intelligence) complete. Phase 6 planning._
 _Updated: 2026-06-30. M6.1–M6.4 implemented._
+_Removed: 2026-07-13. The standalone `/lens` page, its nav entry, `lib/services/lens/`, and its page-only UI components were deleted per a product decision to retire the feature — Lens is not retained as a capability elsewhere. This document is kept as a historical design record; the code it describes no longer exists. `lib/services/lens-ai/` (Explain/OCR/Assistant — Phase 7 below) is unrelated and unaffected._
 
 ---
 

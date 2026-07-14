@@ -19,6 +19,19 @@
  *   getStudentLearningProfile() fetches all shared data once (one Promise.all),
  *   derives mastery inline from the same summaries, and calls computeRecommendations()
  *   directly — reusing the same data that getAdaptiveRecommendations() would fetch.
+ *
+ * NOT read-only (Option B):
+ *   Since Option B, getStudentLearningProfile() resolves the Recommendation
+ *   issuance boundary (see resolveRecommendationIssuance, Ch.1 Inv 12) and may
+ *   append a RecommendationIssuance Evidence row as a side effect of being
+ *   called. This is deliberate: it is the single shared choke point both
+ *   consuming surfaces (dashboard, results page) pass through, so issuance
+ *   resolution happens exactly once per profile read rather than being
+ *   duplicated at each call site. The write is non-blocking (Constitution
+ *   5.4) — failure degrades to currentIssuanceId: null rather than throwing —
+ *   but it is still a write. Callers that want a pure read must not call this
+ *   function; getLearningSignals() (learningSignalEngine.ts) is aware of this
+ *   and accepts the side effect rather than working around it.
  */
 
 import { prisma } from "@/lib/db/prisma";
@@ -37,6 +50,7 @@ import {
   computeRecommendations,
 } from "@/lib/services/practiceRecommendation";
 import type { PracticeRecommendation } from "@/lib/services/practiceRecommendation";
+import { resolveRecommendationIssuance } from "@/lib/services/recommendationIssuance";
 import { getSkillMatrix } from "@/lib/services/skillMatrix";
 import { getCurrentMission } from "@/lib/services/curriculum";
 import { getBehaviorProfile } from "./behaviorEngine";
@@ -187,6 +201,12 @@ export interface StudentLearningProfile {
 
   // Phase 5 additions (M5.5)
   learnerModel: LearnerModel;          // five-engine intelligence snapshot
+
+  // RT-1 ("Consumed", Ch.3 §3.1): id of the RecommendationIssuance row that is
+  // current for this learner — the handle presentation surfaces use to record
+  // the learner's response (accept) against the exact issuance responded to.
+  // Null when no recommendation exists.
+  currentRecommendationIssuanceId: string | null;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -357,6 +377,10 @@ export function buildLearningProfile(
     // computeLearningSignals() requires the completed profile as input.
     topSignal: null,
     learnerModel,
+    // Null here — getStudentLearningProfile() overrides it with the id from
+    // resolveRecommendationIssuance(), same override pattern as topSignal.
+    // The builder stays pure/DB-ignorant.
+    currentRecommendationIssuanceId: null,
   };
 }
 
@@ -418,7 +442,7 @@ export async function getStudentLearningProfile(
     })),
     getLearningStreak(userId).catch(() => 0),
     prisma.learnerProfile
-      .findUnique({ where: { userId }, select: { targetGoalDate: true } })
+      .findUnique({ where: { userId }, select: { targetGoalDate: true, targetExam: true, targetScore: true } })
       .catch(() => null),
     // Phase 5 (M5.5): all attempts for performance + problem-solving engines
     prisma.questionAttempt.findMany({
@@ -476,13 +500,54 @@ export async function getStudentLearningProfile(
   }
 
   // Compute recommendations from shared data — no duplicate fetches
-  const recommendations = computeRecommendations({
+  const candidateRecommendations = computeRecommendations({
     topicSummaries,
     weaknessSignalTopics,
     nextSessionNumber: mission?.sessionNumber ?? null,
     nextSessionTitle: mission?.title ?? null,
     questionCountByTopic,
     masteryByTopic,
+  });
+
+  // Issuance boundary (Ch.3 §3.1) — H-1/H-2 reconciliation, Option B Phases 1-4.
+  // Goal citation (Basis, Inv 2) snapshotted from the same LearnerProfile fetch
+  // already made above for goalCountdown — no duplicate query.
+  //
+  // As-of: the timestamp of the most recent QuestionAttempt this computation
+  // could have reflected — already fetched above (rawAllAttempts) for the
+  // Learning Signal engine, so this costs no extra query. This is NOT a real
+  // Understanding-version identifier (none exists anywhere in this codebase
+  // to point to) — it is the closest available proxy for "how fresh is the
+  // evidence this belief reflects," which is what §3.1's "belief is
+  // time-relative" rationale for As-of actually cares about. Falls back to
+  // the write moment only when a learner has no attempts at all yet (nothing
+  // to be "as of").
+  const mostRecentEvidenceAt =
+    rawAllAttempts.length > 0
+      ? rawAllAttempts[rawAllAttempts.length - 1].attemptedAt
+      : new Date();
+
+  // Non-blocking per Constitution 5.4 and this file's own convention (see the
+  // guarded calls above): an Evidence write must never break the learner's
+  // action. Here the "action" is viewing the profile itself, so a transient
+  // failure resolving/persisting the RecommendationIssuance degrades to
+  // currentIssuanceId: null rather than throwing out of the Promise.all on
+  // the dashboard and results pages. Consuming surfaces already treat a null
+  // issuance id as "don't record acceptance" (AcceptRecommendationLink falls
+  // back to a plain Link) — the recommendation still displays; only the
+  // Evidence row is lost, the same trade RV-1 and RT-1 already make.
+  const { recommendations, currentIssuanceId } = await resolveRecommendationIssuance(
+    userId,
+    candidateRecommendations,
+    {
+      targetExam: learnerGoalData?.targetExam ?? null,
+      targetScore: learnerGoalData?.targetScore ?? null,
+      targetGoalDate: learnerGoalData?.targetGoalDate ?? null,
+    },
+    mostRecentEvidenceAt
+  ).catch((err) => {
+    console.error("[Option B] Failed to resolve RecommendationIssuance", err);
+    return { recommendations: candidateRecommendations, currentIssuanceId: null };
   });
 
   const baseProfile = buildLearningProfile({
@@ -522,5 +587,10 @@ export async function getStudentLearningProfile(
     explicitPreferences: undefined,
   });
 
-  return { ...baseProfile, topSignal: signals[0] ?? null, learnerModel };
+  return {
+    ...baseProfile,
+    topSignal: signals[0] ?? null,
+    learnerModel,
+    currentRecommendationIssuanceId: currentIssuanceId,
+  };
 }

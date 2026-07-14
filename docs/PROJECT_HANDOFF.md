@@ -45,8 +45,24 @@
 > 2026-06-28. It has not been reconciled against the new baseline yet — treat any conflict in
 > favor of `docs/LEXI_FOUNDATION.md` / `docs/LEXI_SYSTEM.md`, and flag it rather than silently
 > picking one side.
+>
+> ## Update (2026-07-14) — partial reconciliation
+>
+> Section 3 ("Current Status") and Section 11 ("Future Direction") below were **out of date, not
+> just unreconciled** — they described Phase 2 as "DESIGNED / NOT IMPLEMENTED" and Phases 5–6 as
+> "Research only" long after both shipped. Both sections have been corrected below to point at
+> `docs/PROJECT_STATUS.md`, which is the single implementation-status log kept current each
+> session — duplicating phase-by-phase status in two files is exactly how this drift happened.
+> Everything else in this file (principles, frozen rules, stack, workflow) was checked and is still
+> accurate; left as-is.
+>
+> Separately, a **Phase 3 conformance audit** (Sprint 1–2, 2026-07-12 onward) has been auditing
+> existing surfaces against the Baseline referenced above. It found several real drifts between
+> intended architecture and implementation (tracked in project memory, partially reconciled as of
+> this update — see `docs/PROJECT_STATUS.md` Phase 8). This is separate from, and does not replace,
+> the amendment process for the frozen documents themselves.
 
-*Last updated: 2026-06-28*
+*Last updated: 2026-07-14 (partial — see banner above)*
 
 ## Purpose
 
@@ -178,131 +194,15 @@ Target:
 
 # 3. Current Status
 
-## Phase 1
+**See `docs/PROJECT_STATUS.md` for current implementation status** (updated each session,
+phase-by-phase, with test counts) — do not duplicate that maintenance here; the two docs drifted
+out of sync once already (this section previously said Phase 2 was "DESIGNED / NOT IMPLEMENTED"
+long after it shipped).
 
-Status:
-
-COMPLETE
-
-Implemented:
-
-* Readiness Intelligence
-* Weakness Intelligence
-* Error Notebook Intelligence
-* Mastery Tracking
-* Recommendation System
-
-Architecture foundation:
-
-Question
-
-↓
-
-QuestionAttempt
-
-↓
-
-ErrorNotebookEntry
-
-↓
-
-Repository Layer
-
-↓
-
-Pure Intelligence Engine
-
-↓
-
-Learning Services
-
-↓
-
-StudentLearningProfile
-
-↓
-
-UI
-
----
-
-# Phase 2
-
-Status:
-
-DESIGNED
-
-NOT IMPLEMENTED
-
-Approved scope:
-
-## Phase 2.1
-
-SM-2 Retention Engine
-
-Goal:
-
-Convert Error Notebook into a memory system.
-
----
-
-## Phase 2.2
-
-Learning Behavior Engine
-
-Understand:
-
-"How does this learner learn?"
-
-Signals:
-
-* consistency
-* completion rate
-* session duration
-* retry behavior
-* persistence
-* hint dependency
-
----
-
-## Phase 2.3
-
-Learning Signal Engine
-
-Convert raw data into insights.
-
-Example:
-
-Not:
-
-"You failed Present Perfect 10 times"
-
-Instead:
-
-"Present Perfect is currently weak but improving."
-
----
-
-## Phase 2.4
-
-Adaptive Practice Foundation
-
-LEXI decides:
-
-"What should this student do next?"
-
-Input:
-
-* mastery
-* weakness
-* retention
-* behavior
-
-Output:
-
-* next exercise
-* review topic
-* difficulty
+As of 2026-07-14: Phases 1–7 (Student Intelligence, Companion Intelligence, Content Intelligence,
+Generation Pipeline, Learner Model Intelligence, LEXI Lens [since removed], LEXI Lens AI) are all
+implemented. Phase 8 (Recommendation & Assistance Evidence Reconciliation) is complete on a feature
+branch not yet merged to `main`. Architecture foundation is unchanged from what's described below.
 
 ---
 
@@ -511,25 +411,25 @@ Architecture decisions require review before implementation.
 
 # 10. Current Next Action
 
-Before Phase 2 implementation:
-
-1. Ensure documentation is synchronized.
-2. Keep DECISION_LOG updated.
-3. Start Phase 2.1:
-
-SM-2 Retention Engine
-
-Rules:
-
-* No AI dependency
-* No large schema rewrite
-* Preserve Phase 1 behavior
+**Superseded — see `docs/PROJECT_STATUS.md` "Pending Milestones" for the current list.** As of
+2026-07-14 that list is: M4.5 (Admin API endpoint), M3.5/M3.6 (ingestion/validation follow-ups),
+RT-1 Runtime orchestration, RV-1 (Review/SM-2 Decision Policy reconciliation), and deciding whether
+to push/PR the `reconciliation/lx1-lens-optionb-rt1` branch.
 
 ---
 
 # 11. Future Direction
 
-Future phases:
+**Status update (2026-07-14): everything below in this section has since shipped**, per
+`docs/PROJECT_STATUS.md`'s canonical phase numbering (which does not line up 1:1 with the numbers
+below — this section predates that numbering). Content Intelligence → `PROJECT_STATUS.md` Phase 3.
+Memory/Companion → Phase 5 (Learner Model Intelligence). LEXI Lens → Phase 6, **removed 2026-07-13**
+per product decision (see `docs/PHASE6_LEXI_LENS_DESIGN_REVIEW.md`); its AI-assistance capability
+(`lens-ai`, unrelated to the removed Lens surface) is Phase 7 and is implemented. "Local/Hybrid AI"
+below never progressed past this research note. The original vision text is kept as-is below for
+historical context, not as an open roadmap.
+
+Future phases (as originally written):
 
 ## Phase 3
 

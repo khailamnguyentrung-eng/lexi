@@ -44,6 +44,38 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         status: wasFinalStage ? "MASTERED" : "REVIEWING",
       },
     });
+
+    // RV-1 (Ch.3 §3.3 Inv 5 / §3.1 "Consumed"): the learner's own response to a
+    // due review is recorded as append-only Evidence. Additive by design — the
+    // in-place retention update above is an Understanding-layer projection and
+    // stays as-is. Values come from `entry`, fetched before the update, so they
+    // are the true pre-review state; `concept` is snapshotted because the
+    // non-review branch below can edit it later.
+    //
+    // reachedMastery (design §8): true exactly when this review ADVANCED the
+    // entry to MASTERED — i.e. the entry was at the final stage AND was not
+    // already MASTERED beforehand. Guards against double-counting an idempotent
+    // re-review of an already-mastered entry (reachable via direct PATCH; the
+    // UI hides the button once status is MASTERED).
+    //
+    // Never blocks the learner (Constitution 5.4): the learner's "I reviewed
+    // this" must take effect even if recording it fails, so a write failure
+    // leaves an Evidence gap rather than failing the action. Logged, not thrown.
+    try {
+      await prisma.reviewEngagement.create({
+        data: {
+          userId: user.id,
+          errorNotebookEntryId: id,
+          concept: entry.concept,
+          reviewStageBefore: entry.reviewStage,
+          reviewStageAfter: newStage,
+          reachedMastery: entry.status !== "MASTERED" && wasFinalStage,
+        },
+      });
+    } catch (err) {
+      console.error("[RV-1] Failed to record ReviewEngagement Evidence", err);
+    }
+
     return NextResponse.json({ entry: updated });
   }
 

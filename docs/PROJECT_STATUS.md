@@ -1,6 +1,17 @@
 # LEXI — Project Status
 
-_Last updated: 2026-06-30_
+_Last updated: 2026-07-14_
+
+---
+
+> **Architecture note.** Since 2026-07-10, product/system semantics are governed by the frozen
+> **Architecture Baseline v1.0** (`LEXI_FOUNDATION.md`, `LEXI_SYSTEM.md` Ch.1–4) — see
+> `docs/DOCUMENT_HIERARCHY.md`. This file is an **implementation status log only** (never
+> authoritative); where it appears to describe a rule rather than a fact, the Baseline wins.
+>
+> A parallel **Phase 3 conformance audit** (Sprint 1–2) has been auditing existing surfaces against
+> that Baseline since 2026-07-12 and is tracked in project memory, not yet in a committed doc. Some
+> findings from that audit are what Phase 8 below reconciles.
 
 ---
 
@@ -145,6 +156,8 @@ Engines are separate from StudentLearningProfile — profile is a snapshot contr
 
 ### Phase 6 — LEXI Lens
 
+**Removed 2026-07-13.** The standalone `/lens` page, nav entry, `lib/services/lens/`, and its page-only UI components were deleted per a product decision to retire the feature. The M6.1–M6.4 history below is kept as-is (repository history is architectural evidence, not rewritten) — none of it describes currently-existing code. `lib/services/lens-ai/` (Phase 7, below) is a different, unaffected capability.
+
 #### M6.4 — Learner Lens Experience Prototype ✓ (2026-06-30)
 First real LEXI learner experience screen. Route `/lens` — server-rendered, theme-aware, responsive.
 `app/(app)/lens/page.tsx`: Server Component — `getCurrentUser()` → `getLearnerLens(userId)` → `LensViewModel` → `LensPageContent`. Zero engine imports.
@@ -204,7 +217,73 @@ Mock provider degrades gracefully: `AI_PARSE_ERROR` flag set, raw text used as e
 
 ---
 
+### Phase 8 — Recommendation & Assistance Evidence Reconciliation
+
+**Not yet on `main`.** All of Phase 8 lives on branch `reconciliation/lx1-lens-optionb-rt1`, split
+into 4 dependency-ordered commits (`f753dab` → `470fb2f` → `a9fc72e` → `efa9a96`); not pushed, no
+PR opened yet. Driven by the Phase 3 conformance audit (Sprint 2) referenced in the banner above —
+each milestone below closes a specific named finding from that audit's Finding Registry.
+
+#### M8.1 — Lens-AI Assistance Persistence (LX-1) ✓ (2026-07-13)
+Closes a Constitution 5.5 / Rule 7 gap: `assistFromCapture()` previously produced a response with
+no trace in the learner's record. New append-only Prisma model `AssistanceExchange` + 2 enums
+(`AssistanceCaptureType`, `AssistanceStyleType`). `lib/services/lens-ai/assistance/assistant.ts`
+persists every exchange. Migration: `20260712181228_add_assistance_exchange`.
+**Audit status: CLOSED (Reconciled → Verified → Closed).**
+
+#### Lens feature removal (2026-07-13)
+The standalone `/lens` page, `lib/services/lens/`, its nav entry, and page-only UI components
+deleted per an explicit product decision (see the Phase 6 note above) — not an audit finding, and
+unrelated to `lens-ai`.
+
+#### M8.2 — Recommendation Issuance as Evidence (Option B) ✓ (2026-07-13/14)
+Reconciles finding **H-1/H-2** (Recommendation Contract/Lifecycle), governed by the **PD3 Founder
+Ruling (Reading A)**: a Home/Results-page recommendation is a Ch.3 Recommendation, not a pre-Ch.3
+heuristic. New append-only Prisma model `RecommendationIssuance` persisting Action, Intent, Basis
+(including Goal citation — a snapshot, not a live FK, since `LearnerProfile` is mutable), Procedure,
+As-of, plus Rationale/Firmness enrichment. `lib/services/recommendationIssuance.ts`
+(`resolveRecommendationIssuance`) sits between the pure `computeRecommendations()` and both real
+consumers (Home dashboard, Results page), gating writes on identity-match so repeated reads don't
+create duplicate rows. 3 migrations: `add_recommendation_issuance`,
+`enrich_recommendation_issuance`, `recommendation_issuance_goal_citation`.
+**Audit status: feature-complete against all 5 originally-scoped Contract fields.**
+
+#### M8.3 — Recommendation Response / "Consumed" (RT-1) ✓ (2026-07-14)
+Reconciles the Evidence half of finding **RT-1** — Ch.3 §3.1 Lifecycle "Consumed": the learner's
+response to a recommended Action becomes Evidence. New append-only Prisma model
+`RecommendationResponse` (`ACCEPTED` only for now — `OVERRIDDEN`/`IGNORED` deferred, their §3.5
+thresholds are explicitly still open). New endpoint `POST /api/recommendations/accept` +
+`AcceptRecommendationLink` component wired into the dashboard and results page. Migration:
+`20260713165016_add_recommendation_response`.
+**Audit status: partially reconciled** — Evidence-recording is done; Runtime-authority orchestration
+(surfaces requesting guidance through Eligibility → Decision Policy, instead of reading
+`practiceRecommendation.ts` output directly) remains explicitly out of scope, deferred.
+
+#### M8.4 — Review Action as Evidence (RV-1) ✓ (2026-07-14)
+Reconciles finding **RV-1** (re-scoped 2026-07-14, see `docs/RV1_REVIEW_EVIDENCE_DESIGN.md`): the
+learner-initiated `mark_reviewed` path (`PATCH /api/error-notebook/[id]/route.ts`) previously
+mutated `reviewStage`/`lastReviewedAt`/`nextReviewAt`/`status` in place with no append-only trace of
+the learner's own review response. New append-only Prisma model `ReviewEngagement` (Task 1);
+`mark_reviewed` now writes it after the retention update, snapshotting `concept` and
+`reviewStageBefore` from the pre-update entry (Task 2). The write is additive and
+non-blocking (Constitution 5.4) — wrapped in try/catch, logged not thrown, verified via live
+fault-injection (broken FK still returns 200 and advances retention state, no Evidence row
+created). Session-driven `applySM2ForSession()` is untouched — confirmed no
+`reviewEngagement` reference in `lib/services/errorNotebook.ts`; its Evidence is already the
+`QuestionAttempt` rows.
+**Audit status: partially reconciled** — the §3.3 Inv 5 / §3.1 "Consumed" gap is closed; the
+Q3/Q5 calling-convention concern (SM-2 not routed through Decision Policy) is recorded as **not**
+a Ch.1–4 obligation per the design's re-scope, not tracked as remaining Drift; review-Recommendation
+issuance (materialising due-review items as issued Recommendations, FK-linking responses to them)
+remains explicitly deferred, same precedent as RT-1.
+
+---
+
 ## Current Total: 2173 tests passing
+
+**This count predates Phase 8** (last full count taken 2026-06-30). M8.1–M8.3 shipped with their
+own targeted verification (`scripts/test-lens-assistance.mjs`; direct-function tests for Option B
+and RT-1's gating/enrichment logic) but have not been folded into a unified count yet.
 
 ---
 
@@ -223,6 +302,101 @@ Passage extraction for READING_COMPREHENSION questions.
 Duplicate detection (exact code match + fuzzy promptText match).
 AI-assisted semantic validation (correctOption consistency check).
 SemanticValidationResult model + DraftReviewCard warnings.
+
+### Recommendation Runtime orchestration — optional, NOT an audit finding
+Surfaces (Home, Results) read `practiceRecommendation.ts` output directly rather than requesting
+guidance through an Eligibility → Decision Policy staging layer.
+
+**This is not a Drift and not an open audit finding** — an earlier version of this entry said it
+was, which was a miscategorisation, corrected here rather than silently edited. The evidence:
+`grep -ci "runtime"` returns **0** across both `LEXI_SYSTEM.md` (Ch.1–4) and `LEXI_FOUNDATION.md`
+— "Recommendation Runtime" is a Sprint-1 *derived model* invented during audit design, not a
+frozen concept. Ch.1 §0 explicitly excludes "Storage, indexing, **APIs, services**, caching" from
+the frozen architecture, and §3.4 states the predicates are "Not a pipeline," so a
+calling-convention between surface and policy is outside what Ch.1–4 constrains at all. RT-1's own
+re-scope (2026-07-14) already recorded the Q3/Q5 calling-convention concern as **not a standalone
+Ch.1–4 obligation**; only Inv 5's response-recording was, and that shipped as M8.3.
+
+All six §3.3 Policy Invariants are currently met, except the OVERRIDDEN/IGNORED half of Inv 5,
+which is blocked on §3.5-open thresholds (a product decision, not buildable today). **No invariant
+is driving this work.**
+
+Building it would therefore be an engineering/product *choice* (e.g. wanting Eligibility separable
+for testing or reuse), legitimate to make knowingly — but it must not be framed as closing a drift,
+and Rule 4 applies: the existing design must first be proven insufficient.
+
+### Review-Recommendation issuance
+Due-review items at `/error-notebook` are computed by SM-2 and displayed directly — they are never
+issued through the Option B `RecommendationIssuance` path (which serves practice recommendations
+only). M8.4 therefore records review Evidence that is not FK-linked to an issued Recommendation.
+Materialising review items as issued Recommendations is the review half of the Recommendation
+pipeline; deliberately deferred on the RT-1 precedent, not yet designed.
+
+### GC-1 — What does Basis's Goal mean? (Pending — semantic ambiguity, decision-class)
+**Surfaced 2026-07-14** while resolving a whole-branch review finding. **Not a Drift** — a
+compatible reading survives (below), and this project's own rule is that a finding must defeat every
+compatible reading to be Confirmed. Recorded for a ruling, not acted on.
+
+**The observation.** `grep -cin "goal\|targetScore\|targetExam" lib/services/practiceRecommendation.ts`
+returns **0** — the Goal does not participate in computing a Recommendation. `computeRecommendations()`
+consumes only topic summaries, weakness signals, next-session info, question counts, and mastery.
+Yet `RecommendationIssuance` cites `goalTargetExam`/`goalTargetScore`/`goalTargetDate` as Basis.
+
+**Two frozen clauses read literally, and they diverge here:**
+
+| Clause | Verbatim | Applied to a goal-blind policy |
+|---|---|---|
+| §3.1 Basis field | "the Basis must cite every Goal it actually **served**" — its own example is "a single Action may legitimately **advance** more than one active Goal" | The Action does serve the learner's Goal ⇒ **citing it is correct** |
+| §3.3 Inv 2 | "the Basis **cannot cite what it did not use** — never a plausible-looking provenance attached after selection" | The policy never read the Goal ⇒ **citing it is wrong** |
+
+**Why this is an ambiguity, not a defect.** §3.1's Basis field cites *§3.3 Invariant 2* as the
+authority for its "served" requirement — the frozen text treats "served" and "took part in
+producing" as the same thing. They only come apart when a policy is goal-blind, and §3.2 explicitly
+permits exactly that: "never what every Policy *must* use... a Learner may (momentarily) hold no
+Active Goal... the violation would be depending on something *not* on this list, **not leaving
+something on it unused**." The authors did not anticipate the divergence; neither clause is wrong.
+
+**Ruled out on the evidence** (recorded so it is not re-proposed): "the real defect is that the
+policy is goal-blind, so `computeRecommendations()` must consume the Goal." §3.2's "available, not
+mandatory" forecloses this — a goal-blind policy is conforming.
+
+**The ruling needed — one question:** does Basis's Goal mean *the Goal the Action serves*, or *the
+Goal the policy consumed*?
+- **"Serves"** ⇒ current code conforms; close GC-1. §3.1/§3.3 may then get an **editorial**
+  clarification (no amendment process needed — `DOCUMENT_HIERARCHY.md` exempts changes that do not
+  alter meaning).
+- **"Consumed"** ⇒ the citation is provenance the policy never used; deprecate the three `goal*`
+  columns **additively** (never `DROP` — Evidence is append-only, Ch.1 Inv 4).
+
+**Stakes: low, and it does not block a merge.** This is provenance metadata on an Evidence row, not
+learner-visible behaviour; no learner is affected either way. It is a pre-existing audit question
+about the 2026-07-13 Goal-citation fix, not a regression introduced by this branch.
+
+**Do not dig further.** This is decision-class by the project's own exit-path discipline: evidence
+cannot move it, only a ruling can.
+
+Related, and already settled: the same review's "stale Goal citation" concern resolved as
+**conforming** (§3.1's Retired clause excludes Goal changes from auto-retirement; §3.3 Inv 6 fixes
+evaluation at issue-time — reasoning recorded in `recommendationIssuance.ts`). If GC-1 resolves as
+"consumed", that question becomes moot rather than reopened.
+
+### Route-handler test infrastructure — decision needed (n=3)
+Three consecutive reconciliations (M8.2 Option B, M8.3 RT-1, M8.4 RV-1) have shipped Evidence
+writes verified only by throwaway live scripts that were never committed. Each was individually
+defensible — this project has no route-handler test framework, and the committed `.mjs` scripts are
+pure-logic only (`test-lens-assistance.mjs` carries an explicit note that it *omits* its own
+Evidence-write step). The accumulating property is that **no committed artifact would catch a
+regression in any of the three**.
+
+Raised by the M8.4 final review. By this project's own promotion criterion (a pattern is promoted
+on the second-or-later independent instance, not on n=1), three data points is past the threshold
+where this stops being an observation. Not a defect in any one milestone; a real decision about
+whether route handlers get test infrastructure.
+
+### `reconciliation/lx1-lens-optionb-rt1` → `main`
+Phase 8 (M8.1–M8.4) is complete on its feature branch but not yet pushed or merged. The branch has
+never had a whole-branch review — the per-milestone reviews covered each change in isolation.
+Decision pending: review the branch and open a PR, or continue staging further work on it first.
 
 ---
 
