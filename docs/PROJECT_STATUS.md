@@ -303,10 +303,27 @@ Duplicate detection (exact code match + fuzzy promptText match).
 AI-assisted semantic validation (correctOption consistency check).
 SemanticValidationResult model + DraftReviewCard warnings.
 
-### RT-1 — Recommendation Runtime orchestration
-Surfaces (Home, Results) currently read `practiceRecommendation.ts` output directly. Building real
-Eligibility → Decision Policy request/response orchestration was explicitly deferred out of M8.3's
-scope — tracked as an open audit finding, not yet designed.
+### Recommendation Runtime orchestration — optional, NOT an audit finding
+Surfaces (Home, Results) read `practiceRecommendation.ts` output directly rather than requesting
+guidance through an Eligibility → Decision Policy staging layer.
+
+**This is not a Drift and not an open audit finding** — an earlier version of this entry said it
+was, which was a miscategorisation, corrected here rather than silently edited. The evidence:
+`grep -ci "runtime"` returns **0** across both `LEXI_SYSTEM.md` (Ch.1–4) and `LEXI_FOUNDATION.md`
+— "Recommendation Runtime" is a Sprint-1 *derived model* invented during audit design, not a
+frozen concept. Ch.1 §0 explicitly excludes "Storage, indexing, **APIs, services**, caching" from
+the frozen architecture, and §3.4 states the predicates are "Not a pipeline," so a
+calling-convention between surface and policy is outside what Ch.1–4 constrains at all. RT-1's own
+re-scope (2026-07-14) already recorded the Q3/Q5 calling-convention concern as **not a standalone
+Ch.1–4 obligation**; only Inv 5's response-recording was, and that shipped as M8.3.
+
+All six §3.3 Policy Invariants are currently met, except the OVERRIDDEN/IGNORED half of Inv 5,
+which is blocked on §3.5-open thresholds (a product decision, not buildable today). **No invariant
+is driving this work.**
+
+Building it would therefore be an engineering/product *choice* (e.g. wanting Eligibility separable
+for testing or reuse), legitimate to make knowingly — but it must not be framed as closing a drift,
+and Rule 4 applies: the existing design must first be proven insufficient.
 
 ### Review-Recommendation issuance
 Due-review items at `/error-notebook` are computed by SM-2 and displayed directly — they are never
@@ -315,9 +332,23 @@ only). M8.4 therefore records review Evidence that is not FK-linked to an issued
 Materialising review items as issued Recommendations is the review half of the Recommendation
 pipeline; deliberately deferred on the RT-1 precedent, not yet designed.
 
+### Route-handler test infrastructure — decision needed (n=3)
+Three consecutive reconciliations (M8.2 Option B, M8.3 RT-1, M8.4 RV-1) have shipped Evidence
+writes verified only by throwaway live scripts that were never committed. Each was individually
+defensible — this project has no route-handler test framework, and the committed `.mjs` scripts are
+pure-logic only (`test-lens-assistance.mjs` carries an explicit note that it *omits* its own
+Evidence-write step). The accumulating property is that **no committed artifact would catch a
+regression in any of the three**.
+
+Raised by the M8.4 final review. By this project's own promotion criterion (a pattern is promoted
+on the second-or-later independent instance, not on n=1), three data points is past the threshold
+where this stops being an observation. Not a defect in any one milestone; a real decision about
+whether route handlers get test infrastructure.
+
 ### `reconciliation/lx1-lens-optionb-rt1` → `main`
-Phase 8 (M8.1–M8.4) is complete on its feature branch but not yet pushed or merged. Decision
-pending: open a PR, or continue staging further work on the branch first.
+Phase 8 (M8.1–M8.4) is complete on its feature branch but not yet pushed or merged. The branch has
+never had a whole-branch review — the per-milestone reviews covered each change in isolation.
+Decision pending: review the branch and open a PR, or continue staging further work on it first.
 
 ---
 
