@@ -188,6 +188,12 @@ export interface StudentLearningProfile {
 
   // Phase 5 additions (M5.5)
   learnerModel: LearnerModel;          // five-engine intelligence snapshot
+
+  // RT-1 ("Consumed", Ch.3 §3.1): id of the RecommendationIssuance row that is
+  // current for this learner — the handle presentation surfaces use to record
+  // the learner's response (accept) against the exact issuance responded to.
+  // Null when no recommendation exists.
+  currentRecommendationIssuanceId: string | null;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -358,6 +364,10 @@ export function buildLearningProfile(
     // computeLearningSignals() requires the completed profile as input.
     topSignal: null,
     learnerModel,
+    // Null here — getStudentLearningProfile() overrides it with the id from
+    // resolveRecommendationIssuance(), same override pattern as topSignal.
+    // The builder stays pure/DB-ignorant.
+    currentRecommendationIssuanceId: null,
   };
 }
 
@@ -504,7 +514,7 @@ export async function getStudentLearningProfile(
       ? rawAllAttempts[rawAllAttempts.length - 1].attemptedAt
       : new Date();
 
-  const recommendations = await resolveRecommendationIssuance(
+  const { recommendations, currentIssuanceId } = await resolveRecommendationIssuance(
     userId,
     candidateRecommendations,
     {
@@ -552,5 +562,10 @@ export async function getStudentLearningProfile(
     explicitPreferences: undefined,
   });
 
-  return { ...baseProfile, topSignal: signals[0] ?? null, learnerModel };
+  return {
+    ...baseProfile,
+    topSignal: signals[0] ?? null,
+    learnerModel,
+    currentRecommendationIssuanceId: currentIssuanceId,
+  };
 }

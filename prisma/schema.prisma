@@ -55,6 +55,7 @@ model User {
 
   assistanceExchanges AssistanceExchange[]
   recommendationIssuances RecommendationIssuance[]
+  recommendationResponses RecommendationResponse[]
 }
 
 model LearnerProfile {
@@ -766,5 +767,45 @@ model RecommendationIssuance {
 
   issuedAt DateTime @default(now())
 
+  responses RecommendationResponse[]
+
   @@index([userId, issuedAt])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// RECOMMENDATION RESPONSE (RT-1 reconciliation — Ch.3 §3.1 "Consumed")
+// ──────────────────────────────────────────────────────────────────
+// Ch.3 §3.1 Lifecycle: "Consumed — read and acted on... Only the targeted
+// Learner's own response to the recommended Action — accepted, overridden,
+// or ignored — becomes Evidence." §3.3 Invariant 5: the learner's response
+// "is recorded as Evidence." This table IS that Evidence — append-only, one
+// row per response event, never updated (Ch.1 Inv 4). Deliberately a
+// SEPARATE table from RecommendationIssuance: consuming a Recommendation
+// must never mutate the issuance record (which is itself append-only
+// Evidence of a different event).
+//
+// Only ACCEPTED is implemented today. OVERRIDDEN and IGNORED are real §3.1
+// response types but both require thresholds Ch.3 §3.5 deliberately leaves
+// open (e.g. how long un-acted-upon counts as "ignored") — the enum starts
+// with the one value whose trigger is unambiguous (the learner clicked the
+// recommended action's own CTA), rather than guessing at the other two.
+
+enum RecommendationResponseType {
+  ACCEPTED
+}
+
+model RecommendationResponse {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  recommendationIssuanceId String
+  recommendationIssuance   RecommendationIssuance @relation(fields: [recommendationIssuanceId], references: [id])
+
+  responseType RecommendationResponseType
+
+  respondedAt DateTime @default(now())
+
+  @@index([userId, respondedAt])
+  @@index([recommendationIssuanceId])
 }

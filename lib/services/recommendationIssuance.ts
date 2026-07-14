@@ -34,6 +34,20 @@ export interface RecommendationGoalSnapshot {
 }
 
 /**
+ * RT-1 ("Consumed", Ch.3 §3.1 Lifecycle): the id of the RecommendationIssuance
+ * row that is current after this resolution — the handle a presentation
+ * surface needs so the learner's response (accept) can be recorded against
+ * the exact issuance it responds to. Null when no recommendation exists.
+ * Deliberately returned ALONGSIDE the candidates, never injected into
+ * PracticeRecommendation itself — that type belongs to the Computation layer,
+ * which must stay ignorant of Issuance.
+ */
+export interface RecommendationIssuanceResult {
+  recommendations: PracticeRecommendation[];
+  currentIssuanceId: string | null;
+}
+
+/**
  * Identity-bearing content only (Ch.3 §3.1 Fields: Action, Intent, Basis,
  * Procedure). As-of is deliberately excluded — required by the Contract but
  * non-identity, per the reviewed design. Wording/formatting/explanation are
@@ -86,7 +100,9 @@ function isSameRecommendation(
  * (Case A) or the identity differs (Case C — supersession, represented solely
  * by the new row existing, never by touching the old one). An identity match
  * (Case B) writes nothing. The candidates are always returned untouched —
- * this function only decides whether to log, never what gets displayed.
+ * this function only decides whether to log, never what gets displayed —
+ * alongside the current issuance's id (RT-1: the handle surfaces use to
+ * record the learner's response against the exact issuance responded to).
  *
  * Phase 4 (Evidence enrichment): on the write path only, the row now also
  * carries the two remaining §3.1 Contract fields — Rationale (reason) and
@@ -112,9 +128,9 @@ export async function resolveRecommendationIssuance(
   candidates: PracticeRecommendation[],
   goal: RecommendationGoalSnapshot,
   evidenceAsOf: Date
-): Promise<PracticeRecommendation[]> {
+): Promise<RecommendationIssuanceResult> {
   const top = candidates[0];
-  if (!top) return candidates;
+  if (!top) return { recommendations: candidates, currentIssuanceId: null };
 
   const candidateIdentity = buildRecommendationIdentity(top);
 
@@ -134,13 +150,14 @@ export async function resolveRecommendationIssuance(
 
     if (isSameRecommendation(candidateIdentity, latestIdentity)) {
       // Case B: already current. No write — append-only history is untouched.
-      return candidates;
+      // The existing latest row IS the current issuance.
+      return { recommendations: candidates, currentIssuanceId: latest.id };
     }
   }
 
   // Case A (no previous issuance) or Case C (identity differs — supersession,
   // represented solely by this new row's existence).
-  await prisma.recommendationIssuance.create({
+  const created = await prisma.recommendationIssuance.create({
     data: {
       userId,
       topic: top.topic,
@@ -160,5 +177,5 @@ export async function resolveRecommendationIssuance(
     },
   });
 
-  return candidates;
+  return { recommendations: candidates, currentIssuanceId: created.id };
 }
