@@ -355,10 +355,38 @@ still have `knowledgeUnitId: null` while newly-approved drafts get it set by
 would serve nothing. Flagged because the same relationship being represented two ways is a real
 smell, and it belongs to M3.3's scope, not KU-1's.
 
-### M3.5 — Ingestion Enhancements
-Real OCR for IMAGE files (Tesseract.js or cloud OCR).
-Smart document chunking (numbered question list detection).
-Passage extraction for READING_COMPREHENSION questions.
+### M3.5 — Ingestion Enhancements (corrected 2026-07-15 — two of three items were already done)
+This entry claimed three pending items. Verified against the code; **two of them already ship**, and
+the correction surfaced a real gap the entry never mentioned. Corrected rather than silently
+rewritten, per M7.
+
+| Original claim | Reality |
+|---|---|
+| "Real OCR for IMAGE files (Tesseract.js or cloud OCR)" | **Already done.** `tesseract.js@^7.0.0` is a real dependency; `lib/ocr/tesseractProvider.ts` runs it fully offline; `extractor.ts`'s `IMAGE` branch calls `getOCRProvider().recognize(...)`. |
+| "Smart document chunking (numbered question list detection)" | **Built, but only reachable from dry-run.** See below — this is the real finding. |
+| "Passage extraction for READING_COMPREHENSION questions" | **Genuinely not implemented.** Still pending. |
+
+**The real gap: chunking never runs on a real import.** `chunkBySections()`
+(`content-import/chunker.ts`) and `normalizeLargeDocument()` exist and work — the chunker's own
+comment states its purpose: *"so a single AI call never has to ingest (or return) all 118 questions
+of a large exam document at once."* But `normalizeLargeDocument()` has exactly **one** caller:
+`app/api/admin/content-sources/[id]/normalize-dry-run/route.ts`.
+
+The real import path does not chunk: `runImportJob` → `normalizeAndPersistDrafts` →
+`normalizeWithAI` → `provider.normalizeQuestions({ rawText })` → `normalizeWithRetry(..., rawText,
+...)`, which builds one prompt from the entire document. So importing the real 118-question source
+sends all 118 questions in a single AI call — precisely what the chunker was written to prevent.
+Dry-run gets the good behaviour; the path that actually writes drafts does not.
+
+**Also missing, and never listed here: scanned-PDF OCR fallback.** `extractPdfText` uses `pdf-parse`,
+which returns empty/near-empty text for a PDF with no embedded text layer. `adapters/pdf.ts` documents
+the seam precisely (render each page to an image → run through the same `lib/ocr` provider IMAGE
+files use → concatenate) and notes it is unimplemented because *"it requires a new PDF-to-image
+rendering dependency."* Relevant to anyone importing scanned Vietnamese exam papers, which are
+commonly image-only.
+
+**Remaining M3.5 scope, then:** wire chunking into the real import path; passage extraction for
+READING_COMPREHENSION; scanned-PDF OCR fallback (needs a new dependency).
 
 ### M3.6 — Semantic Validation Layer
 Duplicate detection (exact code match + fuzzy promptText match).
