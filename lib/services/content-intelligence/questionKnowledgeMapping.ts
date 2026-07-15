@@ -25,6 +25,7 @@
  */
 
 import { prisma } from "@/lib/db/prisma";
+import { recordPendingKnowledgeUnitProposal } from "./pendingKnowledgeUnitProposal";
 
 /** Naive default label until a human reviewer writes a real one. */
 function naiveLabelFromTopic(topic: string): string {
@@ -148,29 +149,17 @@ export async function autoAssignKnowledgeUnit(
     return true;
   }
 
-  const existing = await prisma.pendingKnowledgeUnit.findFirst({
-    where: {
-      contentSourceId: evidence.contentSourceId,
-      proposedTopic: topic,
-      reviewStatus: "PENDING_REVIEW",
-    },
-    select: { id: true },
+  // taxonomyJobId intentionally omitted (null) — Path B never runs a
+  // TaxonomyJob; see the model's schema comment. No aiConfidence either:
+  // this miss is a deterministic string-equality failure, not an AI
+  // judgement call, so there is nothing to score.
+  await recordPendingKnowledgeUnitProposal({
+    contentSourceId: evidence.contentSourceId,
+    proposedTopic: topic,
+    proposedLabel: naiveLabelFromTopic(topic),
+    evidenceQuote: evidence.evidenceQuote,
+    evidenceLocation: evidence.evidenceLocation,
   });
-  if (!existing) {
-    await prisma.pendingKnowledgeUnit.create({
-      data: {
-        contentSourceId: evidence.contentSourceId,
-        // taxonomyJobId intentionally omitted (null) — Path B never runs a
-        // TaxonomyJob; see the model's schema comment.
-        proposedTopic: topic,
-        proposedLabel: naiveLabelFromTopic(topic),
-        evidenceQuote: evidence.evidenceQuote,
-        evidenceLocation: evidence.evidenceLocation,
-        // No aiConfidence: this miss is a deterministic string-equality
-        // failure, not an AI judgement call, so there is nothing to score.
-      },
-    });
-  }
 
   return false;
 }

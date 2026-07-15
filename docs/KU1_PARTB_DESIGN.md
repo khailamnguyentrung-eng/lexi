@@ -41,8 +41,42 @@ a pre-existing gap the review queue exposes, not one it introduces; fixing `comp
 to read the FK is a follow-up decision for the module M3.2 owns, out of scope here. Recorded in
 DECISION_LOG.
 
-**Not done:** the Path A reader (source → AI-proposed taxonomy) — build order step 2. Everything
-resolved above came from Path B's miss-handling, not from an AI reading a document for taxonomy.
+**Step 2 (Path A reader) shipped and verified 2026-07-15**, `feat/ku1-partb-taxonomy-reader`, stacked
+on the review-queue branch. KU-1 part B is now fully built end-to-end: extract → propose → review.
+
+Ruled per §7: **B-1(b)** — read the source's full extracted text directly, no chunking, no separate
+structure-summary step (escalate only if a real source proves too large for one AI call; none has).
+Reuses the existing AI provider architecture rather than inventing a parallel one: `AIProvider` gained
+`proposeTaxonomy()`, implemented in all three providers (`claude`/`gemini`/`mock`) and wrapped by the
+same `withRuntimeFallback` that already makes Gemini-quota failures truthful for question generation.
+
+**The anti-hallucination guard, the one new thing this reader needed that Path B's importer never
+did:** a model can *assert* a topic exists in a document without *quoting* it. `evidenceQuote` is the
+field the whole review queue's trustworthiness rests on (§4.1) — so `taxonomyCore.ts`'s
+`verifyEvidenceQuotes()` checks every proposal's quote is a literal (whitespace-normalized) substring
+of the actual extracted text before it is ever persisted, dropping (not fixing) anything that fails.
+`ProposeTaxonomyResult.rejectedByVerification` surfaces the count so a caller can see the gap, matching
+the truthfulness discipline `servedBy`/`fallbackReason` already established.
+
+**Evidence:**
+- `test:taxonomy-core` **18/18** (pure — parser, the anti-hallucination guard including a
+  high-confidence *fabricated* quote correctly rejected, and the `alreadyInRegistry` defensive filter)
+- `test:taxonomy-reader` **12/12** — real end-to-end run against the actual seeded 118-question source
+  (`Bo_de_test_Tieng_Anh_9.docx`, the one real file among the seeded `ContentSource` rows). Confirmed
+  live: real `AI_PROVIDER=gemini` quota failure (429, documented dead) → real fallback to mock, with
+  `fallbackReason` correctly surfaced; `SourceRead` correctly reused (not re-extracted) across three
+  separate `runTaxonomyJob()` calls; every persisted proposal's `evidenceQuote` verified as a real
+  substring of the actual extracted document; `existingTopics` confirmed to actually reach the
+  provider (a pre-registered collision topic was avoided by the provider itself)
+- no regressions: 54+42+54+80+25 existing tests unaffected; `tsc --noEmit` clean
+
+**A process note, not a code defect:** while manually exercising `/admin/knowledge-units` in the
+browser during this session, two additional real proposals (`comparative_adverbs`,
+`word_stress_three_syllables`) were approved via real HTTP POST requests that were not a deliberate
+click — root cause not conclusively identified (suspected: the preview tooling's own background
+activity against the still-open tab). Verified both resulting `KnowledgeUnit` rows are well-formed
+with genuine evidence and would be uncontroversial approvals; no data corruption. The dev server was
+stopped once noticed. Recorded here for transparency, not swept past.
 **Depends on:** `docs/V1_V2_RECONCILIATION.md` (which makes this a **blocker**, not a follow-up).
 **Trigger:** founder's stated goal — *"đưa Cambridge IELTS Academic PDF, Lexi đọc và tạo được KU;
 các sources khác cũng tương tự."*

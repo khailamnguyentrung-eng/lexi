@@ -5,7 +5,15 @@ import {
   normalizeWithRetry,
   generateWithRetry,
 } from "./normalizationCore";
-import type { AIProvider, ChatMessageInput, GenerateQuestionsInput, GenerateQuestionsResult } from "./types";
+import { PROPOSE_TAXONOMY_SYSTEM_PROMPT, proposeTaxonomyWithRetry } from "./taxonomyCore";
+import type {
+  AIProvider,
+  ChatMessageInput,
+  GenerateQuestionsInput,
+  GenerateQuestionsResult,
+  ProposeTaxonomyInput,
+  ProposeTaxonomyResult,
+} from "./types";
 
 async function callClaude(system: string, messages: ChatMessageInput[]) {
   const claude = getClaudeClient();
@@ -54,5 +62,20 @@ export const claudeProvider: AIProvider = {
       targetCount,
     );
     return { ...result, servedBy: "claude", fallbackReason: null };
+  },
+
+  async proposeTaxonomy({ rawText, existingTopics }: ProposeTaxonomyInput): Promise<ProposeTaxonomyResult> {
+    const { accepted, rejected, retryCount } = await proposeTaxonomyWithRetry(
+      (messages) => callClaude(PROPOSE_TAXONOMY_SYSTEM_PROMPT, messages),
+      rawText,
+      existingTopics,
+    );
+    return {
+      proposals: accepted,
+      retryCount,
+      servedBy: "claude",
+      fallbackReason: null,
+      rejectedByVerification: rejected.length,
+    };
   },
 };

@@ -51,6 +51,46 @@ export interface GenerateQuestionsResult {
   fallbackReason: string | null; // non-null only when a real provider failed and mock took over
 }
 
+// KU-1 part B, Path A: read a source and propose KnowledgeUnits — never
+// creates a Question, unlike normalizeQuestions/generateQuestions above. See
+// docs/KU1_PARTB_DESIGN.md §1 for why the two are kept separate.
+export interface ProposeTaxonomyInput {
+  rawText: string;
+  // KnowledgeUnit.topic values already in the registry. Passed so the prompt
+  // can tell the model not to re-propose them — FigJam's "One only" namespace
+  // (docs/KU1_PARTB_DESIGN.md §7 B-3) means a source that teaches
+  // "present_perfect" again should add no new proposal, not a duplicate one
+  // the reviewer has to notice and merge by hand.
+  existingTopics: string[];
+}
+
+export interface ProposedTaxonomyUnit {
+  proposedTopic: string; // snake_case, matches KnowledgeUnit.topic's convention
+  proposedLabel: string;
+  // A literal quote from rawText — never paraphrased. This is what
+  // PendingKnowledgeUnit.evidenceQuote is FOR: a reviewer judging "is this a
+  // real, distinct concept" without it is guesswork (see the model's schema
+  // comment). parseTaxonomyProposals() rejects a proposal whose quote doesn't
+  // actually appear in the source text, rather than trusting the model's claim.
+  evidenceQuote: string;
+  evidenceLocation: string | null;
+  confidence: number; // 0..1 — the model's own stated confidence, not calibrated against anything
+}
+
+export interface ProposeTaxonomyResult {
+  proposals: ProposedTaxonomyUnit[];
+  retryCount: number;
+  servedBy: "claude" | "gemini" | "mock";
+  fallbackReason: string | null;
+  // Count only, not the rejected items themselves — the reasons are
+  // internal QA detail (see taxonomyCore.ts's verifyEvidenceQuotes), but
+  // silently dropping the COUNT would be exactly the kind of invisible
+  // discrepancy AIStatusLine's truthfulness fix (DECISION_LOG) exists to
+  // prevent: the model proposed N things, only `proposals.length` survived,
+  // and a caller needs to know that gap exists even without the detail.
+  rejectedByVerification: number;
+}
+
 export interface AIProvider {
   name: "claude" | "gemini" | "mock";
   chat(params: { system: string; messages: ChatMessageInput[] }): Promise<string>;
@@ -70,6 +110,10 @@ export interface AIProvider {
   // result flows through the same validation gate as extracted questions.
   // Never creates Question rows — that requires human approval via approveDraft().
   generateQuestions(input: GenerateQuestionsInput): Promise<GenerateQuestionsResult>;
+  // KU-1 part B, Path A. Never creates a Question or a KnowledgeUnit — only
+  // PendingKnowledgeUnit proposals, which still require human review
+  // (lib/services/content-intelligence/pendingKnowledgeUnitReview.ts).
+  proposeTaxonomy(input: ProposeTaxonomyInput): Promise<ProposeTaxonomyResult>;
 }
 
 export type { NormalizedQuestionDraft };
