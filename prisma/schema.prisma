@@ -49,6 +49,7 @@ model User {
   // Future admin content pipeline — unused by the MVP student flow.
   contentSources          ContentSource[]          @relation("UploadedContentSources")
   reviewedExtractedDrafts ExtractedQuestionDraft[] @relation("ReviewedExtractedDrafts")
+  reviewedPendingKnowledgeUnits PendingKnowledgeUnit[] @relation("ReviewedPendingKnowledgeUnits")
 
   diagnosticTests DiagnosticTest[]
   moodEntries     MoodEntry[]
@@ -464,7 +465,9 @@ model ContentSource {
 
   createdAt DateTime @default(now())
 
-  importJobs ImportJob[]
+  importJobs           ImportJob[]
+  sourceReads          SourceRead[]
+  pendingKnowledgeUnits PendingKnowledgeUnit[]
 }
 
 enum ImportJobStatus {
@@ -555,9 +558,10 @@ model KnowledgeUnit {
   targetMediumCount Int      @default(5)
   targetHardCount   Int      @default(3)
 
-  sessions        KnowledgeUnitOnSession[]
-  questions       Question[]
-  generatedDrafts GeneratedQuestionDraft[] @relation("GeneratedDraftsForUnit")
+  sessions          KnowledgeUnitOnSession[]
+  questions         Question[]
+  generatedDrafts   GeneratedQuestionDraft[] @relation("GeneratedDraftsForUnit")
+  resolvedProposals PendingKnowledgeUnit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -572,6 +576,132 @@ model KnowledgeUnitOnSession {
   curriculumSessionId String
 
   @@id([knowledgeUnitId, curriculumSessionId])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// KU-1 PART B — SOURCE → PENDING KNOWLEDGE UNIT → REVIEW QUEUE
+// ──────────────────────────────────────────────────────────────────
+// docs/KU1_PARTB_DESIGN.md. The gap this closes: autoAssignKnowledgeUnit()
+// silently discards any topic with no matching KnowledgeUnit (a plain
+// `return false`). That silent discard is why the bank sits at 74 distinct
+// topic strings against 12 KnowledgeUnits, and why an IELTS/academic source
+// cannot grow the taxonomy at all today — its topics would just vanish the
+// same way.
+//
+// Two paths are deliberately kept separate (design doc §1):
+//   Path A (this section) — source → proposed KnowledgeUnits. Never touches
+//     Question. Low-risk, and is literally what "Lexi đọc và tạo được KU"
+//     from a source asks for.
+//   Path B (existing content-import pipeline) — source → Question rows.
+//     Unchanged by this section, except the one-line miss-handling change
+//     described on PendingKnowledgeUnit.taxonomyJobId below.
+//
+// SourceRead is the shared extraction stage both paths (and a future Path C
+// for exam-paper structure) read from, so a source is never re-extracted
+// per path — see design doc §1.5's "extract once, fan out".
+
+enum SourceReadStatus {
+  PENDING
+  READING
+  READ
+  FAILED
+}
+
+model SourceRead {
+  id              String            @id @default(cuid())
+  contentSourceId String
+  contentSource   ContentSource     @relation(fields: [contentSourceId], references: [id])
+  status          SourceReadStatus  @default(PENDING)
+
+  // The single cached extraction. ImportJob keeps its own rawExtractedText
+  // for now (design doc §4.2) — not duplicated here, and not read from here
+  // yet, so Path B stays completely undisturbed by this addition.
+  rawExtractedText String?
+  chunks           String? // JSON DocumentChunk[] — chunker output, cached
+  chunkCount       Int?
+  errorMessage     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taxonomyJobs TaxonomyJob[]
+}
+
+enum TaxonomyJobStatus {
+  PENDING
+  PROPOSING // AI call in progress
+  PROPOSED  // proposals created, awaiting human review
+  RESOLVED  // every proposal for this job has left PENDING_REVIEW
+  FAILED
+}
+
+model TaxonomyJob {
+  id           String            @id @default(cuid())
+  sourceReadId String
+  sourceRead   SourceRead        @relation(fields: [sourceReadId], references: [id])
+  status       TaxonomyJobStatus @default(PENDING)
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proposals PendingKnowledgeUnit[]
+}
+
+enum PendingKUStatus {
+  PENDING_REVIEW
+  APPROVED
+  MERGED
+  RENAMED
+  REJECTED
+}
+
+model PendingKnowledgeUnit {
+  id String @id @default(cuid())
+
+  // Provenance — always set: which source proposed this topic, regardless of
+  // which path produced the proposal.
+  contentSourceId String
+  contentSource   ContentSource @relation(fields: [contentSourceId], references: [id])
+
+  // Nullable: only set when a Path A TaxonomyJob produced this proposal. A
+  // proposal recorded by the Path B miss-handling below (autoAssignKnowledgeUnit
+  // finding no matching KnowledgeUnit) has no TaxonomyJob — Path B never runs
+  // one — so this stays null in that case. See design doc §4.1.
+  taxonomyJobId String?
+  taxonomyJob   TaxonomyJob? @relation(fields: [taxonomyJobId], references: [id])
+
+  proposedTopic String // canonicalTopic()-normalized; deliberately NOT unique —
+  // duplicates across sources are expected and are exactly what
+  // the review queue's MERGE action exists to collapse.
+  proposedLabel String // human-readable (Vietnamese for VN exams, English for
+  // international sources — no forced-translation rule)
+
+  // Load-bearing: reviewing "is this a real KnowledgeUnit?" without seeing
+  // what in the source caused the proposal is guesswork. Mirrors the
+  // provenance discipline in RecommendationIssuance (Basis) and
+  // ReviewEngagement (snapshot at review time).
+  evidenceQuote    String
+  evidenceLocation String? // e.g. "Test 2 / Reading Passage 1"
+
+  aiConfidence Float?
+
+  reviewStatus     PendingKUStatus @default(PENDING_REVIEW)
+  reviewedByUserId String?
+  reviewedBy       User?           @relation("ReviewedPendingKnowledgeUnits", fields: [reviewedByUserId], references: [id])
+  reviewNote       String?
+
+  // Set on APPROVE (a new KnowledgeUnit was created) or MERGE (an existing
+  // one was chosen instead). Null while PENDING_REVIEW, and stays null on
+  // REJECTED/RENAMED-without-resolution.
+  resolvedUnitId String?
+  resolvedUnit   KnowledgeUnit? @relation(fields: [resolvedUnitId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([proposedTopic])
+  @@index([reviewStatus])
 }
 
 enum GenerationJobStatus {

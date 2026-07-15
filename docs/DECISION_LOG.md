@@ -312,3 +312,33 @@ Also rejected: Using `responseTimeSignal` from BehaviorProfile to add a "deliber
 **Reason:** Same reasoning already recorded for topic matching ("no fuzzy matching, no AI classification"): a near-miss is a judgement call, and silently accepting it hides a real learner error inside a "correct" mastery signal — which the Decision Engine then consumes as truth, with no downstream check to catch it. Curly apostrophes are folded because `don’t` vs `don't` is a keyboard artifact, not a language error. `acceptedAnswers` is a **list** because natural language has more than one right answer (`don't` / `do not`), and a grader knowing only one marks correct learners wrong — a silent corruption worse than a missing feature.
 
 **Rejected:** Levenshtein/embedding fuzzy matching, and single-string `acceptedAnswer`. The validator rejects an empty `acceptedAnswers` for the same reason: it would mark every learner wrong forever, without throwing.
+
+---
+
+## KU-1 part B — `PendingKnowledgeUnit.taxonomyJobId` is nullable
+
+**Decision:** `PendingKnowledgeUnit.taxonomyJobId` is an optional FK, not required.
+
+**Reason:** The design doc's first sketch implied it was required, but `autoAssignKnowledgeUnit()`'s miss-handling (below) runs inside the existing Path B import pipeline, which never creates a `TaxonomyJob` — that model belongs to Path A, which does not run during an import. `contentSourceId` stays required because it is reachable on both paths (directly on Path A; via `ExtractedQuestionDraft.importJob.contentSourceId` on Path B). A proposal is provenanced by whichever job actually produced it, and Path B produces one with no `TaxonomyJob` at all.
+
+**Rejected:** Requiring `taxonomyJobId` and creating a throwaway `TaxonomyJob` row per Path B miss just to satisfy the FK. Would fabricate a job that never ran an AI taxonomy read, misrepresenting provenance for the sake of a schema constraint.
+
+---
+
+## KU-1 part B — miss-handling records a proposal instead of discarding the topic
+
+**Decision:** `autoAssignKnowledgeUnit()` now creates a `PendingKnowledgeUnit` when no `KnowledgeUnit` matches a question's topic, deduped on `(contentSourceId, proposedTopic, reviewStatus=PENDING_REVIEW)`. The function's contract is otherwise unchanged: still non-throwing, still returns `false` on a miss (`approveDraft()` does not branch on the return value differently).
+
+**Reason:** Before this change the miss was a silent `return false` — the topic simply vanished, which is the entire gap `docs/KU1_PARTB_DESIGN.md` was written to close (verified against seeded data: 73 of 122 questions, 62 distinct topics, previously produced zero record of ever having been unmatched). Recording it is what lets an import — including a future non-Vietnamese source — grow the taxonomy through human review instead of silently capping it at whatever `knowledge-units.json` was hand-edited to contain. The dedup key includes `contentSourceId` (not global) because the review workflow is per-source, and includes the `PENDING_REVIEW` filter so a `REJECTED` proposal does not permanently block the same topic from being re-proposed by a later, different source.
+
+**Rejected:** (1) Deduping globally across all sources — would make one source's rejection permanently suppress a legitimate proposal from an unrelated source. (2) Not deduping at all — a single document with the same unknown topic on many questions (the common case) would flood the review queue with one row per question instead of one per topic.
+
+---
+
+## KU-1 part B — the naive label is generated, not left blank or AI-written
+
+**Decision:** A miss-generated proposal gets `proposedLabel` from a pure string transform (`snake_case` → `Title Case`), not a blank string and not an AI call.
+
+**Reason:** `proposedLabel` is required on the model (a reviewer needs *something* to read), but Path B's miss-handling has no AI step to ask — it is deterministic string-equality failure, not a judgement call, so there is nothing to set `aiConfidence` from either (left `null`). A blank label would look like a data-entry omission rather than a placeholder. A naive mechanical transform is honest about what it is — visibly not a real label — and cheap; a good Vietnamese or English label is exactly what the human review step (design doc §5, not yet built) exists to supply.
+
+**Rejected:** Calling the AI provider to draft a label at this point. Would spend a real API call (and, given the current dead Gemini quota, silently fall back to Mock) on every single unmatched topic during an ordinary import, for output a human reviewer is going to look at and likely rewrite anyway.
