@@ -18,14 +18,16 @@ import { validateDrafts, type ValidatedDraft } from "./validator";
 export interface NormalizeWithAIResult {
   results: ValidatedDraft[];
   retryCount: number; // surfaced for run reports (Task 4) — see normalizationCore.ts
+  servedBy: "claude" | "gemini" | "mock"; // who actually produced these drafts
+  fallbackReason: string | null; // non-null when a real provider failed and mock took over
 }
 
 export async function normalizeWithAI(rawText: string, contentSource: ContentSource): Promise<NormalizeWithAIResult> {
   const provider = getAIProvider();
-  const { drafts, retryCount } = await provider.normalizeQuestions({
+  const { drafts, retryCount, servedBy, fallbackReason } = await provider.normalizeQuestions({
     rawText,
     sourceFileName: contentSource.fileName,
   });
   const results = await validateDrafts(drafts);
-  return { results, retryCount };
+  return { results, retryCount, servedBy, fallbackReason };
 }

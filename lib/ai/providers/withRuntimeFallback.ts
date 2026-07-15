@@ -14,6 +14,18 @@ import type {
   NormalizeQuestionsResult,
 } from "./types";
 
+// Provider error messages can be long (Gemini's 429 body is ~1KB of JSON) and
+// are not guaranteed key-free. AIRunReport promises to carry no API key, so
+// summarise rather than interpolate the raw message into the UI.
+const MAX_REASON_CHARS = 200;
+
+function summarizeProviderError(providerName: string, errMsg: string): string {
+  const oneLine = errMsg.replace(/\s+/g, " ").trim();
+  const clipped =
+    oneLine.length > MAX_REASON_CHARS ? `${oneLine.slice(0, MAX_REASON_CHARS)}…` : oneLine;
+  return `${providerName} thất bại — đã dùng Mock thay thế. Nội dung dưới đây là DỮ LIỆU GIẢ, không phải kết quả AI thật. Lỗi: ${clipped}`;
+}
+
 export function withRuntimeFallback(primary: AIProvider, fallback: AIProvider): AIProvider {
   return {
     name: primary.name,
@@ -36,7 +48,11 @@ export function withRuntimeFallback(primary: AIProvider, fallback: AIProvider): 
         console.warn(
           `[AI FALLBACK ACTIVE] ${primary.name} normalizeQuestions failed (${errMsg}). Using ${fallback.name}.`
         );
-        return fallback.normalizeQuestions(input);
+        const result = await fallback.normalizeQuestions(input);
+        // Override the fallback's own honest self-report: it says "mock served
+        // this", which is true but incomplete. What the admin needs to know is
+        // that mock served it BECAUSE the real provider failed, and why.
+        return { ...result, fallbackReason: summarizeProviderError(primary.name, errMsg) };
       }
     },
 
@@ -64,7 +80,8 @@ export function withRuntimeFallback(primary: AIProvider, fallback: AIProvider): 
         console.warn(
           `[AI FALLBACK ACTIVE] ${primary.name} generateQuestions failed (${errMsg}). Using ${fallback.name}.`
         );
-        return fallback.generateQuestions(input);
+        const result = await fallback.generateQuestions(input);
+        return { ...result, fallbackReason: summarizeProviderError(primary.name, errMsg) };
       }
     },
   };

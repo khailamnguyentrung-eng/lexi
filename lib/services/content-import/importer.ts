@@ -47,6 +47,8 @@ export interface PersistDraftsSummary {
   validCount: number;
   invalidCount: number;
   retryCount: number;
+  servedBy: "claude" | "gemini" | "mock";
+  fallbackReason: string | null;
 }
 
 // Shared by runImportJob (full document) and sampleTest.ts's
@@ -67,7 +69,7 @@ async function normalizeAndPersistDrafts(
     data: { status: "EXTRACTED", rawExtractedText: rawText },
   });
 
-  const { results, retryCount } = await normalizeWithAI(rawText, contentSource);
+  const { results, retryCount, servedBy, fallbackReason } = await normalizeWithAI(rawText, contentSource);
 
   await prisma.importJob.update({ where: { id: jobId }, data: { status: "REVIEWING" } });
 
@@ -84,6 +86,8 @@ async function normalizeAndPersistDrafts(
     validCount: results.filter((r) => r.isValid).length,
     invalidCount: results.filter((r) => !r.isValid).length,
     retryCount,
+    servedBy,
+    fallbackReason,
   };
 }
 

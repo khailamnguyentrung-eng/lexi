@@ -29,11 +29,12 @@ export const claudeProvider: AIProvider = {
   // first bad response is sent back to Claude as its own previous turn,
   // with an explicit instruction to repair it into valid JSON.
   async normalizeQuestions({ rawText, sourceFileName }) {
-    return normalizeWithRetry(
+    const result = await normalizeWithRetry(
       (messages) => callClaude(NORMALIZE_SYSTEM_PROMPT, messages),
       rawText,
       sourceFileName,
     );
+    return { ...result, servedBy: "claude", fallbackReason: null };
   },
 
   async generateExplanation({ promptText, optionA, optionB, optionC, optionD, correctOption, studentAnswer }) {
@@ -45,12 +46,13 @@ export const claudeProvider: AIProvider = {
   },
 
   async generateQuestions({ topic, topicLabel, difficulty, targetCount }: GenerateQuestionsInput): Promise<GenerateQuestionsResult> {
-    return generateWithRetry(
+    const result = await generateWithRetry(
       (messages) => callClaude(GENERATE_QUESTIONS_SYSTEM_PROMPT, messages),
       topic,
       topicLabel,
       difficulty,
       targetCount,
     );
+    return { ...result, servedBy: "claude", fallbackReason: null };
   },
 };

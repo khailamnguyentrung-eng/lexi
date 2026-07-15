@@ -355,10 +355,38 @@ still have `knowledgeUnitId: null` while newly-approved drafts get it set by
 would serve nothing. Flagged because the same relationship being represented two ways is a real
 smell, and it belongs to M3.3's scope, not KU-1's.
 
-### M3.5 — Ingestion Enhancements
-Real OCR for IMAGE files (Tesseract.js or cloud OCR).
-Smart document chunking (numbered question list detection).
-Passage extraction for READING_COMPREHENSION questions.
+### M3.5 — Ingestion Enhancements (corrected 2026-07-15 — two of three items were already done)
+This entry claimed three pending items. Verified against the code; **two of them already ship**, and
+the correction surfaced a real gap the entry never mentioned. Corrected rather than silently
+rewritten, per M7.
+
+| Original claim | Reality |
+|---|---|
+| "Real OCR for IMAGE files (Tesseract.js or cloud OCR)" | **Already done.** `tesseract.js@^7.0.0` is a real dependency; `lib/ocr/tesseractProvider.ts` runs it fully offline; `extractor.ts`'s `IMAGE` branch calls `getOCRProvider().recognize(...)`. |
+| "Smart document chunking (numbered question list detection)" | **Built, but only reachable from dry-run.** See below — this is the real finding. |
+| "Passage extraction for READING_COMPREHENSION questions" | **Genuinely not implemented.** Still pending. |
+
+**The real gap: chunking never runs on a real import.** `chunkBySections()`
+(`content-import/chunker.ts`) and `normalizeLargeDocument()` exist and work — the chunker's own
+comment states its purpose: *"so a single AI call never has to ingest (or return) all 118 questions
+of a large exam document at once."* But `normalizeLargeDocument()` has exactly **one** caller:
+`app/api/admin/content-sources/[id]/normalize-dry-run/route.ts`.
+
+The real import path does not chunk: `runImportJob` → `normalizeAndPersistDrafts` →
+`normalizeWithAI` → `provider.normalizeQuestions({ rawText })` → `normalizeWithRetry(..., rawText,
+...)`, which builds one prompt from the entire document. So importing the real 118-question source
+sends all 118 questions in a single AI call — precisely what the chunker was written to prevent.
+Dry-run gets the good behaviour; the path that actually writes drafts does not.
+
+**Also missing, and never listed here: scanned-PDF OCR fallback.** `extractPdfText` uses `pdf-parse`,
+which returns empty/near-empty text for a PDF with no embedded text layer. `adapters/pdf.ts` documents
+the seam precisely (render each page to an image → run through the same `lib/ocr` provider IMAGE
+files use → concatenate) and notes it is unimplemented because *"it requires a new PDF-to-image
+rendering dependency."* Relevant to anyone importing scanned Vietnamese exam papers, which are
+commonly image-only.
+
+**Remaining M3.5 scope, then:** wire chunking into the real import path; passage extraction for
+READING_COMPREHENSION; scanned-PDF OCR fallback (needs a new dependency).
 
 ### M3.6 — Semantic Validation Layer
 Duplicate detection (exact code match + fuzzy promptText match).
@@ -460,6 +488,35 @@ touched here — optional future work, not required by this decision.
 Phase 8 (M8.1–M8.4) is complete on its feature branch but not yet pushed or merged. The branch has
 never had a whole-branch review — the per-milestone reviews covered each change in isolation.
 Decision pending: review the branch and open a PR, or continue staging further work on it first.
+
+### Admin AI-status reporting — sampleTest/normalizeLargeDocument now report the truth (2026-07-15)
+`AIStatusLine`'s own comment promises "Never silently shows mock output as if it were real." That
+was false: `runSampleNormalization` (sampleTest.ts) and `normalizeLargeDocument` built their
+`aiStatus` from `getAIProviderStatus()`, which only knows what was **configured**, not what actually
+served the run. `withRuntimeFallback` silently swaps in MockProvider when the real provider throws
+(dead quota, bad key) — so with a Gemini key present but quota dead, the admin UI showed a green
+"Gemini ✅" over Mock's fabricated questions.
+
+Fixed in two steps: Task 1 (commit `b8d8040`) added `servedBy`/`fallbackReason` to
+`NormalizeQuestionsResult`/`GenerateQuestionsResult` so the runtime truth is available on the
+result. Task 2 (this entry) threaded those fields up through `normalizeWithAI` →
+`normalizeAndPersistDrafts` → `sampleTest.ts`/`normalizeLargeDocument.ts`, so `aiStatus.name` /
+`isFallback` / `fallbackReason` now come from the run result, not the config guess. `model` and
+`requestedProvider` still legitimately come from `getAIProviderStatus()` — those are config-time
+facts. For multi-chunk runs (`normalizeLargeDocument`), any single chunk falling back makes the
+whole run report `isFallback: true` — a 90%-real/10%-fabricated run is not reported as clean.
+
+**Live-verified against this dev environment's actually-dead Gemini quota** (no simulation): ran
+"Chạy mẫu AI (5 câu đầu)" against a real content source. Before the fix this showed a green
+"Gemini ✅"; after the fix the status line renders `Mock` in amber (`text-amber-700`, matching
+`AIStatusLine`'s fallback styling) with `isFallback: true` and the ⚠ line naming Gemini's 429 quota
+error and stating the output is fabricated. `AIStatusLine.tsx` itself and `getAIProviderStatus()`'s
+meaning were untouched — `chat/page.tsx` still legitimately uses it for config-time facts.
+
+**Remaining known hole, not fixed here:** the real import path (`runImportJob`) still surfaces no
+report to the UI at all — `RunExtractionButton` discards the response entirely. Dry-run and sample
+get the good (now-truthful) behaviour; the path that actually writes real drafts does not. Same
+pattern already noted under M3.5 for chunking.
 
 ---
 

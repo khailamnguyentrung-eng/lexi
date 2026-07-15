@@ -20,9 +20,18 @@ export interface GenerateExplanationInput {
   studentAnswer?: string;
 }
 
+// `servedBy`/`fallbackReason` report what ACTUALLY produced this result, which
+// is not always what was configured: withRuntimeFallback swaps in mock when a
+// real provider throws (dead quota, bad key, network), and before these fields
+// existed that swap was invisible — the admin UI read config via
+// getAIProviderStatus() and showed a confident "Gemini" over mock's fabricated
+// questions. The truth only exists at the moment of the catch, so it has to
+// ride out on the result.
 export interface NormalizeQuestionsResult {
   drafts: NormalizedQuestionDraft[];
   retryCount: number; // how many JSON-repair retries this call needed (0 or 1)
+  servedBy: "claude" | "gemini" | "mock"; // who actually produced `drafts`
+  fallbackReason: string | null; // non-null only when a real provider failed and mock took over
 }
 
 // Input for question generation (M4.2) — admin-triggered, gap-driven.
@@ -38,6 +47,8 @@ export interface GenerateQuestionsInput {
 export interface GenerateQuestionsResult {
   drafts: NormalizedQuestionDraft[];
   retryCount: number;
+  servedBy: "claude" | "gemini" | "mock"; // who actually produced `drafts`
+  fallbackReason: string | null; // non-null only when a real provider failed and mock took over
 }
 
 export interface AIProvider {
