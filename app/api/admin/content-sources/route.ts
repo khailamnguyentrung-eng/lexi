@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { requireAdmin } from "@/lib/auth/admin";
 import { createContentSource } from "@/lib/services/content-import/importer";
+import { resolveStoragePath, toStoragePath } from "@/lib/services/content-import/storagePath";
 import type { ContentFileType } from "@prisma/client";
 
 const EXT_TO_FILE_TYPE: Record<string, ContentFileType> = {
@@ -60,14 +61,14 @@ export async function POST(request: Request) {
 
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
   const storedName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  const storagePath = path.join(UPLOAD_DIR, storedName);
-  await fs.writeFile(storagePath, Buffer.from(await file.arrayBuffer()));
+  const relativeStoragePath = toStoragePath(storedName);
+  await fs.writeFile(resolveStoragePath(relativeStoragePath), Buffer.from(await file.arrayBuffer()));
 
   const contentSource = await createContentSource({
     userId: admin.id,
     fileName: file.name,
     fileType,
-    storagePath,
+    storagePath: relativeStoragePath,
     sourceLabel: typeof sourceLabel === "string" && sourceLabel ? sourceLabel : undefined,
     province: typeof province === "string" && province ? province : undefined,
     examYear,
