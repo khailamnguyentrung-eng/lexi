@@ -195,6 +195,23 @@ already correct.
 
 ---
 
+## 6.5 The gate is closed (2026-07-15, live `dev.db` — not yet in seed data)
+
+Using the KU-1 part B review queue (`docs/KU1_PARTB_DESIGN.md`) on the real 62 proposals Path B's
+miss-handling had accumulated: **122/122 questions now carry a `knowledgeUnitId`. 0 unmapped.**
+Registry grew from 12 → **71 KnowledgeUnits** (16 already resolved earlier in the session; **55
+approved + 1 merge** — `modal_verbs_should` into `modal_verbs_advice`, the one pair confirmed via real
+`correctOption` data to test the identical rule — resolved with the founder's explicit authorization
+for this specific batch, since the review step is deliberately reserved for a human). 74 distinct
+`Question.topic` strings, 71 KUs + 3 merged-away topics (the two `present_perfect_*` duplicates plus
+`modal_verbs_should`) accounts for all 74.
+
+**This is real, verified state — and it is NOT yet durable.** It lives only in the running `dev.db`.
+`prisma/seed.ts` still seeds the original 12 `KnowledgeUnit` rows from `knowledge-units.json`; a fresh
+`npm run db:seed` would revert the registry to 12 and every question to `knowledgeUnitId = null`.
+Encoding the 71-unit registry into seed data (or another durable form) is real follow-up work, not
+done here — recorded so it isn't mistaken for already being safe.
+
 ## 6. Sequencing, and the one gate
 
 The gate: **`Question.curriculumSessionId` must not be dropped until every question has a
