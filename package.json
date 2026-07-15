@@ -23,6 +23,7 @@
     "test:difficulty-calibration": "node scripts/test-difficulty-calibration.mjs",
     "test:learning-signals": "node scripts/test-learning-signals.mjs",
     "test:profile-v2": "node scripts/test-profile-v2.mjs",
+    "test:question-formats": "node --import tsx scripts/test-question-formats.mjs",
     "test:knowledge-coverage": "node scripts/test-knowledge-coverage.mjs",
     "test:knowledge-mapping": "node scripts/test-knowledge-mapping.mjs",
     "test:content-validation": "node scripts/test-content-validation.mjs",

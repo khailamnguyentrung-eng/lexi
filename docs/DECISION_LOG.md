@@ -252,3 +252,63 @@ Also rejected: Using `responseTimeSignal` from BehaviorProfile to add a "deliber
 **Reason:** `normalizationCore.ts` already owns all AI prompt content and the retry-once-on-invalid-JSON policy. Generation reuses `parseDrafts()` (the JSON-to-NormalizedQuestionDraft parser) with a generation-origin source string. Splitting into a separate file would duplicate the retry pattern and `parseDrafts()` call.
 
 **Rejected:** A separate `generationCore.ts`. Would require duplicating `parseDrafts()` or creating a cross-file dependency between the two cores for shared parsing logic.
+
+---
+
+## QM-1 — `ResponseFormat` is a new axis, not new `QuestionType` members
+
+**Decision:** Non-MCQ formats (gap fill, matching, ordering) are modelled by a new `ResponseFormat` enum on `Question`, not by adding members like `MATCHING_HEADINGS` to the existing `QuestionType`.
+
+**Reason:** `QuestionType` conflates what is tested with how it is answered — `GRAMMAR_MCQ` carries the format in its own name, `CLOZE` is a format stored as MCQ, `READING_COMPREHENSION` is a skill, `WORD_FORMATION` is a topic. It also overlaps `SkillCategory`: `PHONETICS_STRESS` is a member of **both** enums, with different counts (type=6, skill=12). Between `type`, `skill`, and `topic`/`knowledgeUnitId` the model had three overlapping "what" axes and no "how" axis. Adding format members to `QuestionType` deepens the conflation and buys exactly one exam. `ResponseFormat` supplies the missing axis and only that — IELTS required zero new members (True/False/Not Given is `SINGLE_CHOICE` with 3 options; matching headings is `MATCHING`).
+
+**Rejected:** Extending `QuestionType`. Would make a mixed-meaning enum worse, and would require a new member per exam format — the test the new enum is designed to keep passing is that a new exam needs no new member.
+
+---
+
+## QM-1 — Format-specific data in a JSON `payload`, not columns or per-type tables
+
+**Decision:** `Question.payload` is a JSON string whose shape depends on `responseFormat`, validated per format in `lib/services/question-format`. Queryable fields (`topic`, `skill`, `difficulty`, `knowledgeUnitId`) stay as columns.
+
+**Reason:** The five formats have irreconcilable shapes — `SHORT_TEXT` has blanks with multiple accepted answers, `MATCHING` has two lists plus pairs, `SINGLE_CHOICE` has N options. No fixed column set holds all of them, which is exactly how the model got stuck at four required option columns. The governing rule is "columns hold what the system QUERIES; JSON holds what only the GRADER reads" — the coverage report and Decision Engine query the columns and are untouched by the reform.
+
+**Rejected:** (1) Nullable `optionA-D` plus a JSON side-channel — leaves two shapes live indefinitely with no forcing function to converge. (2) Table-per-format inheritance — Prisma has no polymorphic relations, so `QuestionAttempt` would need one nullable FK per format, and every join would branch. (3) A single JSON `content` blob for the whole question — would move `topic`/`skill`/`knowledgeUnitId` out of SQL and break the coverage report and every analytics query.
+
+---
+
+## QM-1 — Legacy MCQ columns retained; `getQuestionPayload()` is the single reader
+
+**Decision:** `optionA-D`, `correctOption`, and `selectedOption` are kept and still written. All reads of a question's answer shape go through `getQuestionPayload()`, which prefers `payload` and falls back to the legacy columns for `SINGLE_CHOICE` only.
+
+**Reason:** 29 files read those columns and the repo has no type-safe test net over them (no vitest/jest; tests are standalone `.mjs` scripts). Rewriting all 29 in one change is the riskiest available sequencing. The two-shape drift hazard is bounded by ordering instead: `payload` is backfilled for all rows immediately (so it is authoritative from that moment), writers project back through `toLegacyColumns()` rather than writing columns by hand, and the columns are dropped once every reader has moved.
+
+**Rejected:** A big-bang migration of all 29 readers. Also rejected: making `payload` nullable *indefinitely* — it is backfilled at once precisely so there is never a live two-shape read.
+
+---
+
+## QM-1 — `toLegacyColumns()` returns null for non-MCQ instead of synthesising options
+
+**Decision:** Projecting a non-`SINGLE_CHOICE` payload onto the legacy columns returns `null`, and callers must treat that as "this question cannot be shown to a legacy reader".
+
+**Reason:** A MATCHING question genuinely has no A/B/C/D. Fabricating four columns for it would recreate the exact defect the reform removes — `WORD_FORMATION` (12) and `SENTENCE_TRANSFORMATION` (15) are production tasks currently stored as selection. The null is also the forcing function that makes the reader migration a precondition for shipping non-MCQ content to learners, rather than a cleanup someone might skip.
+
+**Rejected:** Degrading a non-MCQ question into a "best-effort" 4-option approximation. Silently changes what the learner is asked to do and corrupts the mastery signal the Decision Engine reads.
+
+---
+
+## QM-1 — Partial credit only where parts are independently answerable
+
+**Decision:** `SHORT_TEXT` scores per blank and `MATCHING` per pair; `MULTI_CHOICE` and `ORDERING` are all-or-nothing. `QuestionAttempt.score` (0..1) is added; `isCorrect` keeps its exact meaning (`score === 1`).
+
+**Reason:** Per-option credit on `MULTI_CHOICE` rewards ticking everything — on 4 options with 2 correct, selecting all 4 would score 0.5 while demonstrating no knowledge. Position-wise credit on `ORDERING` punishes a single insertion at the front, which shifts every later item; rank-correlation scoring would be fairer but is an untunable modelling decision with zero real learners to validate against (see `DECISION_ENGINE_OPTIONS.md` §2). `MATCHING` is scored against `correctPairs`, not against submissions, so answering one pair and skipping the rest cannot score 1.0. `isCorrect` is redefined nowhere because ~10 call sites in `lib/analytics` read it; changing it to "score > 0.5" would silently rewrite every mastery number in the app.
+
+**Rejected:** Per-option partial credit for `MULTI_CHOICE`; rank-correlation credit for `ORDERING`; redefining `isCorrect` in terms of `score`.
+
+---
+
+## QM-1 — Text answers: exact match after normalization, no fuzzy matching
+
+**Decision:** `SHORT_TEXT` blanks carry a list of `acceptedAnswers`; grading normalizes whitespace, case (unless `caseSensitive`), and curly-to-straight quotes, then requires exact equality. No punctuation stripping, spell-correction, or fuzzy/AI matching.
+
+**Reason:** Same reasoning already recorded for topic matching ("no fuzzy matching, no AI classification"): a near-miss is a judgement call, and silently accepting it hides a real learner error inside a "correct" mastery signal — which the Decision Engine then consumes as truth, with no downstream check to catch it. Curly apostrophes are folded because `don’t` vs `don't` is a keyboard artifact, not a language error. `acceptedAnswers` is a **list** because natural language has more than one right answer (`don't` / `do not`), and a grader knowing only one marks correct learners wrong — a silent corruption worse than a missing feature.
+
+**Rejected:** Levenshtein/embedding fuzzy matching, and single-string `acceptedAnswer`. The validator rejects an empty `acceptedAnswers` for the same reason: it would mark every learner wrong forever, without throwing.
