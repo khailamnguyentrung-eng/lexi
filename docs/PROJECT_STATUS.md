@@ -353,8 +353,53 @@ reconciles with engine proposals).
 
 **Next step, agreed with the founder: a reconciliation document before any code.** Put the running v1
 model beside the FigJam v2 model and decide, per entity, migrate / drop / keep-parallel. Without it,
-every future change touching `CurriculumSession` is a guess. Deferred to a later session by the
-founder's own call — recorded here rather than started.
+every future change touching `CurriculumSession` is a guess.
+
+**→ Done: `docs/V1_V2_RECONCILIATION.md` (2026-07-15).** It rules every entity and answers the three
+questions above — but it corrects all three premises first, from measured DB state:
+- **Q2's "keep only `knowledgeUnitId`" preserves nothing** — that column is **0/122**, empty by the
+  recorded M3.2 decision (coverage matches on topic string, not FK). Only 49/122 questions are even
+  backfillable today; 73 have no KnowledgeUnit. This makes **KU-1 part B a blocker**, not a follow-up:
+  dropping `curriculumSessionId` before the taxonomy covers all 74 topics orphans 73 questions.
+- **Q1's "migrate the 24 sessions" has no source to migrate from** — `KnowledgeUnitOnSession` has
+  **0 rows**, so the session→KU wiring v2 needs must be *authored*, not migrated. Ruling: carry over
+  the curation (order, 3-phase arc, objectives, `unitMapping`); drop the static scheduling
+  (`timeBlocks`, `exercises`) — that is what the Decision Engine generates at runtime.
+- **Q3's "real learner data" is not real** — both users are `@lexi.local`; 26 of 31 attempts have
+  `timeSpentSec = null`, the rest 3–17s, 16/31 correct. Developer click-testing. Ruling: keep the
+  `QuestionAttempt` **table** (it is v2's Learner Model input, unchanged), preserve **zero rows** —
+  seeding a mastery model with fabricated attempts poisons the first thing v2 computes. Drop
+  `UserSessionProgress` entirely (its FK is required, and progress-through-a-list does not convert
+  into mastery-per-KnowledgeUnit).
+
+**Nothing is ruled keep-parallel** — with zero real learners, two spines buy nothing and cost a
+migration path forever.
+
+**All three documents are now APPROVED (founder, 2026-07-15).** Both FigJam-review blockers are
+closed as decisions; what remains is build work, in one order:
+
+| Doc | Ruling |
+|---|---|
+| `docs/V1_V2_RECONCILIATION.md` | every entity ruled; **gate:** taxonomy must cover all 74 topics and backfill verify 122/122 **before** `curriculumSessionId` is dropped |
+| `docs/KU1_PARTB_DESIGN.md` | **Path A (taxonomy extraction) only.** Question extraction stays Path B, unchanged |
+| `docs/DECISION_ENGINE_OPTIONS.md` | **D-1…D-6 all ruled as recommended.** Ch.3 §3.1 / Invariant 12 **stands unamended** (D-3 chose the existing issuance pattern over a stored plan) |
+
+**The Decision Engine was never "unspecified from zero"** — the Learner Model
+(`studentLearningProfile.ts`, `behaviorEngine.ts`) and Next-Best-Action (`computeRecommendations()`)
+are built and running; Issuance/Evidence is richer than the FigJam draws. Genuinely missing:
+Knowledge State **per KnowledgeUnit**, `LEARN`, `ASSESS`, re-plan trigger.
+
+**Mock tests are further away than the FigJam suggests** (founder's stated goal: extract real exam
+papers into MockTest). Path A does **not** deliver them. They additionally require the **`Question`
+model reform** — it is a required 4-option MCQ, so most real IELTS items *cannot be stored* — plus
+`ExamTemplate` and `TestAttempt`/`AnswerRecord`, none of which exist (`examBlueprint.ts` is a
+hard-coded constant file for one exam, not a model). This puts the `Question` reform **on the
+critical path**, with a trigger rather than a hypothetical. See `KU1_PARTB_DESIGN.md` §1.5.
+
+**One sequence serves all three goals** — KU-1 part B's build order (its §8) closes the migration
+gate, satisfies the IELTS ask, and creates the Decision Engine's precondition (mastery is per-KU, and
+**0 of 122** questions have a KU today). Extraction is shared from day one (`SourceRead`), so Path A
+is not throwaway work when mock tests arrive.
 
 **Already aligned, worth noting:** the 2026-07-15 work sits on the FigJam's path, not against it —
 `KnowledgeUnit` is the core layer of FigJam's 5-layer data architecture, and KU-1 part B (Pending-KU
