@@ -33,11 +33,12 @@ export const geminiProvider: AIProvider = {
   // Retries exactly once on invalid JSON (see normalizationCore.ts) — same
   // policy as claudeProvider, just routed through Gemini's API instead.
   async normalizeQuestions({ rawText, sourceFileName }) {
-    return normalizeWithRetry(
+    const result = await normalizeWithRetry(
       (messages) => callGemini(NORMALIZE_SYSTEM_PROMPT, messages),
       rawText,
       sourceFileName,
     );
+    return { ...result, servedBy: "gemini", fallbackReason: null };
   },
 
   async generateExplanation({ promptText, optionA, optionB, optionC, optionD, correctOption, studentAnswer }) {
@@ -49,12 +50,13 @@ export const geminiProvider: AIProvider = {
   },
 
   async generateQuestions({ topic, topicLabel, difficulty, targetCount }: GenerateQuestionsInput): Promise<GenerateQuestionsResult> {
-    return generateWithRetry(
+    const result = await generateWithRetry(
       (messages) => callGemini(GENERATE_QUESTIONS_SYSTEM_PROMPT, messages),
       topic,
       topicLabel,
       difficulty,
       targetCount,
     );
+    return { ...result, servedBy: "gemini", fallbackReason: null };
   },
 };

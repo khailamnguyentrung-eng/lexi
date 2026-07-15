@@ -105,7 +105,7 @@ export const mockProvider: AIProvider = {
     return template(question);
   },
   async normalizeQuestions({ sourceFileName }) {
-    return { drafts: buildMockDrafts(sourceFileName), retryCount: 0 };
+    return { drafts: buildMockDrafts(sourceFileName), retryCount: 0, servedBy: "mock", fallbackReason: null };
   },
   async generateExplanation({ promptText, correctOption }) {
     return `(Giải thích mẫu — chế độ demo) Đáp án đúng cho câu "${promptText.slice(0, 80)}" là ${correctOption}. Cấu hình AI_PROVIDER thật để có giải thích chi tiết.`;
@@ -115,6 +115,8 @@ export const mockProvider: AIProvider = {
     return {
       drafts: buildMockGeneratedDrafts(topic, topicLabel, difficulty, targetCount),
       retryCount: 0,
+      servedBy: "mock",
+      fallbackReason: null,
     };
   },
 };
