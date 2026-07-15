@@ -342,3 +342,43 @@ Also rejected: Using `responseTimeSignal` from BehaviorProfile to add a "deliber
 **Reason:** `proposedLabel` is required on the model (a reviewer needs *something* to read), but Path B's miss-handling has no AI step to ask — it is deterministic string-equality failure, not a judgement call, so there is nothing to set `aiConfidence` from either (left `null`). A blank label would look like a data-entry omission rather than a placeholder. A naive mechanical transform is honest about what it is — visibly not a real label — and cheap; a good Vietnamese or English label is exactly what the human review step (design doc §5, not yet built) exists to supply.
 
 **Rejected:** Calling the AI provider to draft a label at this point. Would spend a real API call (and, given the current dead Gemini quota, silently fall back to Mock) on every single unmatched topic during an ordinary import, for output a human reviewer is going to look at and likely rewrite anyway.
+
+---
+
+## KU-1 part B — Rename is Approve-with-override, not a fifth function
+
+**Decision:** The review queue has three functions — `approvePendingKnowledgeUnit()` (which accepts an optional `{ topic, label }` override), `mergePendingKnowledgeUnit()`, `rejectPendingKnowledgeUnit()` — not four. `reviewStatus` still records `RENAMED` distinctly from `APPROVED` when an override was actually applied.
+
+**Reason:** The design doc's own description of Rename is "edit topic/label, then approve" — one reviewer action with two steps, not two independent operations with independent meaning (there is no standalone "rename without approving" state that means anything). Collapsing them avoids duplicating the collision check, the KnowledgeUnit creation, and the status-update logic across two functions that would otherwise need to stay in sync.
+
+**Rejected:** A separate `renamePendingKnowledgeUnit()` that only edits `proposedTopic`/`proposedLabel` in place, requiring a second call to actually approve. Two calls for one reviewer action invites a proposal stuck half-renamed if the second call is never made, and duplicates logic for no benefit.
+
+---
+
+## KU-1 part B — a topic collision on Approve throws, not a silent Merge
+
+**Decision:** If `approvePendingKnowledgeUnit()` resolves to a topic that already has a `KnowledgeUnit` (e.g. two different sources independently proposed the same topic and the other was approved first), it throws `TopicAlreadyExistsError` carrying the existing unit's id, rather than silently switching to merge behaviour.
+
+**Reason:** A reviewer clicking Approve is asserting "this is a new, distinct concept" — reinterpreting that click as Merge would substitute the system's judgement for a human decision the design doc explicitly assigns to a person (§5, "the review queue (the human step)"). Carrying the existing unit's id in the error lets the caller (the API route, then the UI) offer "merge into it instead" as a one-click follow-up without a second lookup, so the human still ends up one click away from the likely-correct action — just not there by default.
+
+**Rejected:** Silently merging on collision. Would mean a reviewer's Approve sometimes creates a KnowledgeUnit and sometimes doesn't, with no signal which happened, which is the kind of ambiguity this whole design exists to remove (`evidenceQuote` being load-bearing is the same principle applied to the miss-handling side).
+
+---
+
+## KU-1 part B — Rename skips question backfill; Merge and Approve do not
+
+**Decision:** Approving with an unmodified topic and merging both bulk-link every `Question` row sharing the proposal's exact topic string to the resolved `KnowledgeUnit`. Approving *with* a topic override (Rename) links none.
+
+**Reason:** Approve-unmodified is safe because the created unit's topic is, by construction, exactly the string already on the matching `Question` rows — there is nothing to get wrong. Merge is safe for the same reason on the source side (the proposal's `proposedTopic` still matches the existing questions), even though the *target* unit's topic differs on purpose (see the coverage-report caveat below). Rename is different in kind: the reviewer has just declared the AI's proposed topic string wrong or non-canonical, so blindly bulk-linking every `Question` still carrying the *old, rejected* string would apply a correction the reviewer may not have intended to every one of those rows without them seeing it. Existing M3.3 admin tools (`assignQuestionToKnowledgeUnit` / `getUnmappedQuestions`) already handle deliberate one-by-one reassignment; that is the correct tool for a renamed topic's cleanup, not an automatic bulk action hidden inside Rename.
+
+**Rejected:** Bulk-linking by the *original* `proposedTopic` string even on Rename. Would auto-apply a correction to potentially many `Question` rows as a side effect of a name edit the reviewer made for the *new* `KnowledgeUnit`, not for those specific rows.
+
+---
+
+## KU-1 part B — Merge does not update `computeCoverageReport()`, and that is a recorded gap
+
+**Decision:** `mergePendingKnowledgeUnit()` links matching questions via `Question.knowledgeUnitId` only. It does not rewrite `Question.topic`, and it does not change `computeCoverageReport()`'s string-matching behaviour.
+
+**Reason:** `computeCoverageReport()` counts `q.topic === unit.topic` (M3.2's decision above, made before this review queue existed). A merge's entire purpose is to assert that two *different* topic strings represent the *same* concept — so after a merge, the target unit's topic will, by definition, not equal the merged questions' topic string. `Question.topic` is a normalized fact about the source data (also read by `ErrorNotebookEntry.concept` and elsewhere); silently rewriting it as a side effect of an admin merge action would be revisionist and could break other topic-string-dependent behaviour that has nothing to do with this review queue. Making `computeCoverageReport()` FK-aware instead is the right fix, but it means changing what M3.2 already decided for a different module — a decision that module's owner should make deliberately, not one this feature should make as a side effect.
+
+**Rejected:** (1) Rewriting `Question.topic` on merge. (2) Silently making `computeCoverageReport()` also check the FK as part of this change. Both are real fixes to a real gap; both are out of scope here and are flagged instead of quietly patched.

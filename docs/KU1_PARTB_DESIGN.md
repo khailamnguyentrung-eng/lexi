@@ -15,6 +15,34 @@ verified** the same day (`feat/ku1-partb-schema`, stacked on `feat/qm1-response-
 
 **Also done, ahead of §8's listed order:** step 4 (the miss-handling change) shipped alongside step 1,
 since it was the only way to verify the schema against real data rather than an empty table.
+
+**Step 3 (review queue) shipped and verified 2026-07-15**, `feat/ku1-partb-review-queue`, stacked on
+the schema branch. Four actions (Approve / Rename / Merge / Reject) as `lib/services/content-
+intelligence/pendingKnowledgeUnitReview.ts` + API routes + an admin page at `/admin/knowledge-units`.
+
+- **Test evidence:** `test:ku1-partb-review` **25/25**, integration-style against real `dev.db` through
+  self-created and self-torn-down fixtures (no separate test database exists in this repo) — covers
+  approve, rename-as-approve-with-override, merge, reject, the **approve-collision** case
+  (`TopicAlreadyExistsError`, not a silent merge), double-resolution rejection, and that the merged
+  question's topic string genuinely still differs from the target KU's topic (the coverage-report
+  caveat below, asserted, not just described). No regressions: 54+42+54+80 existing tests unaffected;
+  `tsc --noEmit` clean.
+- **Used on the real 62 pending proposals**, not just fixtures: merged `present_perfect_for_since`
+  and `present_perfect_since_for` into the existing `present_perfect` KU — the exact duplicate the
+  design doc used as its motivating example — and approved `relative_clauses` as a genuinely new
+  concept. **62 → 59 pending; 49 → 53 of 122 questions now linked via `knowledgeUnitId`.**
+
+**A real limitation surfaced while building this, not before:** `computeCoverageReport()` counts by
+`q.topic === unit.topic` (M3.2's decision, DECISION_LOG). MERGE and RENAME both create a
+KnowledgeUnit whose topic *deliberately* does not equal the linked Question rows' topic string —
+that mismatch is the entire point of merging. So after a merge, the affected questions are correctly
+linked via `knowledgeUnitId` but **still undercounted by the string-based coverage report**. This is
+a pre-existing gap the review queue exposes, not one it introduces; fixing `computeCoverageReport()`
+to read the FK is a follow-up decision for the module M3.2 owns, out of scope here. Recorded in
+DECISION_LOG.
+
+**Not done:** the Path A reader (source → AI-proposed taxonomy) — build order step 2. Everything
+resolved above came from Path B's miss-handling, not from an AI reading a document for taxonomy.
 **Depends on:** `docs/V1_V2_RECONCILIATION.md` (which makes this a **blocker**, not a follow-up).
 **Trigger:** founder's stated goal — *"đưa Cambridge IELTS Academic PDF, Lexi đọc và tạo được KU;
 các sources khác cũng tương tự."*
