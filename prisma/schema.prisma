@@ -111,6 +111,31 @@ enum Difficulty {
   HARD
 }
 
+// ──────────────────────────────────────────────────────────────────
+// RESPONSE FORMAT (QM-1 — question model reform)
+// ──────────────────────────────────────────────────────────────────
+// The axis this model was missing. `QuestionType` above conflates WHAT is
+// tested with HOW it is answered (`GRAMMAR_MCQ` carries the format in its own
+// name), and it overlaps `SkillCategory` — `PHONETICS_STRESS` is a member of
+// BOTH enums. Between `type`, `skill` and `topic`/`knowledgeUnitId` there were
+// three overlapping "what" axes and no "how" axis at all.
+//
+// ResponseFormat is that missing axis, and ONLY that: how the learner produces
+// an answer, independent of subject. It is deliberately small and format-
+// shaped, not exam-shaped — "IELTS matching headings" is MATCHING, and so is
+// any other pairing task from any other exam. A new exam must not require a new
+// enum member; that is the test this enum has to keep passing.
+//
+// See docs/QUESTION_MODEL_REFORM.md for why the payload is JSON and what stays
+// in columns.
+enum ResponseFormat {
+  SINGLE_CHOICE // pick exactly one of N options. Covers the A/B/C/D MCQ this app was built on AND IELTS True/False/Not Given (same shape, 3 options)
+  MULTI_CHOICE  // pick M of N options
+  SHORT_TEXT    // PRODUCE text into one or more blanks — gap fill, word formation, sentence transformation
+  MATCHING      // pair each left item with a right item — IELTS matching headings/information/features
+  ORDERING      // arrange items into the correct sequence
+}
+
 model Passage {
   id             String   @id @default(cuid())
   title          String?
@@ -131,6 +156,31 @@ model Question {
   difficulty        Difficulty    @default(MEDIUM)
   topic             String // e.g. "reported_speech" — required, normalized
   promptText        String
+
+  // ── Answer shape (QM-1) ──────────────────────────────────────────
+  // `payload` holds everything format-specific: the options, the blanks, the
+  // pairs, and the correct answer. Its shape is defined and validated per
+  // format in lib/services/question-format — NOT here, because it varies by
+  // ResponseFormat and no single column set can hold all of them (which is
+  // exactly how this model got stuck at 4-option MCQ).
+  //
+  // The division of labour is the whole design: columns hold what the system
+  // QUERIES (topic, skill, difficulty, knowledgeUnitId — the coverage report
+  // and the Decision Engine read these); JSON holds what only the GRADER reads.
+  // Nothing queryable may move into the payload.
+  //
+  // Nullable only for the migration window — backfilled for all rows by
+  // prisma/backfill-question-payload.ts. Read it via getQuestionPayload(),
+  // never directly: that accessor is the single place where a legacy
+  // optionA-D row and a payload row stop looking different.
+  responseFormat ResponseFormat @default(SINGLE_CHOICE)
+  payload        String? // JSON, shape depends on responseFormat
+
+  // ── Legacy MCQ columns (QM-1: superseded by `payload`) ────────────
+  // Kept and still written so the 29 files reading them keep working; the
+  // reform is additive on purpose. `payload` is authoritative once backfilled.
+  // Drop these only after every reader moves to getQuestionPayload() — tracked
+  // in docs/QUESTION_MODEL_REFORM.md §6, deliberately NOT done in one step.
   optionA           String
   optionB           String
   optionC           String
@@ -171,8 +221,24 @@ model QuestionAttempt {
   user                User               @relation(fields: [userId], references: [id])
   questionId          String
   question            Question           @relation(fields: [questionId], references: [id])
+
+  // `selectedOption` (QM-1: legacy) — an "A"|"B"|"C"|"D" letter cannot express
+  // typed text, a set of pairs, or an ordering. Kept for the existing readers;
+  // `response` supersedes it.
   selectedOption      String
+  // JSON, shape mirrors the question's ResponseFormat. See
+  // lib/services/question-format. Nullable: not backfilled, deliberately —
+  // V1_V2_RECONCILIATION.md rules all 31 existing attempt rows are dev
+  // click-testing and get dropped, so converting them would be work spent on
+  // rows already scheduled for deletion.
+  response            String?
   isCorrect           Boolean
+  // Partial credit, 0..1 — a MATCHING question with 3 of 4 pairs right is not
+  // simply "wrong". Nullable because binary formats don't need it, and
+  // `isCorrect` stays authoritative for every existing accuracy calculation
+  // (analytics reads it in ~10 places; changing its meaning would silently
+  // rewrite every mastery number).
+  score               Float?
   timeSpentSec        Int?
   attemptedAt         DateTime           @default(now())
   curriculumSessionId String?
