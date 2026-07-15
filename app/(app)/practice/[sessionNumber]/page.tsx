@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { getPracticeQuestions } from "@/lib/services/curriculum";
+import { getQuestionPayload, toPublicPayload, type QuestionFormatFields } from "@/lib/services/question-format";
 import { PracticeQuiz } from "./PracticeQuiz";
 
 export default async function PracticePage({
@@ -34,16 +35,20 @@ export default async function PracticePage({
         sessionNumber={session.sessionNumber}
         sessionType={session.sessionType}
         curriculumSessionId={session.id}
-        questions={questions.map((q) => ({
-          id: q.id,
-          type: q.type,
-          topic: q.topic,
-          promptText: q.promptText,
-          optionA: q.optionA,
-          optionB: q.optionB,
-          optionC: q.optionC,
-          optionD: q.optionD,
-        }))}
+        questions={questions.flatMap((q) => {
+          const payload = getQuestionPayload(q as unknown as QuestionFormatFields);
+          if (!payload) return []; // no gradeable payload — see getQuestionPayload's docstring
+          return [
+            {
+              id: q.id,
+              type: q.type,
+              topic: q.topic,
+              promptText: q.promptText,
+              responseFormat: q.responseFormat,
+              publicPayload: toPublicPayload(q.responseFormat, payload),
+            },
+          ];
+        })}
       />
     </div>
   );

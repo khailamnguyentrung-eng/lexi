@@ -3,19 +3,101 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { splitForUnderline } from "@/lib/phonetics";
 import { getCorrectMessage, getIncorrectIntro } from "@/lib/ai/encouragement";
 import { LensFloatingAssistant } from "@/components/lens/LensFloatingAssistant";
+import { AnswerInput } from "./AnswerInput";
+import type { PublicQuestionPayload, QuestionPayload, QuestionResponse, ResponseFormatName } from "@/lib/services/question-format";
 
 interface QuizQuestion {
   id: string;
   type: string;
   topic: string;
   promptText: string;
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
+  responseFormat: ResponseFormatName;
+  publicPayload: PublicQuestionPayload;
+}
+
+interface AttemptFeedback {
+  isCorrect: boolean;
+  score: number;
+  correctPayload: QuestionPayload;
+  explanationVi: string;
+  commonMistake: string | null;
+  concept: string;
+  submittedResponse: QuestionResponse;
+}
+
+/**
+ * Renders "what you answered" / "the correct answer was" as plain text, one
+ * function per format. Deliberately text, not a bespoke visual per format —
+ * see AnswerInput.tsx's file header for why that's out of scope here.
+ */
+function describeResponse(format: ResponseFormatName, payload: QuestionPayload, response: QuestionResponse): string {
+  switch (format) {
+    case "SINGLE_CHOICE": {
+      const p = payload as import("@/lib/services/question-format").SingleChoicePayload;
+      const r = response as import("@/lib/services/question-format").SingleChoiceResponse;
+      return p.options.find((o) => o.id === r?.optionId)?.text ?? "(chưa trả lời)";
+    }
+    case "MULTI_CHOICE": {
+      const p = payload as import("@/lib/services/question-format").MultiChoicePayload;
+      const r = response as import("@/lib/services/question-format").MultiChoiceResponse;
+      const texts = (r?.optionIds ?? []).map((id) => p.options.find((o) => o.id === id)?.text ?? id);
+      return texts.length ? texts.join(", ") : "(chưa chọn đáp án nào)";
+    }
+    case "SHORT_TEXT": {
+      const p = payload as import("@/lib/services/question-format").ShortTextPayload;
+      const r = response as import("@/lib/services/question-format").ShortTextResponse;
+      return p.blanks.map((b, i) => `(${i + 1}) ${r?.answers?.[b.id] || "—"}`).join("; ");
+    }
+    case "MATCHING": {
+      const p = payload as import("@/lib/services/question-format").MatchingPayload;
+      const r = response as import("@/lib/services/question-format").MatchingResponse;
+      return (r?.pairs ?? [])
+        .map((pair) => {
+          const left = p.left.find((l) => l.id === pair.leftId)?.text ?? pair.leftId;
+          const right = p.right.find((rt) => rt.id === pair.rightId)?.text ?? pair.rightId;
+          return `${left} → ${right}`;
+        })
+        .join("; ");
+    }
+    case "ORDERING": {
+      const p = payload as import("@/lib/services/question-format").OrderingPayload;
+      const r = response as import("@/lib/services/question-format").OrderingResponse;
+      return (r?.order ?? []).map((id) => p.items.find((it) => it.id === id)?.text ?? id).join(" → ");
+    }
+  }
+}
+
+function describeCorrectAnswer(format: ResponseFormatName, payload: QuestionPayload): string {
+  switch (format) {
+    case "SINGLE_CHOICE": {
+      const p = payload as import("@/lib/services/question-format").SingleChoicePayload;
+      return p.options.find((o) => o.id === p.correctOptionId)?.text ?? "";
+    }
+    case "MULTI_CHOICE": {
+      const p = payload as import("@/lib/services/question-format").MultiChoicePayload;
+      return p.correctOptionIds.map((id) => p.options.find((o) => o.id === id)?.text ?? id).join(", ");
+    }
+    case "SHORT_TEXT": {
+      const p = payload as import("@/lib/services/question-format").ShortTextPayload;
+      return p.blanks.map((b, i) => `(${i + 1}) ${b.acceptedAnswers[0]}`).join("; ");
+    }
+    case "MATCHING": {
+      const p = payload as import("@/lib/services/question-format").MatchingPayload;
+      return p.correctPairs
+        .map((pair) => {
+          const left = p.left.find((l) => l.id === pair.leftId)?.text ?? pair.leftId;
+          const right = p.right.find((r) => r.id === pair.rightId)?.text ?? pair.rightId;
+          return `${left} → ${right}`;
+        })
+        .join("; ");
+    }
+    case "ORDERING": {
+      const p = payload as import("@/lib/services/question-format").OrderingPayload;
+      return p.correctOrder.map((id) => p.items.find((it) => it.id === id)?.text ?? id).join(" → ");
+    }
+  }
 }
 
 export function PracticeQuiz({
@@ -33,14 +115,7 @@ export function PracticeQuiz({
 }) {
   const router = useRouter();
   const [index, setIndex] = useState(0);
-  const [feedback, setFeedback] = useState<{
-    isCorrect: boolean;
-    explanationVi: string;
-    commonMistake: string | null;
-    concept: string;
-    selectedOption: string;
-    correctOption: string;
-  } | null>(null);
+  const [feedback, setFeedback] = useState<AttemptFeedback | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [midExamPrompt, setMidExamPrompt] = useState(false);
   const [midExamCountdown, setMidExamCountdown] = useState(5);
@@ -75,12 +150,12 @@ export function PracticeQuiz({
     return () => clearInterval(interval);
   }, [midExamPrompt]);
 
-  async function handleAnswer(option: string) {
+  async function handleAnswer(response: QuestionResponse) {
     if (feedback || submitting) return;
     setSubmitting(true);
 
     const timeSpentSec = Math.round((Date.now() - questionShownAtRef.current) / 1000);
-    const body: Record<string, string | number> = { selectedOption: option, timeSpentSec };
+    const body: Record<string, unknown> = { response, timeSpentSec };
     if (curriculumSessionId) body.curriculumSessionId = curriculumSessionId;
 
     const res = await fetch(`/api/questions/${current.id}/attempt`, {
@@ -89,7 +164,7 @@ export function PracticeQuiz({
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    setFeedback({ ...data, selectedOption: option });
+    setFeedback({ ...data, submittedResponse: response });
     setSubmitting(false);
   }
 
@@ -120,21 +195,6 @@ export function PracticeQuiz({
 
   const isUnderlineType = current.type === "PHONETICS_SOUND";
 
-  function renderOptionText(opt: "A" | "B" | "C" | "D") {
-    const text = current[`option${opt}` as keyof QuizQuestion] as string;
-    if (!isUnderlineType) return text;
-
-    const { before, underline, after } = splitForUnderline(text, current.topic);
-    if (!underline) return text;
-    return (
-      <>
-        {before}
-        <span className="underline">{underline}</span>
-        {after}
-      </>
-    );
-  }
-
   if (midExamPrompt) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 rounded-3xl border border-lexi-primary/20 bg-lexi-soft p-10 text-center">
@@ -154,6 +214,16 @@ export function PracticeQuiz({
     );
   }
 
+  // SINGLE_CHOICE-only bits AnswerInput needs for its click-to-submit UX.
+  const selectedOptionId =
+    feedback && current.responseFormat === "SINGLE_CHOICE"
+      ? (feedback.submittedResponse as import("@/lib/services/question-format").SingleChoiceResponse).optionId
+      : null;
+  const correctOptionId =
+    feedback && current.responseFormat === "SINGLE_CHOICE"
+      ? (feedback.correctPayload as import("@/lib/services/question-format").SingleChoicePayload).correctOptionId
+      : null;
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-xs text-zinc-400">
@@ -161,28 +231,17 @@ export function PracticeQuiz({
       </p>
       <div className="rounded-3xl border border-zinc-100 bg-white p-6">
         <p className="mb-4 text-foreground">{current.promptText}</p>
-        <div className="flex flex-col gap-2">
-          {(["A", "B", "C", "D"] as const).map((opt) => {
-            const isSelected = feedback?.selectedOption === opt;
-            const isCorrectOpt = feedback?.correctOption === opt;
-            let style = "border-zinc-200 hover:border-lexi-primary";
-            if (feedback) {
-              if (isCorrectOpt) style = "border-emerald-400 bg-emerald-50";
-              else if (isSelected) style = "border-rose-300 bg-rose-50";
-              else style = "border-zinc-100 opacity-60";
-            }
-            return (
-              <button
-                key={opt}
-                onClick={() => handleAnswer(opt)}
-                disabled={!!feedback || submitting}
-                className={`rounded-xl border px-4 py-2 text-left text-sm transition ${style}`}
-              >
-                <span className="font-medium">{opt}.</span> {renderOptionText(opt)}
-              </button>
-            );
-          })}
-        </div>
+
+        <AnswerInput
+          responseFormat={current.responseFormat}
+          payload={current.publicPayload}
+          onSubmit={handleAnswer}
+          disabled={!!feedback || submitting}
+          selectedOptionId={selectedOptionId}
+          correctOptionId={correctOptionId}
+          isUnderlineType={isUnderlineType}
+          underlineTopic={current.topic}
+        />
 
         {feedback && (
           <div className="mt-4 rounded-2xl bg-lexi-soft p-4 text-sm">
@@ -191,11 +250,35 @@ export function PracticeQuiz({
             ) : (
               <div className="flex flex-col gap-2">
                 <p className="font-medium text-lexi-primary-dark">{incorrectIntro}</p>
-                <p className="text-zinc-600">
-                  Bạn chọn: <span className="font-medium text-rose-600">{feedback.selectedOption}</span> —{" "}
-                  đáp án đúng là <span className="font-medium text-emerald-600">{feedback.correctOption}</span>
-                </p>
+                {/* SINGLE_CHOICE keeps its own inline correct/incorrect colouring in
+                    AnswerInput; other formats show the plain-text comparison here since
+                    there is no shared answer letter to colour a specific option by. */}
+                {current.responseFormat !== "SINGLE_CHOICE" && (
+                  <p className="text-zinc-600">
+                    Bạn trả lời:{" "}
+                    <span className="font-medium text-rose-600">
+                      {describeResponse(current.responseFormat, feedback.correctPayload, feedback.submittedResponse)}
+                    </span>
+                    <br />
+                    Đáp án đúng:{" "}
+                    <span className="font-medium text-emerald-600">
+                      {describeCorrectAnswer(current.responseFormat, feedback.correctPayload)}
+                    </span>
+                  </p>
+                )}
+                {current.responseFormat === "SINGLE_CHOICE" && (
+                  <p className="text-zinc-600">
+                    Bạn chọn:{" "}
+                    <span className="font-medium text-rose-600">{selectedOptionId}</span> — đáp án đúng là{" "}
+                    <span className="font-medium text-emerald-600">{correctOptionId}</span>
+                  </p>
+                )}
               </div>
+            )}
+            {!feedback.isCorrect && feedback.score > 0 && (
+              <p className="mt-1 text-xs text-lexi-primary-dark">
+                Đúng một phần: {Math.round(feedback.score * 100)}%
+              </p>
             )}
             <p className="mt-2 text-zinc-700">
               <span className="font-medium">Vì sao: </span>
@@ -218,11 +301,11 @@ export function PracticeQuiz({
                     ? "Xem kết quả buổi học"
                     : "Hoàn thành luyện tập"}
               </button>
-              {!feedback.isCorrect && (
+              {!feedback.isCorrect && current.responseFormat === "SINGLE_CHOICE" && (
                 <Link
                   href={`/error-notebook/new?concept=${encodeURIComponent(feedback.concept)}&studentAnswer=${encodeURIComponent(
-                    feedback.selectedOption
-                  )}&correctAnswer=${encodeURIComponent(feedback.correctOption)}&reason=${encodeURIComponent(
+                    selectedOptionId ?? ""
+                  )}&correctAnswer=${encodeURIComponent(correctOptionId ?? "")}&reason=${encodeURIComponent(
                     feedback.explanationVi
                   )}&questionId=${current.id}`}
                   className="rounded-full border border-lexi-primary px-4 py-2 text-xs font-medium text-lexi-primary-dark"

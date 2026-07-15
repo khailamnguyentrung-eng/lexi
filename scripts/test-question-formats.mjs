@@ -23,6 +23,7 @@ import {
   getQuestionPayload,
   payloadFromLegacyColumns,
   toLegacyColumns,
+  toPublicPayload,
 } from "../lib/services/question-format/index.ts";
 
 let passed = 0;
@@ -316,6 +317,48 @@ check("rejects malformed JSON", parsePayload("SINGLE_CHOICE", "{oops").result.va
 check("unknown format rejected, not thrown", validatePayload("NONSENSE", {}).valid, false);
 
 // ── Summary ────────────────────────────────────────────────────────
+// ── toPublicPayload — the answer-key-stripping boundary ────────────────────
+section("toPublicPayload — must never leak an answer key to the client");
+
+check("SINGLE_CHOICE: strips correctOptionId", toPublicPayload("SINGLE_CHOICE", sc), { options: sc.options });
+check(
+  "MULTI_CHOICE: strips correctOptionIds",
+  toPublicPayload("MULTI_CHOICE", mc),
+  { options: mc.options }
+);
+check(
+  "SHORT_TEXT: strips acceptedAnswers, keeps only blank ids",
+  toPublicPayload("SHORT_TEXT", twoBlanks),
+  { blanks: [{ id: "1" }, { id: "2" }] }
+);
+check(
+  "MATCHING: strips correctPairs, keeps left/right",
+  toPublicPayload("MATCHING", ma),
+  { left: ma.left, right: ma.right }
+);
+check(
+  "ORDERING: strips correctOrder, keeps items",
+  toPublicPayload("ORDERING", or),
+  { items: or.items }
+);
+// The literal security property: JSON.stringify-ing the public payload must
+// never contain the answer-key field names, so a leak can't slip in through
+// an unrelated field added later without this test catching it.
+for (const [name, format, payload] of [
+  ["SINGLE_CHOICE", "SINGLE_CHOICE", sc],
+  ["MULTI_CHOICE", "MULTI_CHOICE", mc],
+  ["SHORT_TEXT", "SHORT_TEXT", twoBlanks],
+  ["MATCHING", "MATCHING", ma],
+  ["ORDERING", "ORDERING", or],
+]) {
+  const json = JSON.stringify(toPublicPayload(format, payload));
+  check(
+    `${name}: serialized public payload contains no answer-key field name`,
+    /correctOptionId|correctOptionIds|acceptedAnswers|correctPairs|correctOrder/.test(json),
+    false
+  );
+}
+
 console.log(`\n${"─".repeat(50)}`);
 console.log(`  passed: ${passed}   failed: ${failed}`);
 if (failed > 0) process.exitCode = 1;

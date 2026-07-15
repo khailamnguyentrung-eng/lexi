@@ -175,3 +175,38 @@ migrate before non-MCQ content can ship to learners.**
 
 Steps 2–3 are what mock tests actually need (`KU1_PARTB_DESIGN.md` §1.5). This document only
 guarantees such a question can be **stored and graded correctly** — not authored or displayed.
+
+## Step 1 + Test Player UI shipped (2026-07-15)
+
+`PracticeQuiz.tsx` (11 of the original refs) and `app/api/questions/[id]/attempt/route.ts` are off
+the legacy columns — both now go through `getQuestionPayload()` / `gradeResponse()`. All five formats
+render and submit: `AnswerInput.tsx` dispatches to a per-format input (SINGLE_CHOICE keeps its
+click-to-submit UX and inline correct/incorrect highlighting; the other four collect a full response
+before an explicit submit, since they're multi-part answers).
+
+**A new pure function this needed that QM-1 didn't yet have: `toPublicPayload()`.**
+`getQuestionPayload()` returns the answer key — correct for the *grading* boundary, wrong for the
+*rendering* one. Sending that same object to the client would put the correct answer in the page's
+initial data, readable in devtools before the learner answers — exactly what the legacy `QuizQuestion`
+type never did (it never included `correctOption` pre-submission). `toPublicPayload()` strips
+`correctOptionId`/`correctOptionIds`/`acceptedAnswers`/`correctPairs`/`correctOrder` per format;
+verified with a literal string-search test that the serialized public payload contains none of those
+field names, not just that the typed accessor doesn't return them.
+
+**`selectedOption` (the legacy per-attempt column) still gets written for every attempt**, not dropped
+yet (step 4 above remains undone) — SINGLE_CHOICE writes the real option letter, unchanged; other
+formats write a bracketed format tag (`[MATCHING]`, ...) rather than fabricating a letter or dumping
+raw JSON into a column three analytics files still type as `string // A/B/C/D`
+(`sessionAnalytics.ts`, `contracts.ts`, `repository.ts`). That analytics reform is real, separate,
+undone work — flagged, not silently patched here.
+
+**Not done:** step 2 (AI providers still only emit A/B/C/D) and the error-notebook link (still
+SINGLE_CHOICE-only — `studentAnswer`/`correctAnswer` there assume an option letter).
+
+Verified: `test:question-formats` 64/64 (10 new, `toPublicPayload` incl. the answer-key string-search
+guard), `tsc --noEmit` clean, no regressions. **Live browser verification, not just unit tests**: all
+five formats clicked through end-to-end (SHORT_TEXT correct, MATCHING deliberately wrong to prove
+partial-credit + plain-text feedback, MULTI_CHOICE correct, ORDERING reordered via ↑/↓ then correct,
+SINGLE_CHOICE re-verified for zero regression against a real curriculum session) — network responses
+inspected directly (`isCorrect`/`score`/`detail` matched expectations exactly, not just "no visible
+error"). Test fixtures created for this and deleted immediately after by exact `questionCode` match.
