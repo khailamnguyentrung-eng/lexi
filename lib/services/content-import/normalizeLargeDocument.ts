@@ -48,16 +48,34 @@ export async function normalizeLargeDocument(
   rawText: string,
   contentSource: ContentSource,
 ): Promise<LargeDocumentResult> {
-  const { name, model, requestedProvider, isFallback, fallbackReason } = getAIProviderStatus();
+  // Config-time facts only. Which provider actually SERVED each chunk is not
+  // knowable here — it comes back per-chunk on each normalizeWithAI result below.
+  const { model, requestedProvider } = getAIProviderStatus();
   const overallStart = Date.now();
   const chunks = chunkBySections(rawText);
   const batches: BatchResult[] = [];
+
+  // Aggregate the per-chunk truth. Rule, stated deliberately: if ANY chunk fell
+  // back to mock, the whole run reports isFallback. A run that is 90% real and
+  // 10% fabricated is not a clean run — reporting it as one would recreate the
+  // exact bug this change fixes. First reason wins; they share a root cause.
+  let servedByAny: "claude" | "gemini" | "mock" | null = null;
+  let runFallbackReason: string | null = null;
 
   for (const chunk of chunks) {
     const oversizedChunkWarning = chunk.rawText.length > SOFT_CHUNK_SIZE_WARNING_CHARS;
     const batchStart = Date.now();
     try {
-      const { results, retryCount } = await normalizeWithAI(chunk.rawText, contentSource);
+      const { results, retryCount, servedBy, fallbackReason } = await normalizeWithAI(
+        chunk.rawText,
+        contentSource,
+      );
+      if (fallbackReason !== null) {
+        servedByAny = "mock";
+        runFallbackReason ??= fallbackReason;
+      } else if (servedByAny === null) {
+        servedByAny = servedBy;
+      }
       batches.push({
         batchIndex: chunk.batchIndex,
         label: chunk.label,
@@ -110,7 +128,16 @@ export async function normalizeLargeDocument(
     failedBatchCount: batches.filter((b) => b.error !== null).length,
     duplicateQuestionCodesAcrossBatches,
     report: {
-      aiStatus: { name, model, requestedProvider, isFallback, fallbackReason },
+      aiStatus: {
+        // servedByAny is null only when every chunk threw before returning —
+        // in that case nothing was served, so fall back to reporting mock
+        // rather than claiming a provider produced output it never did.
+        name: servedByAny ?? "mock",
+        isFallback: runFallbackReason !== null,
+        model: (servedByAny ?? "mock") === "mock" ? null : model,
+        requestedProvider,
+        fallbackReason: runFallbackReason,
+      },
       chunksProcessed: chunks.length,
       inputSizeChars: rawText.length,
       outputQuestionCount: allDrafts.length,

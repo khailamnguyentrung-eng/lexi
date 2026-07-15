@@ -38,7 +38,10 @@ export function sliceToFirstNQuestions(rawText: string, n: number): string {
 
 export async function runSampleNormalization(contentSourceId: string, sampleSize = 5) {
   const contentSource = await prisma.contentSource.findUniqueOrThrow({ where: { id: contentSourceId } });
-  const { name, model, requestedProvider, isFallback, fallbackReason } = getAIProviderStatus();
+  // Config-time facts (which provider was ASKED for, and its model) still come
+  // from here. Which provider actually SERVED the run does not — that is only
+  // known after the call, and comes back on the result below.
+  const { model, requestedProvider } = getAIProviderStatus();
 
   const job = await prisma.importJob.create({ data: { contentSourceId, status: "EXTRACTING" } });
   const startedAt = Date.now();
@@ -47,16 +50,21 @@ export async function runSampleNormalization(contentSourceId: string, sampleSize
     const { rawText: fullText } = await fileExtractor.extract(contentSource);
     const sampleText = sliceToFirstNQuestions(fullText, sampleSize);
 
-    const { validCount, invalidCount, retryCount } = await normalizeAndPersistDrafts(
-      job.id,
-      sampleText,
-      contentSource,
-    );
+    const { validCount, invalidCount, retryCount, servedBy, fallbackReason } =
+      await normalizeAndPersistDrafts(job.id, sampleText, contentSource);
 
     const finalJob = await prisma.importJob.findUniqueOrThrow({ where: { id: job.id }, include: { drafts: true } });
 
     const report: AIRunReport = {
-      aiStatus: { name, model, requestedProvider, isFallback, fallbackReason },
+      aiStatus: {
+        name: servedBy,
+        // A real provider was requested but mock answered ⇒ that is a fallback,
+        // regardless of what the config said before the call was made.
+        isFallback: fallbackReason !== null,
+        model: servedBy === "mock" ? null : model,
+        requestedProvider,
+        fallbackReason,
+      },
       chunksProcessed: 1,
       inputSizeChars: sampleText.length,
       outputQuestionCount: validCount + invalidCount,
