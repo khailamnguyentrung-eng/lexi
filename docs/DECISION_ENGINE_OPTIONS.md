@@ -1,9 +1,34 @@
 # Decision Engine — Gap Analysis and Options
 
-**Status:** **RULED — founder accepted every recommendation D-1…D-6 as written (2026-07-15).**
+**Status:** **RULED (2026-07-15) — but D-1 and D-2 were CORRECTED after the ruling. See the
+correction notice below; those two need re-confirming.**
 No code. Buildable only after KU-1 part B — see §10, which is a hard precondition, not a preference.
 **Why now:** the last blocker. PV-1 cleared "is FigJam the product"; `V1_V2_RECONCILIATION.md`
 ruled the data model. The FigJam review's second blocker — the Decision Engine — is this document.
+
+---
+
+> ## ⚠️ Correction (2026-07-15, after the founder ruled)
+>
+> **This document's first version was wrong about Knowledge State, and D-1/D-2 rested on that error.**
+>
+> It claimed Knowledge State was **missing**. It is not. `lib/services/learner-intelligence/` —
+> **seven files, a whole Phase 5 layer** with its own design review
+> (`PHASE5_LEARNER_MODEL_DESIGN_REVIEW.md`) — contains `computeKnowledgeState()`, already wired into
+> `learnerProfileBuilder.ts`, plus a real mastery model in `lib/analytics/masteryTracking.ts`
+> (`deriveMasteryState()`: a 5-rule ladder over MASTERED / STABLE / IMPROVING / NEEDS_REVIEW,
+> grounded in spaced-repetition stage + post-review accuracy).
+>
+> The irony is not lost: this document opened by criticising other docs for saying "unspecified"
+> when things existed, and then made the same error one layer down. **The lesson is the repo's own
+> recurring one** (`lexi_backend_reality_gap`): grep for the caller, don't trust a summary — including
+> this document's.
+>
+> **What changes:** D-1 and D-2 as originally recommended would have *replaced working, deliberately
+> designed code*. Both are rewritten below and marked **needs re-confirmation**. D-3…D-6 are
+> unaffected and stand as ruled.
+>
+> **What survives:** the real gap is narrower and sharper than "missing" — see §3.
 
 ---
 
@@ -17,8 +42,8 @@ build task at all, but an architectural conflict between FigJam and this repo's 
 
 | FigJam layer | Status | What actually exists |
 |---|---|---|
-| **Learner Model** | ✅ **built** | `studentLearningProfile.ts` (596 lines — "where is the student / what's improving / what needs attention / what's next"), `behaviorEngine.ts` (pace, time-of-day, response-time, mood, confidence tier), `LearnerProfile`, `DiagnosticTest`, `MoodEntry` |
-| **Knowledge State** | ❌ **missing** | closest are `SkillMatrixEntry` (5 coarse buckets, **not per-KU**) and `ErrorNotebookEntry` (SM-2 fields, per *mistake*, **not per-KU**) |
+| **Learner Model** | ✅ **built** | `studentLearningProfile.ts` (596 lines — "where is the student / what's improving / what needs attention / what's next"), `behaviorEngine.ts` (pace, time-of-day, response-time, mood, confidence tier), `LearnerProfile`, `DiagnosticTest`, `MoodEntry`, **and the whole `lib/services/learner-intelligence/` Phase 5 layer** (knowledge / behavior / preference / problem-solving / performance state + `learnerProfileBuilder`) |
+| **Knowledge State** | ⚠️ **built, but weakness-shaped and topic-keyed** (corrected — was wrongly reported missing) | `learner-intelligence/knowledgeState.ts` → `computeKnowledgeState()`, wired into `learnerProfileBuilder.ts`; mastery ladder in `analytics/masteryTracking.ts`. **Two real gaps: it is keyed on the `topic` string, not `knowledgeUnitId`; and it can only see topics that have an error-notebook entry** — see §3 |
 | **Next Best Action** | ⚠️ **partial** | `computeRecommendations()` with priority labels + LOW/MEDIUM/HIGH confidence |
 | **LearningAction** | ⚠️ **partial** | `REVIEW_NOTEBOOK` ✅ · `PRACTICE_TOPIC` ✅ · `ADVANCE_SESSION` ☠️ (dies with v1) · **LEARN ❌** · **ASSESS ❌** |
 | **Issuance / Evidence** | ✅ **built, and better than FigJam draws** | `RecommendationIssuance` (Basis, Goal snapshot, `asOf` freshness, Firmness, Rationale, procedure provenance) + `RecommendationResponse` + `ReviewEngagement` |
@@ -43,56 +68,93 @@ below is shaped by this.
 
 ---
 
-## 3. D-1 — The mastery model: what *is* "knows this KnowledgeUnit"?
+## 3. D-1 — The mastery model **(CORRECTED — needs re-confirmation)**
 
-The FigJam asks for state + confidence + decay. Options:
+### What actually exists
 
-| | **Model** | **Decay?** | **Needs calibration?** | **Explainable to a 15-year-old?** |
-|---|---|---|---|---|
-| **1** | **Accuracy ratio** — correct/total per KU | ✗ | ✗ | ✓✓ "8/10 đúng" |
-| **2** | **Accuracy + time decay** — recency-weighted | ✓ | ✗ (one half-life constant) | ✓ |
-| **3** | **SM-2 per KU** — reuse the notebook's scheduler | ✓✓ | ✗ | ✓ |
-| **4** | **BKT** — p(mastery), models guess/slip | ✓ | **✓✓ blocked (§2)** | ✗ |
-| **5** | **Elo / IRT** — co-estimates item difficulty + ability | ~ | **✓✓ blocked (§2)** | ✗ |
+`analytics/masteryTracking.ts` already implements a mastery model, and a careful one:
 
-**Recommendation: 2, structured so 4/5 can replace it later.**
+```
+deriveMasteryState(TopicNotebookSummary) → MASTERED | STABLE | IMPROVING | NEEDS_REVIEW
+```
 
-Reasoning: 1 is wrong in a way you will feel immediately — "3/3 correct last March" would read as
-mastered forever, and your product's entire premise is a deadline-driven exam. 4 and 5 are the
-academically right answers and are **unavailable** (§2) — they need learner data you do not have, and
-shipping them untuned is worse than shipping something honest and simple. 3 is real but is a
-*review scheduler*, not a mastery estimate; it answers "when should they see this again", which is
-D-4's REVIEW action, not "do they know it".
+A 5-rule ladder using spaced-repetition **stage**, **post-review accuracy**, the notebook **signal**,
+and the remedial flag — e.g. *MASTERED requires stage ≥ 4 + IMPROVED + postAccuracy ≥ 0.80 + not
+remedial-flagged*, because "remedial topics must earn MASTERED entry-by-entry, not via accuracy
+alone". Its header states the storage policy outright: **"Never stored; always re-derived on demand."**
 
-2 gives you decay with exactly one tunable constant (half-life), stays explainable, and — critically
-— the repo already has the provenance field to mark it as provisional: `SkillMatrixEntry.computedBy`
-uses `ComputeSource { MANUAL, RULE_BASED, AI }`. A `RULE_BASED` mastery is honest about what it is
-and can be swapped to `AI` later without a schema change or a lie in the UI.
+`learner-intelligence/knowledgeState.ts` consumes it and buckets concepts into
+`masteredConcepts` / `developingConcepts` / `weakConcepts`, with a `ConfidenceTier`
+(OBSERVED / EMERGING / CONFIRMED) derived from data richness.
 
-**The trap to avoid:** do not let "mastery" mean two different things in two places. Today
-`SkillMatrixEntry.percentage` and `ErrorNotebookEntry.status = MASTERED` are both called mastery and
-neither is per-KU. Whatever you pick, **one definition, one place.**
+**My original recommendation — "replace this with accuracy + time decay" — was wrong.** It would
+have thrown away a tuned, documented model in favour of something cruder, on the strength of a gap
+that does not exist.
+
+### The two real gaps (narrower and sharper than "missing")
+
+**1. It is keyed on the `topic` string, not `knowledgeUnitId`.**
+`V1_V2_RECONCILIATION.md` ruled `knowledgeUnitId` the primary link. So this is a **re-keying**, not a
+rebuild — and it is gated on the same backfill as everything else (§10).
+
+**2. It can only see topics that have an error-notebook entry — and this is the important one.**
+`TopicMasteryProfile[]` is built from `getTopicNotebookSummaries()`, which enumerates topics from
+`ErrorNotebookEntry` (created on mistakes, via `POST /api/error-notebook`). Attempts are read too,
+but only to compute accuracy *within* topics the notebook already knows about.
+
+**Consequence: a KnowledgeUnit the learner has never gotten wrong is invisible to the engine.** So is
+one they have never attempted at all. The model has no state for *"we have no idea"* — and
+"never attempted" is **exactly what LEARN must target** (D-4). Today the engine can rank the
+learner's known weaknesses; it cannot say *"you have never touched conditionals type 3"*, because
+that KU produces no row anywhere.
+
+This is the honest reframe: **the Knowledge State is weakness-shaped.** It models what went wrong,
+not what is known or unexplored. FigJam's "User Knowledge Map" needs all three.
+
+### Revised recommendation **(needs your re-confirmation)**
+
+| | Option | Assessment |
+|---|---|---|
+| **1** | **Keep `deriveMasteryState()`'s ladder; re-key to `knowledgeUnitId`; add an explicit `NOT_ATTEMPTED` / `UNKNOWN` state covering the KUs with no evidence** | **Recommended.** Far less work than a rebuild, keeps a tuned model, and closes the gap that actually blocks LEARN |
+| **2** | Replace with accuracy + time decay | *my original — withdrawn.* Discards working, reviewed code to solve a problem it did not have |
+| **3** | BKT / IRT / Elo | still **blocked by §2** — zero real learners, nothing to calibrate against |
+
+Time decay is **deliberately not** in the revised recommendation. The existing ladder already gets
+recency through the spaced-repetition stage, and adding a second decay term would mean two decay
+models interacting with no learner data to tune either. If evidence later shows stale mastery
+lingering, add it then — with a reason.
+
+**The trap that still stands:** "mastery" must not mean different things in different places. Today
+`SkillMatrixEntry.percentage`, `ErrorNotebookEntry.status = MASTERED`, and
+`MasteryState.MASTERED` are three notions of mastery, and **none is per-KU**. Re-keying must
+reconcile them, not add a fourth.
 
 ---
 
-## 4. D-2 — Where does Knowledge State live?
+## 4. D-2 — Where does Knowledge State live? **(CORRECTED — needs re-confirmation)**
 
-| | Option | Cost | Consequence |
-|---|---|---|---|
-| **A** | **`UserKnowledgeState` table** (user × KU), mutable projection, recomputed on evidence change | new table | matches FigJam's "User Knowledge Map" literally; fast reads; **no history** |
-| **B** | **Computed on read, never stored** | none | conforms hardest to Ch.3 ephemerality; expensive per read; cannot show a trend line |
-| **C** | **Stored + append-only snapshots** | new table + growth | full mastery history ("you improved") ; heaviest |
+**Option B is already the implementation**, and deliberately so. `masteryTracking.ts` states it in
+its own header: **"Never stored; always re-derived on demand."** `computeKnowledgeState()` is pure —
+no Prisma — and returns a snapshot with a `computedAt` stamp.
 
-**Recommendation: A.**
+My original recommendation (**A** — a new `UserKnowledgeState` table) would have **overturned a
+deliberate design choice I had not read.**
 
-Precedent is already in the repo and explicit: `ErrorNotebookEntry.reviewStage/nextReviewAt/
-easeFactor` is described in the schema as *"a mutable Understanding-layer retention projection —
-that projection is not Evidence"*. A per-KU mastery projection is the same category of thing, so A
-needs no architectural argument — it reuses a distinction the Constitution already draws.
+| | Option | Assessment |
+|---|---|---|
+| **B** | **Computed on read, never stored** | **Recommended — it is what exists.** Consistent with D-3's ruling (which chose ephemeral-plus-issuance over durable state), and with Ch.3 §3.1 |
+| **A** | `UserKnowledgeState` table | *my original — withdrawn.* Would add a mutable projection alongside a working pure one, i.e. a second source of truth |
+| **C** | Stored + append-only snapshots | only if you must one day **prove** improvement to a parent or school. Not now |
 
-B loses the trend line, and "what is improving?" is a question `studentLearningProfile` already
-promises to answer. C is right if you later want to *prove* improvement to a parent or a school —
-worth revisiting then, not now.
+**This makes D-2 and D-3 the same answer**, which is the coherence check passing rather than a
+coincidence: the repo already decided, in two independent places, that derived learner state is
+computed fresh and never stored. D-3 chose the issuance pattern for the *plan*; `masteryTracking`
+chose re-derivation for the *state*. Ch.3 §3.1 / Invariant 12 stands unamended across both.
+
+**The one thing to watch:** re-derivation on every read is affordable today because the notebook is
+small. Per-KU state across a full taxonomy (74+ topics), read on every dashboard load, is a different
+cost profile. That is a **performance** decision to revisit with real usage — not an architecture
+decision to pre-empt now.
 
 ---
 
@@ -194,8 +256,8 @@ truthful.
 
 | | Decision | **Ruled** | Consequence to hold onto |
 |---|---|---|---|
-| **D-1** | mastery model | **Accuracy + time decay**, marked `RULE_BASED` | one half-life constant to tune. **Swappable to BKT/IRT once real learners exist** — that is the point of `computedBy`, not a hedge |
-| **D-2** | where state lives | **`UserKnowledgeState`** (user × KU), mutable projection | no mastery *history*. Revisit (option C) if you ever need to *prove* improvement to a parent or school |
+| **D-1** ⚠️ | mastery model | ~~Accuracy + time decay~~ → **CORRECTED (§3): keep the existing `deriveMasteryState()` ladder, re-key `topic` → `knowledgeUnitId`, add an explicit `NOT_ATTEMPTED` state.** **Needs re-confirmation** | the original would have deleted a tuned, reviewed model. The real gap is that a never-failed KU is **invisible** — which is what blocks LEARN |
+| **D-2** ⚠️ | where state lives | ~~`UserKnowledgeState` table~~ → **CORRECTED (§4): computed on read, never stored — which is already the implementation.** **Needs re-confirmation** | lands on the same answer as D-3. Re-derivation cost across a full taxonomy is a **performance** question for later, not an architecture one now |
 | **D-3** | plan stored? | **Issuance pattern** — computed fresh, issuance recorded, "current" = most recent | **Ch.3 §3.1 / Invariant 12 stands unamended.** No ADR needed. If a stored plan is ever wanted, that is a deliberate architecture change |
 | **D-4** | LEARN | **AI explanation on demand** now (reuse `AssistanceExchange` / `TEACHER` mode); **`Resource` layer later** | ⚠️ **depends on a working AI provider — the Gemini quota is dead and every call silently falls back to Mock.** LEARN quality is capped at Mock until that is resolved. Founder has declined to fix the quota; recorded, not re-proposed |
 | **D-5** | re-plan | **On evidence change** (uses the existing `asOf` freshness proxy) | *missed day* and *deadline approaching* are **time-based** and therefore **deferred** — they need a scheduler that does not exist (M4.5: no queue) |
