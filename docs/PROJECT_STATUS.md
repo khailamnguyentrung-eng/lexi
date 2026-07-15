@@ -489,6 +489,35 @@ Phase 8 (M8.1–M8.4) is complete on its feature branch but not yet pushed or me
 never had a whole-branch review — the per-milestone reviews covered each change in isolation.
 Decision pending: review the branch and open a PR, or continue staging further work on it first.
 
+### Admin AI-status reporting — sampleTest/normalizeLargeDocument now report the truth (2026-07-15)
+`AIStatusLine`'s own comment promises "Never silently shows mock output as if it were real." That
+was false: `runSampleNormalization` (sampleTest.ts) and `normalizeLargeDocument` built their
+`aiStatus` from `getAIProviderStatus()`, which only knows what was **configured**, not what actually
+served the run. `withRuntimeFallback` silently swaps in MockProvider when the real provider throws
+(dead quota, bad key) — so with a Gemini key present but quota dead, the admin UI showed a green
+"Gemini ✅" over Mock's fabricated questions.
+
+Fixed in two steps: Task 1 (commit `b8d8040`) added `servedBy`/`fallbackReason` to
+`NormalizeQuestionsResult`/`GenerateQuestionsResult` so the runtime truth is available on the
+result. Task 2 (this entry) threaded those fields up through `normalizeWithAI` →
+`normalizeAndPersistDrafts` → `sampleTest.ts`/`normalizeLargeDocument.ts`, so `aiStatus.name` /
+`isFallback` / `fallbackReason` now come from the run result, not the config guess. `model` and
+`requestedProvider` still legitimately come from `getAIProviderStatus()` — those are config-time
+facts. For multi-chunk runs (`normalizeLargeDocument`), any single chunk falling back makes the
+whole run report `isFallback: true` — a 90%-real/10%-fabricated run is not reported as clean.
+
+**Live-verified against this dev environment's actually-dead Gemini quota** (no simulation): ran
+"Chạy mẫu AI (5 câu đầu)" against a real content source. Before the fix this showed a green
+"Gemini ✅"; after the fix the status line renders `Mock` in amber (`text-amber-700`, matching
+`AIStatusLine`'s fallback styling) with `isFallback: true` and the ⚠ line naming Gemini's 429 quota
+error and stating the output is fabricated. `AIStatusLine.tsx` itself and `getAIProviderStatus()`'s
+meaning were untouched — `chat/page.tsx` still legitimately uses it for config-time facts.
+
+**Remaining known hole, not fixed here:** the real import path (`runImportJob`) still surfaces no
+report to the UI at all — `RunExtractionButton` discards the response entirely. Dry-run and sample
+get the good (now-truthful) behaviour; the path that actually writes real drafts does not. Same
+pattern already noted under M3.5 for chunking.
+
 ---
 
 ## Architecture Invariants
