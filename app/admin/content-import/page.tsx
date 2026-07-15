@@ -3,6 +3,7 @@ import { UploadForm } from "./UploadForm";
 import { RunExtractionButton } from "./RunExtractionButton";
 import { SampleTestButton } from "./SampleTestButton";
 import { DryRunButton } from "./DryRunButton";
+import { ProposeTaxonomyButton } from "./ProposeTaxonomyButton";
 import { DraftReviewCard } from "./DraftReviewCard";
 
 export default async function ContentImportPage() {
@@ -53,6 +54,7 @@ export default async function ContentImportPage() {
 
             <SampleTestButton contentSourceId={source.id} />
             <DryRunButton contentSourceId={source.id} />
+            <ProposeTaxonomyButton contentSourceId={source.id} />
 
             {source.importJobs.map((job) => {
               const pendingDrafts = job.drafts.filter((d) => d.reviewStatus === "PENDING_REVIEW");

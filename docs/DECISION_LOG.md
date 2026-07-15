@@ -382,3 +382,43 @@ Also rejected: Using `responseTimeSignal` from BehaviorProfile to add a "deliber
 **Reason:** `computeCoverageReport()` counts `q.topic === unit.topic` (M3.2's decision above, made before this review queue existed). A merge's entire purpose is to assert that two *different* topic strings represent the *same* concept — so after a merge, the target unit's topic will, by definition, not equal the merged questions' topic string. `Question.topic` is a normalized fact about the source data (also read by `ErrorNotebookEntry.concept` and elsewhere); silently rewriting it as a side effect of an admin merge action would be revisionist and could break other topic-string-dependent behaviour that has nothing to do with this review queue. Making `computeCoverageReport()` FK-aware instead is the right fix, but it means changing what M3.2 already decided for a different module — a decision that module's owner should make deliberately, not one this feature should make as a side effect.
 
 **Rejected:** (1) Rewriting `Question.topic` on merge. (2) Silently making `computeCoverageReport()` also check the FK as part of this change. Both are real fixes to a real gap; both are out of scope here and are flagged instead of quietly patched.
+
+---
+
+## KU-1 part B, Path A — a separate `taxonomyCore.ts`, not added to `normalizationCore.ts`
+
+**Decision:** The prompt, parser, and retry wrapper for taxonomy proposal live in a new `lib/ai/providers/taxonomyCore.ts`, not inside the existing `normalizationCore.ts`.
+
+**Reason:** This repo already has a precedent decision on exactly this question — "M4.2 — Generation prompt in normalizationCore.ts (not a separate file)" above — and its own stated criterion is reuse: generation was kept in `normalizationCore.ts` because it reuses `parseDrafts()` and the `NormalizedQuestionDraft` shape. Taxonomy proposal reuses neither — its output shape (`proposedTopic`/`proposedLabel`/`evidenceQuote`/`confidence`) has nothing in common with a `Question`. Putting it in `normalizationCore.ts` would satisfy neither that decision's own test nor this one; it would only be proximity.
+
+**Rejected:** Adding `PROPOSE_TAXONOMY_SYSTEM_PROMPT` and `proposeTaxonomyWithRetry()` into `normalizationCore.ts`. Mirrors the shape (prompt + parser + retry) without sharing any code.
+
+---
+
+## KU-1 part B, Path A — evidenceQuote is verified against the source text, not trusted
+
+**Decision:** `taxonomyCore.ts`'s `verifyEvidenceQuotes()` checks that every proposal's `evidenceQuote` is a literal (whitespace-normalized only) substring of the actual extracted text before it is persisted. A proposal whose quote doesn't check out is dropped, not fixed, not fuzzy-matched.
+
+**Reason:** `PendingKnowledgeUnit.evidenceQuote` is already documented as load-bearing — the entire review queue's trustworthiness rests on a reviewer being able to check "is this real" against something concrete. A model can assert a topic exists in a document without quoting it; an unverified quote that looks legitimate is worse than an obviously-fake one, because the reviewer trusts it without checking. Only whitespace (line-wraps, double spaces) is normalized before comparison — the same discipline already recorded for topic-string matching ("no fuzzy matching, no AI classification"): any other divergence (dropped words, paraphrase) means the model didn't actually quote the source, which is exactly the case this guard exists to catch.
+
+**Rejected:** Trusting the model's `evidenceQuote` outright. Also rejected: fuzzy/similarity-based verification (e.g. edit distance) — would accept a paraphrase as a quote, defeating the field's purpose.
+
+---
+
+## KU-1 part B, Path A — a rejected quote is silently dropped, but the COUNT is not
+
+**Decision:** `ProposeTaxonomyResult` carries `rejectedByVerification: number` (a count) rather than either silently discarding rejected proposals with no trace, or surfacing their full detail (the fabricated text, the reason) through the `AIProvider` interface boundary.
+
+**Reason:** Silently dropping the count entirely would be exactly the kind of invisible discrepancy the `AIStatusLine` truthfulness fix already exists to prevent elsewhere in this codebase (`servedBy`/`fallbackReason` on `NormalizeQuestionsResult`/`GenerateQuestionsResult`) — the model proposed N things, only some survived, and a caller needs to know that gap exists. But the full rejected detail is internal QA information, not something an admin UI needs to render per-item; a count is enough to show "N were filtered" without piping fabricated-quote text through an interface whose other callers don't expect it.
+
+**Rejected:** (1) Dropping rejected proposals with no signal at all — the AIStatusLine precedent this repo already set says that's a lie by omission. (2) Threading the full `rejected` detail array through `AIProvider.proposeTaxonomy()` — the interface boundary is the wrong place for QA debug detail that only `taxonomyCore.ts` itself needs.
+
+---
+
+## KU-1 part B, Path A — B-1(b) ruled: read full text directly, no chunking yet
+
+**Decision:** `taxonomyReader.ts` sends the source's entire extracted text to the AI provider in one call. No document chunking, no separate "summarize the structure first" step.
+
+**Reason:** This is design doc §7's own recorded recommendation (B-1), now actually built rather than left as an open option. The documents this repo actually has (seeded `ContentSource` rows, real import sources) are import-pipeline-sized, not book-length — chunking exists in the codebase (`chunker.ts`) for exactly the multi-hundred-question case Path A hasn't needed yet. Building a chunked/summary-first path speculatively, before a real source proves the single-call approach insufficient, would be exactly the kind of scope this repo's own Constitution (Ch.1 §9) argues against — content-shaped decisions belong to evidence, not anticipation.
+
+**Rejected:** Chunking every source up front "to be safe". Reuses none of `chunker.ts`'s Vietnamese-exam-specific header regex anyway (see `KU1_PARTB_DESIGN.md` §3.5), so building chunking support now would mean building a second, taxonomy-specific chunker for a case that hasn't occurred yet.
