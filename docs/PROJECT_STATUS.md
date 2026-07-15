@@ -316,6 +316,50 @@ and RT-1's gating/enrichment logic) but have not been folded into a unified coun
 
 ## Pending Milestones
 
+### PV-1 — Founder Ruling: FigJam IS the product (2026-07-15) — reconciliation NOT started
+**Ruling, as given:** *"tất cả cần được làm dựa theo flow trên figjam của tôi, sản phẩm cuối cùng
+cũng chính là dựa trên figjam của tôi"* — everything is to be built to the FigJam flow; the final
+product **is** the FigJam.
+
+This answers question #1 of the FigJam review (`docs/LEXI_FIGJAM_REVIEW_VI.docx`), which that review
+named as a blocker: *"Is FigJam a replacement (v2) for the shipped linear-curriculum app, or an
+additive layer?"* → **Replacement. FigJam is the target, not an additive layer.**
+
+**What this ruling does NOT yet answer** — the second half of the same question, still open:
+*"What migrates, what gets dropped?"* Three concrete decisions remain:
+1. The existing 24-session curriculum → become one `Program` ("Thi vào 10"), or be rebuilt?
+2. The 118 questions carrying `curriculumSessionId` → remapped to `ProgramCurriculum`, or reduced to
+   their `knowledgeUnitId` link only?
+3. Real learner data (22 `QuestionAttempt` rows with a session, 3 `UserSessionProgress`) → keep or drop?
+
+**Scale of what the ruling switches on** (measured 2026-07-15, not estimated). FigJam replaces
+`CurriculumSession` with `Program` → `ProgramCurriculum` → `KnowledgeUnit`. Today
+`CurriculumSession` is load-bearing:
+
+| | |
+|---|---|
+| Files referencing it | **15** — across `app/(app)/practice/`, 4 API routes, `lib/analytics`, `lib/services`, `prisma` |
+| Data depending on it | 24 sessions · 3 phases · **118 of 122 questions** · 22 of 31 attempts · 3 progress rows |
+
+96% of the question bank hangs off `curriculumSessionId`. This is a spine replacement, not a rename,
+and the shipped 24-session learner flow runs on it.
+
+**The FigJam review named TWO blockers, and this ruling clears only one.** Its own words: *"blocked
+by exactly two things — the **Decision Engine** and **reconciling the curriculum data model**."* The
+data-model half is now unblocked *in principle*. The **Decision Engine remains unspecified** — the
+FigJam lists its open questions itself (mastery model + confidence + decay; the policy turning
+signals into a next action; what triggers a re-plan; where a plan is stored and how learner override
+reconciles with engine proposals).
+
+**Next step, agreed with the founder: a reconciliation document before any code.** Put the running v1
+model beside the FigJam v2 model and decide, per entity, migrate / drop / keep-parallel. Without it,
+every future change touching `CurriculumSession` is a guess. Deferred to a later session by the
+founder's own call — recorded here rather than started.
+
+**Already aligned, worth noting:** the 2026-07-15 work sits on the FigJam's path, not against it —
+`KnowledgeUnit` is the core layer of FigJam's 5-layer data architecture, and KU-1 part B (Pending-KU
+creation from imports + a human review/merge queue) is exactly what the FigJam draws.
+
 ### KU-1 — KnowledgeUnit registry: seeded narrow (Reading 3 adopted, 2026-07-15)
 **Founder ruling: start narrow now (A), grow into the FigJam v2 Pending-KU flow later (B).**
 
