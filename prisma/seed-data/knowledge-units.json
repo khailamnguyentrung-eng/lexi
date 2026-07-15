@@ -82,5 +82,418 @@
     "targetEasyCount": 5,
     "targetMediumCount": 5,
     "targetHardCount": 3
+  },
+  {
+    "topic": "articles",
+    "label": "Mạo từ (a/an/the)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "both_and_structure",
+    "label": "Cấu trúc both...and",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "ch_sound",
+    "label": "Phát âm: Âm /tʃ/ (ch)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "communication_accepting_invitations",
+    "label": "Giao tiếp: Nhận lời mời",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "communication_responding_greetings",
+    "label": "Giao tiếp: Đáp lời chào hỏi",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "comparative_adverbs",
+    "label": "So sánh hơn của trạng từ",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "comparatives_as_as",
+    "label": "So sánh bằng (as...as)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "conjunctions_because",
+    "label": "Liên từ chỉ nguyên nhân (because)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "double_comparatives",
+    "label": "So sánh kép (the more...the more)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "ea_vowel_sound",
+    "label": "Phát âm: Nguyên âm 'ea'",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "ed_ending_pronunciation",
+    "label": "Phát âm đuôi -ed",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "exclamatory_sentences",
+    "label": "Câu cảm thán",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "infinitive_of_purpose",
+    "label": "Động từ nguyên mẫu chỉ mục đích (to V)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "modal_verbs_advice",
+    "label": "Động từ khiếm khuyết: Lời khuyên (should)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "modal_verbs_must",
+    "label": "Động từ khiếm khuyết: Sự bắt buộc (must)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "passive_voice",
+    "label": "Câu bị động (thì hiện tại đơn)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "passive_voice_modals",
+    "label": "Câu bị động với động từ khiếm khuyết",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "passive_voice_past_simple",
+    "label": "Câu bị động (thì quá khứ đơn)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "past_simple",
+    "label": "Thì quá khứ đơn",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "polite_offers",
+    "label": "Lời đề nghị lịch sự (Would you like...?)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "prepositions_fixed_phrases",
+    "label": "Giới từ trong cụm cố định",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "prepositions_means_of_transport",
+    "label": "Giới từ chỉ phương tiện di chuyển",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "present_continuous",
+    "label": "Thì hiện tại tiếp diễn",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "present_perfect_vs_past_simple",
+    "label": "Phân biệt hiện tại hoàn thành và quá khứ đơn",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "present_simple_subject_verb_agreement",
+    "label": "Hoà hợp chủ ngữ - động từ (thì hiện tại đơn)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "quantifiers",
+    "label": "Lượng từ (some/any/much/many...)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "quantifiers_much_many",
+    "label": "Lượng từ much/many",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "reading_comprehension_not_true",
+    "label": "Đọc hiểu: Câu hỏi phủ định (NOT true)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "reading_comprehension_reason",
+    "label": "Đọc hiểu: Câu hỏi nguyên nhân/mục đích",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "relative_clauses",
+    "label": "Mệnh đề quan hệ",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "relative_clauses_defining",
+    "label": "Mệnh đề quan hệ xác định",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "relative_clauses_non_defining",
+    "label": "Mệnh đề quan hệ không xác định",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "relative_clauses_redundant_pronoun",
+    "label": "Lỗi đại từ thừa trong mệnh đề quan hệ",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "relative_clauses_whose",
+    "label": "Mệnh đề quan hệ với whose",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "reported_commands",
+    "label": "Câu tường thuật: Câu mệnh lệnh",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "reported_commands_negative",
+    "label": "Câu tường thuật: Câu mệnh lệnh phủ định",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "reported_requests",
+    "label": "Câu tường thuật: Câu yêu cầu",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "reported_wh_questions",
+    "label": "Câu tường thuật: Câu hỏi có từ để hỏi",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "reported_yes_no_questions",
+    "label": "Câu tường thuật: Câu hỏi Yes/No",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "subject_verb_agreement_negative",
+    "label": "Hoà hợp chủ ngữ - động từ (thể phủ định)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "superlatives",
+    "label": "So sánh nhất",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "superlatives_no_other",
+    "label": "Diễn đạt so sánh nhất bằng 'no other'",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "th_sound_voiced_voiceless",
+    "label": "Phát âm: Âm /θ/ và /ð/ (th)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "there_be_uncountable_nouns",
+    "label": "Cấu trúc there is/are với danh từ không đếm được",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "used_to",
+    "label": "Cấu trúc used to (thói quen trong quá khứ)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "verb_patterns_gerund",
+    "label": "Động từ theo sau bởi V-ing",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "vocabulary_adjectives_ed",
+    "label": "Từ vựng: Tính từ mô tả thành phố",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "vocabulary_city_life",
+    "label": "Từ vựng: Cuộc sống thành thị",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "vocabulary_environment",
+    "label": "Từ vựng: Môi trường",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "vocabulary_health",
+    "label": "Từ vựng: Sức khoẻ",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "vocabulary_local_community",
+    "label": "Từ vựng: Cộng đồng địa phương",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "vowel_sounds_oo",
+    "label": "Phát âm: Nguyên âm 'oo'",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "wish_present",
+    "label": "Câu ước ở hiện tại (wish + quá khứ đơn)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "wish_present_ability",
+    "label": "Câu ước về khả năng ở hiện tại (wish + could)",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "word_formation_adverb",
+    "label": "Cấu tạo từ: Trạng từ",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "word_formation_noun_person",
+    "label": "Cấu tạo từ: Danh từ chỉ người",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "word_formation_plural_noun",
+    "label": "Cấu tạo từ: Danh từ số nhiều bất quy tắc",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "word_stress_four_syllables",
+    "label": "Trọng âm: Từ bốn âm tiết",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
+  },
+  {
+    "topic": "word_stress_three_syllables",
+    "label": "Trọng âm: Từ ba âm tiết",
+    "targetEasyCount": 5,
+    "targetMediumCount": 5,
+    "targetHardCount": 3
   }
 ]
