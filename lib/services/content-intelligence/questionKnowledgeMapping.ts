@@ -1,5 +1,5 @@
 /**
- * Question Knowledge Mapping Service — M3.3
+ * Question Knowledge Mapping Service — M3.3, extended by KU-1 part B
  *
  * Handles individual question ↔ KnowledgeUnit assignments.
  * This is the canonical location for all CRUD operations on
@@ -12,9 +12,27 @@
  * Matching strategy: deterministic topic string equality only.
  *   question.topic === knowledgeUnit.topic (both normalized snake_case)
  *   No fuzzy matching. No AI classification.
+ *
+ * KU-1 part B (docs/KU1_PARTB_DESIGN.md §6): a topic with no matching
+ * KnowledgeUnit used to vanish silently (`return false`, nothing recorded).
+ * autoAssignKnowledgeUnit() now records a PendingKnowledgeUnit on that miss
+ * instead of discarding it, so the review queue can grow the taxonomy from
+ * what Path B's import pipeline is already seeing. This is Path B feeding
+ * the queue — not Path A (the dedicated source→taxonomy reader), which does
+ * not exist yet. The caller's contract is unchanged: still non-throwing,
+ * still returns false on no match (see DECISION_LOG "M3.3 — Auto-assign is
+ * non-throwing").
  */
 
 import { prisma } from "@/lib/db/prisma";
+
+/** Naive default label until a human reviewer writes a real one. */
+function naiveLabelFromTopic(topic: string): string {
+  return topic
+    .split("_")
+    .map((word) => (word.length > 0 ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(" ");
+}
 
 // ─────────────────────────────────────────────────────────
 // Pure helper — exported so it can be tested without a DB
@@ -107,16 +125,52 @@ export async function getQuestionsForKnowledgeUnit(knowledgeUnitId: string) {
  * Failure never blocks approval: if no KnowledgeUnit exists for this topic yet,
  * the question remains unmapped and coverage computation still works via topic
  * string matching.
+ *
+ * KU-1 part B: on a miss, records a PendingKnowledgeUnit instead of discarding
+ * the topic — see the file header. `evidence` carries what to show a reviewer;
+ * required, since a proposal nobody can ground in the source is not reviewable.
+ * Deduplicates against an existing PENDING_REVIEW proposal for the same
+ * (contentSourceId, proposedTopic) pair, so re-approving several questions that
+ * share an unknown topic — the common case — creates one proposal, not one per
+ * question.
  */
 export async function autoAssignKnowledgeUnit(
   questionId: string,
-  topic: string
+  topic: string,
+  evidence: { contentSourceId: string; evidenceQuote: string; evidenceLocation?: string }
 ): Promise<boolean> {
   const unit = await prisma.knowledgeUnit.findUnique({ where: { topic } });
-  if (!unit) return false;
-  await prisma.question.update({
-    where: { id: questionId },
-    data: { knowledgeUnitId: unit.id },
+  if (unit) {
+    await prisma.question.update({
+      where: { id: questionId },
+      data: { knowledgeUnitId: unit.id },
+    });
+    return true;
+  }
+
+  const existing = await prisma.pendingKnowledgeUnit.findFirst({
+    where: {
+      contentSourceId: evidence.contentSourceId,
+      proposedTopic: topic,
+      reviewStatus: "PENDING_REVIEW",
+    },
+    select: { id: true },
   });
-  return true;
+  if (!existing) {
+    await prisma.pendingKnowledgeUnit.create({
+      data: {
+        contentSourceId: evidence.contentSourceId,
+        // taxonomyJobId intentionally omitted (null) — Path B never runs a
+        // TaxonomyJob; see the model's schema comment.
+        proposedTopic: topic,
+        proposedLabel: naiveLabelFromTopic(topic),
+        evidenceQuote: evidence.evidenceQuote,
+        evidenceLocation: evidence.evidenceLocation,
+        // No aiConfidence: this miss is a deterministic string-equality
+        // failure, not an AI judgement call, so there is nothing to score.
+      },
+    });
+  }
+
+  return false;
 }

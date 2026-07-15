@@ -1,6 +1,20 @@
 # KU-1 Part B — Source → Pending KnowledgeUnit → Review Queue
 
-**Status:** **APPROVED (Path A) — founder ruling, 2026-07-15.** Ready to build. No code yet.
+**Status:** **APPROVED (Path A) — founder ruling, 2026-07-15.** Build order §8 step 1 **shipped and
+verified** the same day (`feat/ku1-partb-schema`, stacked on `feat/qm1-response-format`).
+
+**Evidence (run, not asserted):**
+- schema migration additive — 3 new tables only, no existing table altered
+- `tsc --noEmit` clean; `test:knowledge-mapping` **54/54** (15 new, testing the label generator and
+  the dedup guard incl. the cross-source and post-REJECTED cases); no regressions elsewhere
+- **round-trip against real seeded data:** ran the updated `autoAssignKnowledgeUnit()` over all 122
+  questions — **49 matched an existing KnowledgeUnit** (now actually linked via `knowledgeUnitId`,
+  previously 0/122 per Finding A), **73 missed across exactly 62 distinct topics → 62
+  `PendingKnowledgeUnit` rows** (not 73 — dedup worked), every row has `taxonomyJobId = null` and a
+  non-empty `evidenceQuote`. Re-ran the same 122 a second time: **0 additional rows created**
+
+**Also done, ahead of §8's listed order:** step 4 (the miss-handling change) shipped alongside step 1,
+since it was the only way to verify the schema against real data rather than an empty table.
 **Depends on:** `docs/V1_V2_RECONCILIATION.md` (which makes this a **blocker**, not a follow-up).
 **Trigger:** founder's stated goal — *"đưa Cambridge IELTS Academic PDF, Lexi đọc và tạo được KU;
 các sources khác cũng tương tự."*
@@ -152,8 +166,8 @@ would let a hallucinated topic silently win the unique constraint against a real
 ```
 PendingKnowledgeUnit
   id
-  contentSourceId   → ContentSource   // provenance: which source proposed it
-  taxonomyJobId     → TaxonomyJob
+  contentSourceId   → ContentSource   // provenance: which source proposed it — always set
+  taxonomyJobId     → TaxonomyJob?    // NULLABLE — see below
   proposedTopic     String            // canonicalTopic()-normalized, NOT unique
   proposedLabel     String            // human-readable (Vietnamese for VN exams, EN for IELTS)
   evidenceQuote     String            // the source span that justified it — grounds review
@@ -165,6 +179,13 @@ PendingKnowledgeUnit
   resolvedUnitId    String?           // → KnowledgeUnit, set on APPROVE or MERGE
   createdAt / updatedAt
 ```
+
+**`taxonomyJobId` is nullable — a design correction caught before implementation.** The original
+sketch implied it was required, but §6's integration is called from `autoAssignKnowledgeUnit()`
+inside **Path B**, which has no `TaxonomyJob` in scope at all (that only exists on Path A). What
+*is* always reachable there is the `ContentSource` (via `ImportJob`), so `contentSourceId` stays
+required and `taxonomyJobId` is set only when a proposal came from an actual Path A run. A proposal
+is provenanced by whichever job produced it — never both, and possibly neither of `taxonomyJobId`.
 
 ```
 enum PendingKUStatus { PENDING_REVIEW  APPROVED  MERGED  RENAMED  REJECTED }

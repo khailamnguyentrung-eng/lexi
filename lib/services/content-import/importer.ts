@@ -131,7 +131,10 @@ export async function listPendingDrafts(importJobId: string) {
 // Approve a draft — creates the real Question row and records the
 // resulting id so re-approval is a no-op.
 export async function approveDraft(draftId: string, reviewedByUserId: string) {
-  const draft = await prisma.extractedQuestionDraft.findUniqueOrThrow({ where: { id: draftId } });
+  const draft = await prisma.extractedQuestionDraft.findUniqueOrThrow({
+    where: { id: draftId },
+    include: { importJob: { select: { contentSourceId: true } } },
+  });
   const data: NormalizedQuestionDraft = JSON.parse(draft.normalizedData);
 
   const created = await prisma.question.create({
@@ -158,8 +161,14 @@ export async function approveDraft(draftId: string, reviewedByUserId: string) {
   // Attempt topic-based KnowledgeUnit assignment. Non-throwing: missing
   // KnowledgeUnit never fails approval — backward compatible with all
   // existing questions and topics that predate the KnowledgeUnit registry.
+  // On a miss, this records a PendingKnowledgeUnit (KU-1 part B) instead of
+  // discarding the topic — promptText is the evidence a reviewer needs to
+  // judge whether it's a real KnowledgeUnit.
   try {
-    await autoAssignKnowledgeUnit(created.id, data.topic);
+    await autoAssignKnowledgeUnit(created.id, data.topic, {
+      contentSourceId: draft.importJob.contentSourceId,
+      evidenceQuote: data.promptText,
+    });
   } catch {
     // auto-assign failure is non-critical; coverage still works via topic matching
   }

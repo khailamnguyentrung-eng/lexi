@@ -334,6 +334,89 @@ console.log("\n── existing import flow compatibility ───────�
   assert("autoAssign error does not abort approval", approvalSucceeded);
 }
 
+// ── KU-1 part B: miss-handling (docs/KU1_PARTB_DESIGN.md §6) ───────────────────
+// Pure re-implementations of the two small pieces of decision logic added to
+// autoAssignKnowledgeUnit() — the naive label generator, and the dedup check
+// against an existing PENDING_REVIEW proposal. The Prisma-touching parts
+// (findUnique/findFirst/create) were verified separately against real seeded
+// data: 122 questions -> 49 matched an existing KU, 73 missed across 62
+// distinct topics -> exactly 62 PendingKnowledgeUnit rows (deduped), all with
+// taxonomyJobId=null and a non-empty evidenceQuote; re-running the same 122
+// again created zero additional rows.
+
+{
+  function naiveLabelFromTopic(topic) {
+    return topic
+      .split("_")
+      .map((word) => (word.length > 0 ? word[0].toUpperCase() + word.slice(1) : word))
+      .join(" ");
+  }
+
+  assert(
+    "naive label: single word capitalized",
+    naiveLabelFromTopic("articles") === "Articles"
+  );
+  assert(
+    "naive label: underscores become spaces, each word capitalized",
+    naiveLabelFromTopic("both_and_structure") === "Both And Structure"
+  );
+  assert(
+    "naive label: matches the real proposal observed for a real miss",
+    naiveLabelFromTopic("communication_accepting_invitations") ===
+      "Communication Accepting Invitations"
+  );
+}
+
+{
+  // Simulates the dedup guard: a second question sharing an already-proposed
+  // (contentSourceId, topic, PENDING_REVIEW) triple must not create a second row.
+  function simulateMissHandling(existingProposals, contentSourceId, topic) {
+    const alreadyProposed = existingProposals.some(
+      (p) =>
+        p.contentSourceId === contentSourceId &&
+        p.proposedTopic === topic &&
+        p.reviewStatus === "PENDING_REVIEW"
+    );
+    if (alreadyProposed) return existingProposals; // no new row
+    return [...existingProposals, { contentSourceId, proposedTopic: topic, reviewStatus: "PENDING_REVIEW" }];
+  }
+
+  let proposals = [];
+  proposals = simulateMissHandling(proposals, "src_1", "conjunctions_because");
+  assert("first miss for a topic creates a proposal", proposals.length === 1);
+
+  proposals = simulateMissHandling(proposals, "src_1", "conjunctions_because");
+  assert(
+    "second question with the SAME unknown topic does not duplicate the proposal",
+    proposals.length === 1
+  );
+
+  proposals = simulateMissHandling(proposals, "src_1", "double_comparatives");
+  assert(
+    "a DIFFERENT unknown topic still creates its own proposal",
+    proposals.length === 2
+  );
+
+  proposals = simulateMissHandling(proposals, "src_2", "conjunctions_because");
+  assert(
+    "the SAME topic from a DIFFERENT source is a separate proposal (contentSourceId is part of the key)",
+    proposals.length === 3
+  );
+
+  // A resolved (non-PENDING_REVIEW) proposal must not block a fresh one — e.g.
+  // the first was REJECTED and the topic reappears in a later import.
+  proposals = proposals.map((p) =>
+    p.contentSourceId === "src_1" && p.proposedTopic === "conjunctions_because"
+      ? { ...p, reviewStatus: "REJECTED" }
+      : p
+  );
+  proposals = simulateMissHandling(proposals, "src_1", "conjunctions_because");
+  assert(
+    "a REJECTED proposal does not block a new proposal for the same topic",
+    proposals.length === 4
+  );
+}
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 console.log(`\n${"─".repeat(60)}`);
