@@ -22,6 +22,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/content-import" className="text-sm text-zinc-600 hover:text-lexi-primary-dark">
             Content Import
           </Link>
+          <Link href="/admin/knowledge-units" className="text-sm text-zinc-600 hover:text-lexi-primary-dark">
+            Knowledge Units
+          </Link>
         </div>
         <div className="flex items-center gap-4">
           <Link href="/dashboard" className="text-sm text-zinc-600 hover:text-lexi-primary-dark">
