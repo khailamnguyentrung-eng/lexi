@@ -206,11 +206,16 @@ for this specific batch, since the review step is deliberately reserved for a hu
 `Question.topic` strings, 71 KUs + 3 merged-away topics (the two `present_perfect_*` duplicates plus
 `modal_verbs_should`) accounts for all 74.
 
-**This is real, verified state — and it is NOT yet durable.** It lives only in the running `dev.db`.
-`prisma/seed.ts` still seeds the original 12 `KnowledgeUnit` rows from `knowledge-units.json`; a fresh
-`npm run db:seed` would revert the registry to 12 and every question to `knowledgeUnitId = null`.
-Encoding the 71-unit registry into seed data (or another durable form) is real follow-up work, not
-done here — recorded so it isn't mistaken for already being safe.
+**Now durable (2026-07-15, same day).** `prisma/seed-data/knowledge-units.json` carries all 71 units
+with proper Vietnamese labels (not the naive `naiveLabelFromTopic()` placeholders); `prisma/seed.ts`
+gained `linkQuestionsToKnowledgeUnits()`, which backfills `knowledgeUnitId` by the same deterministic
+topic match `autoAssignKnowledgeUnit()` uses, plus a small `KNOWN_TOPIC_MERGES` map encoding the 3
+review-queue MERGE decisions (topics with no `KnowledgeUnit` of their own) that a plain string match
+can never reach. **Verified on a truly from-scratch database (fresh SQLite file, not just the live
+`dev.db`): 118/118 seeded questions linked, 0 unmapped.** Re-running against the live `dev.db` is
+idempotent (0 relinked — everything was already correct) and non-destructive (upsert-only; a fresh
+seed run upgrades the 55 naive English labels to proper Vietnamese ones in place, without touching any
+existing `knowledgeUnitId`).
 
 ## 6. Sequencing, and the one gate
 
