@@ -33,7 +33,18 @@
     "test:question-generation": "node scripts/test-question-generation-foundation.mjs",
     "test:ai-generation": "node scripts/test-ai-generation-integration.mjs",
     "test:generated-drafts": "node scripts/test-generated-draft-pipeline.mjs",
-    "test:generation-quality": "node scripts/test-generation-quality.mjs"
+    "test:generation-quality": "node scripts/test-generation-quality.mjs",
+    "test:learner-state": "node scripts/test-learner-state-foundation.mjs",
+    "test:learner-profile-v3": "node scripts/test-learner-profile-v3.mjs",
+    "test:behavior-state": "node scripts/test-learning-behavior-state.mjs",
+    "test:preference-state": "node scripts/test-learning-preference-state.mjs",
+    "test:problem-solving-state": "node scripts/test-problem-solving-state.mjs",
+    "test:lens-foundation": "node scripts/test-lexi-lens-foundation.mjs",
+    "test:lens-ai-foundation": "node scripts/test-lens-ai-foundation.mjs",
+    "test:lens-assistance": "node scripts/test-lens-assistance.mjs",
+    "test:lens-image": "node scripts/test-lens-image-understanding.mjs",
+    "test:design-system": "node scripts/test-design-system.mjs",
+    "test:all": "node scripts/run-all-tests.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
