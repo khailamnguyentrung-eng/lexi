@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { StartMockTestButton } from "./StartMockTestButton";
 
 export default async function MockTestPage() {
   const user = await getCurrentUser();
@@ -43,7 +42,15 @@ export default async function MockTestPage() {
                 {t.totalQuestions} câu · {t.timeLimitMin} phút
               </p>
               <div className="mt-3">
-                <StartMockTestButton templateId={t.id} />
+                {/* Goes to the pre-exam ritual, NOT straight to the test — the
+                    attempt (and its timer) is only created once the learner
+                    confirms "ready" there. See PreExamRitual.tsx. */}
+                <Link
+                  href={`/mocktest/${t.id}/ready`}
+                  className="inline-block rounded-full bg-lexi-primary px-5 py-2 text-xs font-semibold text-white hover:bg-lexi-primary-dark"
+                >
+                  Bắt đầu thi thử
+                </Link>
               </div>
             </div>
           ))}
