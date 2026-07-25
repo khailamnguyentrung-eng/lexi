@@ -6,7 +6,14 @@ import { useRouter } from "next/navigation";
 import { getCorrectMessage, getIncorrectIntro } from "@/lib/ai/encouragement";
 import { LensFloatingAssistant } from "@/components/lens/LensFloatingAssistant";
 import { AnswerInput } from "./AnswerInput";
-import type { PublicQuestionPayload, QuestionPayload, QuestionResponse, ResponseFormatName } from "@/lib/services/question-format";
+import {
+  describeResponse,
+  describeCorrectAnswer,
+  type PublicQuestionPayload,
+  type QuestionPayload,
+  type QuestionResponse,
+  type ResponseFormatName,
+} from "@/lib/services/question-format";
 
 interface QuizQuestion {
   id: string;
@@ -25,79 +32,6 @@ interface AttemptFeedback {
   commonMistake: string | null;
   concept: string;
   submittedResponse: QuestionResponse;
-}
-
-/**
- * Renders "what you answered" / "the correct answer was" as plain text, one
- * function per format. Deliberately text, not a bespoke visual per format —
- * see AnswerInput.tsx's file header for why that's out of scope here.
- */
-function describeResponse(format: ResponseFormatName, payload: QuestionPayload, response: QuestionResponse): string {
-  switch (format) {
-    case "SINGLE_CHOICE": {
-      const p = payload as import("@/lib/services/question-format").SingleChoicePayload;
-      const r = response as import("@/lib/services/question-format").SingleChoiceResponse;
-      return p.options.find((o) => o.id === r?.optionId)?.text ?? "(chưa trả lời)";
-    }
-    case "MULTI_CHOICE": {
-      const p = payload as import("@/lib/services/question-format").MultiChoicePayload;
-      const r = response as import("@/lib/services/question-format").MultiChoiceResponse;
-      const texts = (r?.optionIds ?? []).map((id) => p.options.find((o) => o.id === id)?.text ?? id);
-      return texts.length ? texts.join(", ") : "(chưa chọn đáp án nào)";
-    }
-    case "SHORT_TEXT": {
-      const p = payload as import("@/lib/services/question-format").ShortTextPayload;
-      const r = response as import("@/lib/services/question-format").ShortTextResponse;
-      return p.blanks.map((b, i) => `(${i + 1}) ${r?.answers?.[b.id] || "—"}`).join("; ");
-    }
-    case "MATCHING": {
-      const p = payload as import("@/lib/services/question-format").MatchingPayload;
-      const r = response as import("@/lib/services/question-format").MatchingResponse;
-      return (r?.pairs ?? [])
-        .map((pair) => {
-          const left = p.left.find((l) => l.id === pair.leftId)?.text ?? pair.leftId;
-          const right = p.right.find((rt) => rt.id === pair.rightId)?.text ?? pair.rightId;
-          return `${left} → ${right}`;
-        })
-        .join("; ");
-    }
-    case "ORDERING": {
-      const p = payload as import("@/lib/services/question-format").OrderingPayload;
-      const r = response as import("@/lib/services/question-format").OrderingResponse;
-      return (r?.order ?? []).map((id) => p.items.find((it) => it.id === id)?.text ?? id).join(" → ");
-    }
-  }
-}
-
-function describeCorrectAnswer(format: ResponseFormatName, payload: QuestionPayload): string {
-  switch (format) {
-    case "SINGLE_CHOICE": {
-      const p = payload as import("@/lib/services/question-format").SingleChoicePayload;
-      return p.options.find((o) => o.id === p.correctOptionId)?.text ?? "";
-    }
-    case "MULTI_CHOICE": {
-      const p = payload as import("@/lib/services/question-format").MultiChoicePayload;
-      return p.correctOptionIds.map((id) => p.options.find((o) => o.id === id)?.text ?? id).join(", ");
-    }
-    case "SHORT_TEXT": {
-      const p = payload as import("@/lib/services/question-format").ShortTextPayload;
-      return p.blanks.map((b, i) => `(${i + 1}) ${b.acceptedAnswers[0]}`).join("; ");
-    }
-    case "MATCHING": {
-      const p = payload as import("@/lib/services/question-format").MatchingPayload;
-      return p.correctPairs
-        .map((pair) => {
-          const left = p.left.find((l) => l.id === pair.leftId)?.text ?? pair.leftId;
-          const right = p.right.find((r) => r.id === pair.rightId)?.text ?? pair.rightId;
-          return `${left} → ${right}`;
-        })
-        .join("; ");
-    }
-    case "ORDERING": {
-      const p = payload as import("@/lib/services/question-format").OrderingPayload;
-      return p.correctOrder.map((id) => p.items.find((it) => it.id === id)?.text ?? id).join(" → ");
-    }
-  }
 }
 
 export function PracticeQuiz({
