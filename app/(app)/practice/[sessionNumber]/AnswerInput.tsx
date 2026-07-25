@@ -11,6 +11,11 @@ import type {
   PublicOrderingPayload,
   ResponseFormatName,
   QuestionResponse,
+  SingleChoiceResponse,
+  MultiChoiceResponse,
+  ShortTextResponse,
+  MatchingResponse,
+  OrderingResponse,
 } from "@/lib/services/question-format";
 
 /**
@@ -20,6 +25,13 @@ import type {
  * existed. The other four need an explicit submit action: a learner is
  * composing a multi-part answer (several blanks, several pairs, an order),
  * and submitting on the first partial interaction would be premature.
+ *
+ * `initialResponse` (all formats) hydrates a previously-given answer — used
+ * by the mock test Test Player, where a learner can navigate away from a
+ * question and back before final submission and must see their own prior
+ * answer still there, not a blank slate. Practice mode passes no initial
+ * response (there is nothing to hydrate: PracticeQuiz locks a question after
+ * one answer).
  *
  * None of these render post-submission feedback themselves — the generic
  * feedback panel in PracticeQuiz.tsx (submitted vs. correct, in plain text)
@@ -32,6 +44,7 @@ interface FormatComponentProps<Payload, Response> {
   payload: Payload;
   onSubmit: (response: Response) => void;
   disabled: boolean;
+  initialResponse?: Response | null;
 }
 
 function SingleChoiceAnswer({
@@ -42,9 +55,12 @@ function SingleChoiceAnswer({
   correctOptionId,
   isUnderlineType,
   underlineTopic,
-}: FormatComponentProps<PublicSingleChoicePayload, { optionId: string }> & {
+}: FormatComponentProps<PublicSingleChoicePayload, SingleChoiceResponse> & {
   selectedOptionId: string | null;
-  correctOptionId: string | null; // only set once feedback exists
+  // null before an answer is revealed (mock test: never, until results;
+  // practice: until the learner answers). A truthy value switches this
+  // component from "neutral selection" to "graded" colouring.
+  correctOptionId: string | null;
   isUnderlineType: boolean;
   underlineTopic: string;
 }) {
@@ -71,6 +87,11 @@ function SingleChoiceAnswer({
           if (isCorrectOpt) style = "border-emerald-400 bg-emerald-50";
           else if (isSelected) style = "border-rose-300 bg-rose-50";
           else style = "border-zinc-100 opacity-60";
+        } else if (isSelected) {
+          // Chosen but not yet graded/revealed (mock test, before submit) —
+          // a neutral highlight so the learner can see their own pick
+          // without it implying right/wrong.
+          style = "border-lexi-primary bg-lexi-soft";
         }
         return (
           <button
@@ -91,8 +112,9 @@ function MultiChoiceAnswer({
   payload,
   onSubmit,
   disabled,
-}: FormatComponentProps<PublicMultiChoicePayload, { optionIds: string[] }>) {
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  initialResponse,
+}: FormatComponentProps<PublicMultiChoicePayload, MultiChoiceResponse>) {
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(initialResponse?.optionIds ?? []));
 
   function toggle(id: string) {
     setPicked((prev) => {
@@ -124,7 +146,7 @@ function MultiChoiceAnswer({
         disabled={disabled || picked.size === 0}
         className="mt-1 self-start rounded-full bg-lexi-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
       >
-        Nộp câu trả lời
+        Ghi câu trả lời
       </button>
     </div>
   );
@@ -134,8 +156,9 @@ function ShortTextAnswer({
   payload,
   onSubmit,
   disabled,
-}: FormatComponentProps<PublicShortTextPayload, { answers: Record<string, string> }>) {
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  initialResponse,
+}: FormatComponentProps<PublicShortTextPayload, ShortTextResponse>) {
+  const [answers, setAnswers] = useState<Record<string, string>>(() => initialResponse?.answers ?? {});
   const allFilled = payload.blanks.every((b) => (answers[b.id] ?? "").trim().length > 0);
 
   return (
@@ -158,7 +181,7 @@ function ShortTextAnswer({
         disabled={disabled || !allFilled}
         className="mt-1 self-start rounded-full bg-lexi-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
       >
-        Nộp câu trả lời
+        Ghi câu trả lời
       </button>
     </div>
   );
@@ -168,8 +191,11 @@ function MatchingAnswer({
   payload,
   onSubmit,
   disabled,
-}: FormatComponentProps<PublicMatchingPayload, { pairs: { leftId: string; rightId: string }[] }>) {
-  const [choices, setChoices] = useState<Record<string, string>>({});
+  initialResponse,
+}: FormatComponentProps<PublicMatchingPayload, MatchingResponse>) {
+  const [choices, setChoices] = useState<Record<string, string>>(() =>
+    Object.fromEntries((initialResponse?.pairs ?? []).map((p) => [p.leftId, p.rightId]))
+  );
   const allChosen = payload.left.every((l) => Boolean(choices[l.id]));
 
   return (
@@ -201,7 +227,7 @@ function MatchingAnswer({
         disabled={disabled || !allChosen}
         className="mt-1 self-start rounded-full bg-lexi-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
       >
-        Nộp câu trả lời
+        Ghi câu trả lời
       </button>
     </div>
   );
@@ -211,8 +237,11 @@ function OrderingAnswer({
   payload,
   onSubmit,
   disabled,
-}: FormatComponentProps<PublicOrderingPayload, { order: string[] }>) {
-  const [order, setOrder] = useState<string[]>(() => payload.items.map((it) => it.id));
+  initialResponse,
+}: FormatComponentProps<PublicOrderingPayload, OrderingResponse>) {
+  const [order, setOrder] = useState<string[]>(
+    () => initialResponse?.order ?? payload.items.map((it) => it.id)
+  );
   const byId = new Map(payload.items.map((it) => [it.id, it.text]));
 
   function move(index: number, direction: -1 | 1) {
@@ -254,7 +283,7 @@ function OrderingAnswer({
         disabled={disabled}
         className="mt-1 self-start rounded-full bg-lexi-primary px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
       >
-        Nộp câu trả lời
+        Ghi câu trả lời
       </button>
     </div>
   );
@@ -269,6 +298,7 @@ export function AnswerInput({
   correctOptionId,
   isUnderlineType,
   underlineTopic,
+  initialResponse,
 }: {
   responseFormat: ResponseFormatName;
   payload: PublicQuestionPayload;
@@ -279,6 +309,8 @@ export function AnswerInput({
   correctOptionId: string | null;
   isUnderlineType: boolean;
   underlineTopic: string;
+  // Non-SINGLE_CHOICE formats only — see the file header.
+  initialResponse?: QuestionResponse | null;
 }) {
   switch (responseFormat) {
     case "SINGLE_CHOICE":
@@ -295,13 +327,39 @@ export function AnswerInput({
       );
     case "MULTI_CHOICE":
       return (
-        <MultiChoiceAnswer payload={payload as PublicMultiChoicePayload} onSubmit={onSubmit} disabled={disabled} />
+        <MultiChoiceAnswer
+          payload={payload as PublicMultiChoicePayload}
+          onSubmit={onSubmit}
+          disabled={disabled}
+          initialResponse={initialResponse as MultiChoiceResponse | null}
+        />
       );
     case "SHORT_TEXT":
-      return <ShortTextAnswer payload={payload as PublicShortTextPayload} onSubmit={onSubmit} disabled={disabled} />;
+      return (
+        <ShortTextAnswer
+          payload={payload as PublicShortTextPayload}
+          onSubmit={onSubmit}
+          disabled={disabled}
+          initialResponse={initialResponse as ShortTextResponse | null}
+        />
+      );
     case "MATCHING":
-      return <MatchingAnswer payload={payload as PublicMatchingPayload} onSubmit={onSubmit} disabled={disabled} />;
+      return (
+        <MatchingAnswer
+          payload={payload as PublicMatchingPayload}
+          onSubmit={onSubmit}
+          disabled={disabled}
+          initialResponse={initialResponse as MatchingResponse | null}
+        />
+      );
     case "ORDERING":
-      return <OrderingAnswer payload={payload as PublicOrderingPayload} onSubmit={onSubmit} disabled={disabled} />;
+      return (
+        <OrderingAnswer
+          payload={payload as PublicOrderingPayload}
+          onSubmit={onSubmit}
+          disabled={disabled}
+          initialResponse={initialResponse as OrderingResponse | null}
+        />
+      );
   }
 }

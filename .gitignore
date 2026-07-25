@@ -56,3 +56,11 @@ docs/superpowers/
 
 # Claude Code local preferences (shared .claude/launch.json is committed)
 .claude/settings.local.json
+
+# Superpowers plugin working files (tooling state, not project content)
+.superpowers/
+
+# Scratch/temp files from local debugging — never meant to be committed
+tmp-*.ts
+tmp-*.mjs
+tmp-*.js

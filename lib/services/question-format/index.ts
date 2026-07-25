@@ -25,6 +25,7 @@ export * from "./types";
 export { validatePayload, parsePayload } from "./validate";
 export { gradeResponse, normalizeText } from "./grade";
 export { toPublicPayload } from "./publicPayload";
+export { describeResponse, describeCorrectAnswer } from "./describe";
 export type {
   PublicQuestionPayload,
   PublicSingleChoicePayload,

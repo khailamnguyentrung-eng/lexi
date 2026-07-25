@@ -58,6 +58,7 @@ model User {
   recommendationIssuances RecommendationIssuance[]
   recommendationResponses RecommendationResponse[]
   reviewEngagements ReviewEngagement[]
+  mockTestAttempts MockTestAttempt[]
 }
 
 model LearnerProfile {
@@ -211,6 +212,7 @@ model Question {
 
   attempts     QuestionAttempt[]
   errorEntries ErrorNotebookEntry[]
+  mockTestSlots MockTestTemplateQuestion[]
 
   @@index([skill, topic])
   @@index([type])
@@ -245,8 +247,17 @@ model QuestionAttempt {
   curriculumSessionId String?
   curriculumSession   CurriculumSession? @relation(fields: [curriculumSessionId], references: [id])
 
+  // Set when this answer was submitted during a mock test, mirroring the
+  // curriculumSessionId pattern above — an answer given during a mock test
+  // is still just a QuestionAttempt, tagged with which session it belongs
+  // to. See "MOCK TEST" section below for why there's no separate
+  // AnswerRecord table.
+  mockTestAttemptId String?
+  mockTestAttempt   MockTestAttempt? @relation(fields: [mockTestAttemptId], references: [id])
+
   @@index([userId, questionId])
   @@index([userId, curriculumSessionId])
+  @@index([userId, mockTestAttemptId])
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -1058,4 +1069,77 @@ model ReviewEngagement {
 
   @@index([userId, reviewedAt])
   @@index([errorNotebookEntryId])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// MOCK TEST (docs/MOCKTESTTAB_DESIGN.md)
+// ──────────────────────────────────────────────────────────────────
+// The design doc sketches a SEPARATE `Question` model scoped to a mock test
+// (`mockTestId`, `contentJson`, `answerKey`). Deliberately not built that way
+// here: this session's whole point (V1_V2_RECONCILIATION.md, QM-1, KU-1) was
+// unifying the question bank into ONE `Question`/`ResponseFormat`/
+// `KnowledgeUnit` model instead of leaving parallel copies. A mock test paper
+// is a curated ORDERING of existing Question rows, not a new content type —
+// so `MockTestTemplateQuestion` is a join table (matching the
+// `KnowledgeUnitOnSession` precedent for "which rows compose this thing"),
+// and a submitted answer is still a `QuestionAttempt` (extended with a
+// nullable `mockTestAttemptId`, the same pattern `curriculumSessionId`
+// already uses) — not a parallel `AnswerRecord` table. One Evidence table for
+// every answer a learner ever submits, regardless of context.
+
+model MockTestTemplate {
+  id             String   @id @default(cuid())
+  title          String // e.g. "Thi thử vào 10 — Hà Nội"
+  description    String?
+  timeLimitMin   Int
+  totalQuestions Int
+  createdAt      DateTime @default(now())
+
+  questions MockTestTemplateQuestion[]
+  attempts  MockTestAttempt[]
+}
+
+// `order` is a plain column, not encoded in a JSON array on the template —
+// queryable/indexable, and leaves room for a future per-slot field (e.g. a
+// section label override) without a JSON schema migration.
+model MockTestTemplateQuestion {
+  id         String            @id @default(cuid())
+  templateId String
+  template   MockTestTemplate  @relation(fields: [templateId], references: [id])
+  questionId String
+  question   Question          @relation(fields: [questionId], references: [id])
+  order      Int // 1-based position in the paper
+
+  @@unique([templateId, order])
+  @@unique([templateId, questionId])
+}
+
+enum MockTestAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+}
+
+model MockTestAttempt {
+  id         String                 @id @default(cuid())
+  userId     String
+  user       User                   @relation(fields: [userId], references: [id])
+  templateId String
+  template   MockTestTemplate       @relation(fields: [templateId], references: [id])
+  status     MockTestAttemptStatus  @default(IN_PROGRESS)
+
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+
+  // Aggregate, computed once on submit from this attempt's QuestionAttempt
+  // rows — nullable while IN_PROGRESS. Per-question correctness is NOT
+  // revealed to the learner until submission (real exams don't grade
+  // per-question mid-test); these three columns are what the results page
+  // reads without recomputing.
+  score        Float?
+  correctCount Int?
+  totalCount   Int?
+
+  questionAttempts QuestionAttempt[]
+
+  @@index([userId, status])
 }
