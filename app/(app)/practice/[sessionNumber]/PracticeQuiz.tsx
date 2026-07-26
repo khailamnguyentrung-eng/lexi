@@ -72,6 +72,20 @@ export function PracticeQuiz({
     questionShownAtRef.current = Date.now();
   }, [current?.id]);
 
+  // Record session/slot start exactly once per mount — fire-and-forget so a
+  // transient failure never blocks the student from seeing the first
+  // question. This is the first real caller either start route has ever
+  // had (docs/superpowers/plans/2026-07-26-user-program-progress.md) — both
+  // routes are idempotent, so a remount (e.g. fast refresh) is harmless.
+  useEffect(() => {
+    if (sessionNumber !== undefined) {
+      fetch(`/api/curriculum/sessions/${sessionNumber}/start`, { method: "POST" }).catch(() => {});
+    } else if (programCurriculumId) {
+      fetch(`/api/program/slots/${programCurriculumId}/start`, { method: "POST" }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!midExamPrompt) return;
     setMidExamCountdown(5);
@@ -119,6 +133,9 @@ export function PracticeQuiz({
     } else if (sessionNumber !== undefined) {
       await fetch(`/api/curriculum/sessions/${sessionNumber}/complete`, { method: "POST" });
       router.push(`/practice/${sessionNumber}/results`);
+    } else if (programCurriculumId) {
+      await fetch(`/api/program/slots/${programCurriculumId}/complete`, { method: "POST" });
+      router.push(completionHref ?? "/dashboard");
     } else {
       router.push(completionHref ?? "/dashboard");
     }
