@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
 import { findMatchingKnowledgeUnitId } from "../lib/services/content-intelligence/questionKnowledgeMapping";
+import { seedDemoProgram } from "../lib/services/program/seedDemoProgram";
+import { assembleProgramGaps } from "../lib/services/program/assembleProgramGaps";
 
 const prisma = new PrismaClient();
 
@@ -356,6 +358,21 @@ async function main() {
   await seedKnowledgeUnits();
   await seedQuestions();
   await linkQuestionsToKnowledgeUnits();
+
+  // Program (v2 spine) — additive, does not touch seedCurriculum()'s
+  // CurriculumSession rows above. Must run AFTER seedKnowledgeUnits() (needs
+  // the KU registry to match grammarTopics against) and AFTER seedQuestions()
+  // (assembleProgramGaps() only matters once real KUs and their questions
+  // exist to report gaps for). Idempotent — see both functions' docstrings —
+  // so this is safe on every reseed, not just the first one.
+  const demo = await seedDemoProgram();
+  console.log(
+    demo.alreadyExisted
+      ? `Program "${demo.slug}" already exists, skipped re-seeding.`
+      : `Seeded Program "${demo.slug}": ${demo.slotsCreated} slots from curriculum.json (${demo.sessionsWithNoMatchedKU.length} sessions with no matched KnowledgeUnit, ${demo.unmatchedTopics.length} unmatched topic strings — expected, see seedDemoProgram.ts).`,
+  );
+  const gaps = await assembleProgramGaps();
+  console.log(`Assembled ${gaps.slotsCreated} additional Program slot(s) for KnowledgeUnits not covered by the seeded curriculum.`);
 }
 
 main()

@@ -442,3 +442,43 @@ Also rejected: Using `responseTimeSignal` from BehaviorProfile to add a "deliber
 **Reason:** Verified empirically: without this map, a from-scratch reseed (fresh SQLite file, `prisma db push` + `npm run db:seed`) leaves exactly 4 of 118 questions unmapped — precisely the ones on a merged topic, because the review queue's MERGE action deliberately never creates a `KnowledgeUnit` whose topic equals theirs (see "KU-1 part B — Merge does not update `computeCoverageReport()`" above). The map is the seed-time encoding of a decision that already happened once, live, through `mergePendingKnowledgeUnit()` — reproducing it must reproduce that exact prior human decision, not re-derive a new one. Rewriting `Question.topic` instead would fix the seed-time symptom but reopen the exact hazard the merge decision above already rejected: `Question.topic` is read elsewhere (`ErrorNotebookEntry.concept`, `computeCoverageReport()`), so changing it here would be the same silent, hard-to-audit side effect on 4 rows this time instead of one row at a time through the reviewed UI path.
 
 **Rejected:** Rewriting `Question.topic` to the merge target during seeding. Also rejected: leaving the 4 questions unmapped on a fresh seed and treating it as an acceptable gap — `V1_V2_RECONCILIATION.md` §6's gate is specifically "122/122 linked", and a reseed silently regressing 4 of them defeats the entire point of making the registry durable.
+
+---
+
+## Program — a lesson slot links MANY KnowledgeUnits, not one
+
+**Decision:** `ProgramCurriculum` (the v2 replacement for `CurriculumSession`) links to `KnowledgeUnit` through a join table (`ProgramCurriculumKnowledgeUnit`), not a single nullable FK.
+
+**Reason:** Measured against the real curriculum data before designing this, not assumed: 17 of the 24 existing sessions teach more than one `grammarTopic` at once, and 6 are checkpoint/review sessions matching none by exact string (deliberately cumulative, not a data quality problem). A single-KU-per-slot model cannot represent the curriculum that already exists — building it that way would have required either fragmenting real curated lessons into multiple slots (destroying the founder's own session-grouping decisions) or dropping topics silently. The join table costs one extra table for the ability to represent what the source data actually is.
+
+**Rejected:** `ProgramCurriculum.knowledgeUnitId String?` (single nullable FK). Would either force session 2 ("Phrasal verbs & củng cố các thì", 4 real grammarTopics) to pick one arbitrary topic to keep, or require splitting one curated lesson into four slots the founder never authored as four lessons.
+
+---
+
+## Program — the auto-assembler only ever appends, never edits or reorders
+
+**Decision:** `assembleProgramGaps()` creates a new `ProgramCurriculum` slot (at the end, `order = max + 1`) for every `KnowledgeUnit` not yet covered by any slot in the Program. It never modifies an existing slot's title, objective, order, or KnowledgeUnit links — not even to "improve" one.
+
+**Reason:** A Program is something a learner can be partway through. If growing the Program (by importing a new source, which creates new KnowledgeUnits) could also reorder or edit slots #1–71, a learner's sense of "I'm on lesson 12" would be invalidated by someone else's unrelated import days later. Monotonic, append-only growth is the one guarantee that makes a Program safe to be mid-course in while new content keeps arriving — which the founder was explicit is the expected steady state ("sau này tôi sẽ thêm resource khác nữa").
+
+**Rejected:** Any design where the assembler could re-derive or re-order the whole curriculum from scratch each run. Simpler to write, but makes "add a source" an action with an unbounded blast radius on every existing learner's position in the Program.
+
+---
+
+## Program — the assembler auto-runs after KU-1 review-queue actions, not on a schedule or a separate button
+
+**Decision:** `assembleProgramGaps()` is called automatically inside `approvePendingKnowledgeUnit()` and `mergePendingKnowledgeUnit()`, right after a proposal resolves — not as a cron job, not gated behind a separate "sync Program" admin action a human has to remember to click. Wrapped non-throwing (`tryAssembleProgramGaps()`), the same discipline `DECISION_LOG` already records for `autoAssignKnowledgeUnit()` ("Auto-assign is non-throwing") — a bug in program assembly must never block the human's actual approve/merge action from succeeding.
+
+**Reason:** This is literally the founder's ask, verified live end-to-end in the browser: approving a KnowledgeUnit through `/admin/knowledge-units` produced a new lesson slot at `/program/thi-vao-10-ha-noi/72` in the same click, with no second step. A scheduled job or a manual "regenerate" button would both add a lag between "content reviewed" and "lesson exists" that the founder's own words ("tạo bài học ngay") rule out.
+
+**Rejected:** A cron-scheduled sync. A manual "Cập nhật chương trình" admin button as the only trigger (kept as a mental fallback, not built, since the auto-hook already covers the real path — adding an unused manual trigger now would be speculative surface area, not a decision made from evidence).
+
+---
+
+## Program — CurriculumSession is untouched in this pass; the two spines run in parallel, disclosed
+
+**Decision:** This build adds `Program`/`ProgramCurriculum` as a new, fully additive system. `CurriculumSession`, `CurriculumPhase`, and the 14 files that still read `curriculumSessionId` (including Decision Engine consumers: `behaviorEngine.ts`, `studentLearningProfile.ts`, `practiceRecommendation.ts`, `repository.ts`, `service.ts`) are NOT modified, migrated, or removed here.
+
+**Reason:** `V1_V2_RECONCILIATION.md` already ruled `CurriculumSession` for removal — this is not a reversal of that ruling, only a sequencing call. Retiring 14 files' dependency on the old spine, several of which are the Decision Engine's own analytics layer, in the same pass as designing and verifying a new generic Program structure is more surgery than can be responsibly verified in one sitting. QM-1 set the precedent for exactly this situation (keep `optionA-D` live while `payload` becomes authoritative, cut over readers one at a time) — applied here the same way.
+
+**Rejected:** A single combined change deleting `CurriculumSession` and rewriting all 14 consumers alongside the new Program build. Explicitly disclosed to the founder as a scope decision before starting, not discovered as a gap afterward — retiring the old spine is separate, near-term follow-up work, not abandoned scope.

@@ -157,6 +157,25 @@ async function teardown() {
   // FK-safe order: children before parents.
   await prisma.pendingKnowledgeUnit.deleteMany({ where: { id: { in: created.pendingKUs } } });
   await prisma.question.deleteMany({ where: { id: { in: created.questions } } });
+  // approvePendingKnowledgeUnit()/mergePendingKnowledgeUnit() now auto-run
+  // assembleProgramGaps() (lib/services/program/), which creates a real
+  // ProgramCurriculum + ProgramCurriculumKnowledgeUnit slot for every
+  // KnowledgeUnit this test approves — including these throwaway fixtures.
+  // Must clean those up before deleting the KnowledgeUnit rows they
+  // reference, or the delete below hits a foreign key violation.
+  //
+  // Deliberately scoped by EXACT id, not "any slot with zero KUs" — some
+  // real ProgramCurriculum slots legitimately have no linked KnowledgeUnit
+  // by design (6 of the 24 seeded demo slots are cumulative checkpoint/
+  // review sessions with no single matched topic; see seedDemoProgram.ts).
+  // A blanket "empty slot" delete would destroy those too.
+  const fixtureSlots = await prisma.programCurriculumKnowledgeUnit.findMany({
+    where: { knowledgeUnitId: { in: created.knowledgeUnits } },
+    select: { programCurriculumId: true },
+  });
+  const fixtureSlotIds = [...new Set(fixtureSlots.map((s) => s.programCurriculumId))];
+  await prisma.programCurriculumKnowledgeUnit.deleteMany({ where: { knowledgeUnitId: { in: created.knowledgeUnits } } });
+  await prisma.programCurriculum.deleteMany({ where: { id: { in: fixtureSlotIds } } });
   await prisma.knowledgeUnit.deleteMany({ where: { id: { in: created.knowledgeUnits } } });
   if (created.contentSourceId) {
     await prisma.contentSource.delete({ where: { id: created.contentSourceId } }).catch(() => {});

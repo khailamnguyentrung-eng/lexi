@@ -34,6 +34,25 @@
 
 import { prisma } from "@/lib/db/prisma";
 import type { PendingKUStatus } from "@prisma/client";
+import { assembleProgramGaps } from "@/lib/services/program/assembleProgramGaps";
+
+/**
+ * Auto-grow the demo Program right after a KU resolves — the "add a source,
+ * get a lesson, immediately" pipeline the founder asked for. Non-throwing by
+ * design, same discipline DECISION_LOG already records for
+ * autoAssignKnowledgeUnit() ("Auto-assign is non-throwing"): this is an
+ * auxiliary side effect of a human approving/merging a proposal, and a bug in
+ * program assembly must never block that primary action from succeeding.
+ */
+async function tryAssembleProgramGaps(): Promise<void> {
+  try {
+    await assembleProgramGaps();
+  } catch {
+    // Non-critical — the KU is still correctly resolved either way. A gap
+    // here is recoverable later by re-running assembleProgramGaps() (it's
+    // idempotent), not a lost fact the way a silently-dropped topic would be.
+  }
+}
 
 export class TopicAlreadyExistsError extends Error {
   constructor(public readonly topic: string, public readonly existingKnowledgeUnitId: string) {
@@ -136,6 +155,8 @@ export async function approvePendingKnowledgeUnit(
     },
   });
 
+  await tryAssembleProgramGaps();
+
   return { proposal: updated, knowledgeUnitId: unit.id, questionsLinked };
 }
 
@@ -170,6 +191,12 @@ export async function mergePendingKnowledgeUnit(
       reviewNote,
     },
   });
+
+  // Usually a no-op (the target KU already existed and was either already
+  // covered by a slot or already an existing gap a prior run would've
+  // caught) — called anyway for consistency with approve(), and it's cheap
+  // and idempotent.
+  await tryAssembleProgramGaps();
 
   return { proposal: updated, knowledgeUnitId: target.id, questionsLinked };
 }
