@@ -255,3 +255,63 @@ export async function resolveSessionId(sessionNumber: number): Promise<string | 
   });
   return session?.id ?? null;
 }
+
+/**
+ * Find whichever spine's most recently completed unit (CurriculumSession or
+ * ProgramCurriculum slot) is truly the most recent by completedAt — used by
+ * studentLearningProfile.ts and practiceRecommendation.ts to feed
+ * getSessionAnalytics() for readiness/weakness-topic signals.
+ *
+ * Fixes a latent bug in the code this replaces: both call sites previously
+ * ordered by `curriculumSession.sessionNumber desc`, not `completedAt desc`
+ * — wrong whenever a session is completed out of numeric order (e.g. a
+ * review/checkpoint session redone later). Ordering by completedAt is what
+ * "most recently completed" should have always meant.
+ *
+ * Does NOT touch getCurrentMission()/mission-derived fields — those stay
+ * CurriculumSession-only, deliberately (see docs/superpowers/plans/
+ * 2026-07-26-repoint-behavior-and-readiness.md's Global Constraints).
+ */
+export interface MostRecentCompletedScope {
+  scope: AttemptScope;
+  label: number; // sessionNumber or Program slot order — the display label getSessionAnalytics expects
+}
+
+export async function findMostRecentlyCompletedScope(userId: string): Promise<MostRecentCompletedScope | null> {
+  const [recentCurriculum, recentProgram] = await Promise.all([
+    prisma.userSessionProgress.findFirst({
+      where: { userId, status: "COMPLETED" },
+      orderBy: { completedAt: "desc" },
+      select: {
+        completedAt: true,
+        curriculumSessionId: true,
+        curriculumSession: { select: { sessionNumber: true } },
+      },
+    }),
+    prisma.userProgramProgress.findFirst({
+      where: { userId, status: "COMPLETED" },
+      orderBy: { completedAt: "desc" },
+      select: {
+        completedAt: true,
+        programCurriculumId: true,
+        programCurriculum: { select: { order: true } },
+      },
+    }),
+  ]);
+
+  const curriculumTime = recentCurriculum?.completedAt?.getTime() ?? -1;
+  const programTime = recentProgram?.completedAt?.getTime() ?? -1;
+
+  if (curriculumTime < 0 && programTime < 0) return null;
+
+  if (programTime > curriculumTime) {
+    return {
+      scope: { programCurriculumId: recentProgram!.programCurriculumId },
+      label: recentProgram!.programCurriculum.order,
+    };
+  }
+  return {
+    scope: { curriculumSessionId: recentCurriculum!.curriculumSessionId },
+    label: recentCurriculum!.curriculumSession.sessionNumber,
+  };
+}

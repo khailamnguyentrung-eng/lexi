@@ -66,6 +66,7 @@ export {
   fetchNotebookContext,
   fetchSessionComparisonData,
   resolveSessionId,
+  findMostRecentlyCompletedScope,
 } from "./repository";
 
 // Pure analytics engine

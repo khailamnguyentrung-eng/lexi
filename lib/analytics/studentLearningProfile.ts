@@ -45,6 +45,7 @@ import {
 } from "./masteryTracking";
 import type { MasteryState, TopicMasteryProfile } from "./masteryTracking";
 import { getSessionAnalytics } from "./service";
+import { findMostRecentlyCompletedScope } from "./repository";
 import {
   buildQuestionCountMap,
   computeRecommendations,
@@ -422,14 +423,7 @@ export async function getStudentLearningProfile(
     getTopicNotebookSummaries(userId),
     getSkillMatrix(userId),
     getCurrentMission(userId),
-    prisma.userSessionProgress.findFirst({
-      where: { userId, status: "COMPLETED" },
-      orderBy: { curriculumSession: { sessionNumber: "desc" } },
-      select: {
-        curriculumSessionId: true,
-        curriculumSession: { select: { sessionNumber: true } },
-      },
-    }),
+    findMostRecentlyCompletedScope(userId),
     prisma.question.findMany({ select: { topic: true } }),
     getBehaviorProfile(userId).catch(() => ({
       preferredTimeOfDay: null,
@@ -485,11 +479,7 @@ export async function getStudentLearningProfile(
 
   if (recentCompleted) {
     try {
-      const analytics = await getSessionAnalytics(
-        userId,
-        { curriculumSessionId: recentCompleted.curriculumSessionId },
-        recentCompleted.curriculumSession.sessionNumber
-      );
+      const analytics = await getSessionAnalytics(userId, recentCompleted.scope, recentCompleted.label);
       readiness = analytics.readiness;
       weaknessSignalTopics = analytics.weaknessTopics
         .filter((w) => w.accuracy < 0.7)

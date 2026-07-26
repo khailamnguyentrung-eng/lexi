@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import {
   getTopicNotebookSummaries,
   getSessionAnalytics,
+  findMostRecentlyCompletedScope,
   canonicalTopic,
   computeTopicMastery,
 } from "@/lib/analytics";
@@ -289,14 +290,7 @@ export async function getAdaptiveRecommendations(
     await Promise.all([
       getTopicNotebookSummaries(userId),
       getCurrentMission(userId),
-      prisma.userSessionProgress.findFirst({
-        where: { userId, status: "COMPLETED" },
-        orderBy: { curriculumSession: { sessionNumber: "desc" } },
-        select: {
-          curriculumSessionId: true,
-          curriculumSession: { select: { sessionNumber: true } },
-        },
-      }),
+      findMostRecentlyCompletedScope(userId),
       prisma.question.findMany({ select: { topic: true } }),
     ]);
 
@@ -314,11 +308,7 @@ export async function getAdaptiveRecommendations(
 
   if (recentCompleted) {
     try {
-      const analytics = await getSessionAnalytics(
-        userId,
-        { curriculumSessionId: recentCompleted.curriculumSessionId },
-        recentCompleted.curriculumSession.sessionNumber
-      );
+      const analytics = await getSessionAnalytics(userId, recentCompleted.scope, recentCompleted.label);
       weaknessSignalTopics = analytics.weaknessTopics
         .filter((w) => w.accuracy < 0.7)
         .map((w) => ({
