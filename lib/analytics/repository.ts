@@ -280,7 +280,7 @@ export interface MostRecentCompletedScope {
 export async function findMostRecentlyCompletedScope(userId: string): Promise<MostRecentCompletedScope | null> {
   const [recentCurriculum, recentProgram] = await Promise.all([
     prisma.userSessionProgress.findFirst({
-      where: { userId, status: "COMPLETED" },
+      where: { userId, status: "COMPLETED", completedAt: { not: null } },
       orderBy: { completedAt: "desc" },
       select: {
         completedAt: true,
@@ -289,7 +289,7 @@ export async function findMostRecentlyCompletedScope(userId: string): Promise<Mo
       },
     }),
     prisma.userProgramProgress.findFirst({
-      where: { userId, status: "COMPLETED" },
+      where: { userId, status: "COMPLETED", completedAt: { not: null } },
       orderBy: { completedAt: "desc" },
       select: {
         completedAt: true,
@@ -299,10 +299,10 @@ export async function findMostRecentlyCompletedScope(userId: string): Promise<Mo
     }),
   ]);
 
-  const curriculumTime = recentCurriculum?.completedAt?.getTime() ?? -1;
-  const programTime = recentProgram?.completedAt?.getTime() ?? -1;
+  const curriculumTime = recentCurriculum?.completedAt?.getTime() ?? -Infinity;
+  const programTime = recentProgram?.completedAt?.getTime() ?? -Infinity;
 
-  if (curriculumTime < 0 && programTime < 0) return null;
+  if (curriculumTime === -Infinity && programTime === -Infinity) return null;
 
   if (programTime > curriculumTime) {
     return {

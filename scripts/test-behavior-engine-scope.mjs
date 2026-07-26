@@ -125,6 +125,10 @@ async function main() {
       "avgSessionDurationMin is computed (proves startedAt/completedAt pairs from both spines feed in)",
       profile.avgSessionDurationMin !== null && profile.avgSessionDurationMin > 0
     );
+    assert(
+      "responseTimeSignal is MODERATE (proves attempts from BOTH spines actually reached the engine, not just their startedAt/completedAt timestamps)",
+      profile.responseTimeSignal === "MODERATE"
+    );
   } finally {
     await prisma.questionAttempt.deleteMany({ where: { userId: user.id } });
     await prisma.userProgramProgress.deleteMany({ where: { userId: user.id } });
