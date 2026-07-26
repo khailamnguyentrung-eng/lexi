@@ -22,6 +22,7 @@
     "test:sm2": "node scripts/test-sm2.mjs",
     "test:review-engagement": "node scripts/test-review-engagement.mjs",
     "test:behavior-engine": "node scripts/test-behavior-engine.mjs",
+    "test:behavior-engine-scope": "node --import tsx scripts/test-behavior-engine-scope.mjs",
     "test:difficulty-calibration": "node scripts/test-difficulty-calibration.mjs",
     "test:learning-signals": "node scripts/test-learning-signals.mjs",
     "test:profile-v2": "node scripts/test-profile-v2.mjs",
