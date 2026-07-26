@@ -255,9 +255,22 @@ model QuestionAttempt {
   mockTestAttemptId String?
   mockTestAttempt   MockTestAttempt? @relation(fields: [mockTestAttemptId], references: [id])
 
+  // Set when this answer was submitted from a Program lesson slot (v2 spine —
+  // see Program/ProgramCurriculum below), same pattern as curriculumSessionId
+  // and mockTestAttemptId above: an attempt is still just a QuestionAttempt,
+  // tagged with which context it happened in. Added because
+  // /program/[slug]/[order] shipped in PR #15 without threading ANY
+  // session-context through — Program-slot attempts were being recorded with
+  // every context FK null, invisible to behaviorEngine/studentLearningProfile/
+  // practiceRecommendation. This is the fix, first of the "retire
+  // CurriculumSession" batch (docs/DECISION_LOG.md).
+  programCurriculumId String?
+  programCurriculum    ProgramCurriculum? @relation(fields: [programCurriculumId], references: [id])
+
   @@index([userId, questionId])
   @@index([userId, curriculumSessionId])
   @@index([userId, mockTestAttemptId])
+  @@index([userId, programCurriculumId])
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -1204,7 +1217,8 @@ model ProgramCurriculum {
   // practice checkpoint", it does not create or link a MockTestAttempt).
   sessionType SessionType @default(REGULAR)
 
-  knowledgeUnits ProgramCurriculumKnowledgeUnit[]
+  knowledgeUnits   ProgramCurriculumKnowledgeUnit[]
+  questionAttempts QuestionAttempt[] // attempts submitted while practicing this slot
 
   @@unique([programId, order])
 }

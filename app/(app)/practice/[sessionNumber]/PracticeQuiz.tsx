@@ -38,12 +38,16 @@ export function PracticeQuiz({
   sessionNumber,
   sessionType,
   curriculumSessionId,
+  programCurriculumId,
   questions,
   completionHref,
 }: {
   sessionNumber?: number;
   sessionType?: string;
   curriculumSessionId?: string;
+  // Program lesson slot id (v2 spine) — mirrors curriculumSessionId above.
+  // Passed by /program/[slug]/[order]; absent everywhere else.
+  programCurriculumId?: string;
   questions: QuizQuestion[];
   completionHref?: string;
 }) {
@@ -91,6 +95,7 @@ export function PracticeQuiz({
     const timeSpentSec = Math.round((Date.now() - questionShownAtRef.current) / 1000);
     const body: Record<string, unknown> = { response, timeSpentSec };
     if (curriculumSessionId) body.curriculumSessionId = curriculumSessionId;
+    if (programCurriculumId) body.programCurriculumId = programCurriculumId;
 
     const res = await fetch(`/api/questions/${current.id}/attempt`, {
       method: "POST",
