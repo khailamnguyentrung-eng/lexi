@@ -316,7 +316,7 @@ export async function getAdaptiveRecommendations(
     try {
       const analytics = await getSessionAnalytics(
         userId,
-        recentCompleted.curriculumSessionId,
+        { curriculumSessionId: recentCompleted.curriculumSessionId },
         recentCompleted.curriculumSession.sessionNumber
       );
       weaknessSignalTopics = analytics.weaknessTopics

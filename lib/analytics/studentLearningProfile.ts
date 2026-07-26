@@ -487,7 +487,7 @@ export async function getStudentLearningProfile(
     try {
       const analytics = await getSessionAnalytics(
         userId,
-        recentCompleted.curriculumSessionId,
+        { curriculumSessionId: recentCompleted.curriculumSessionId },
         recentCompleted.curriculumSession.sessionNumber
       );
       readiness = analytics.readiness;

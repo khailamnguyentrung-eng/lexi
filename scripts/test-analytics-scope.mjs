@@ -17,6 +17,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { fetchSessionAttempts } from "../lib/analytics/repository.ts";
+import { getSessionAnalytics } from "../lib/analytics/service.ts";
 
 const prisma = new PrismaClient();
 let passed = 0;
@@ -103,7 +104,25 @@ async function main() {
       "curriculumSessionId scope returns exactly the session-scoped attempt",
       bySessionScope.length === 1 && bySessionScope[0].id === sessionAttempt.id
     );
-    // Task 2 appends getSessionAnalytics assertions here — see Task 2 Step 4.
+    const programAnalytics = await getSessionAnalytics(user.id, { programCurriculumId: slot.id }, slot.order);
+    assert(
+      "getSessionAnalytics with programCurriculumId scope echoes the caller-supplied label as sessionNumber",
+      programAnalytics.sessionNumber === slot.order
+    );
+    assert(
+      "getSessionAnalytics with programCurriculumId scope produces a readiness result",
+      programAnalytics.readiness != null
+    );
+
+    const sessionAnalytics = await getSessionAnalytics(
+      user.id,
+      { curriculumSessionId: session.id },
+      session.sessionNumber
+    );
+    assert(
+      "getSessionAnalytics with curriculumSessionId scope still works unchanged",
+      sessionAnalytics.readiness != null
+    );
   } finally {
     await prisma.questionAttempt.deleteMany({ where: { userId: user.id } });
     await prisma.programCurriculum.delete({ where: { id: slot.id } });
