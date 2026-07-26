@@ -11,6 +11,7 @@
     "test:chat": "node --env-file=.env --import tsx ./scripts/test-chat.ts",
     "test:analytics": "node scripts/test-analytics.mjs",
     "test:analytics-scope": "node --import tsx scripts/test-analytics-scope.mjs",
+    "test:user-program-progress": "node --import tsx scripts/test-user-program-progress.mjs",
     "test:narrative": "node scripts/test-narrative.mjs",
     "test:results": "node scripts/test-results.mjs",
     "test:notebook": "node scripts/test-notebook-intelligence.mjs",

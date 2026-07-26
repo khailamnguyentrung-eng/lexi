@@ -39,26 +39,27 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  profile      LearnerProfile?
-  chatSessions ChatSession[]
-  errorEntries ErrorNotebookEntry[]
-  skillMatrix  SkillMatrixEntry[]
-  progress     UserSessionProgress[]
-  attempts     QuestionAttempt[]
+  profile         LearnerProfile?
+  chatSessions    ChatSession[]
+  errorEntries    ErrorNotebookEntry[]
+  skillMatrix     SkillMatrixEntry[]
+  progress        UserSessionProgress[]
+  programProgress UserProgramProgress[]
+  attempts        QuestionAttempt[]
 
   // Future admin content pipeline — unused by the MVP student flow.
-  contentSources          ContentSource[]          @relation("UploadedContentSources")
-  reviewedExtractedDrafts ExtractedQuestionDraft[] @relation("ReviewedExtractedDrafts")
-  reviewedPendingKnowledgeUnits PendingKnowledgeUnit[] @relation("ReviewedPendingKnowledgeUnits")
+  contentSources                ContentSource[]          @relation("UploadedContentSources")
+  reviewedExtractedDrafts       ExtractedQuestionDraft[] @relation("ReviewedExtractedDrafts")
+  reviewedPendingKnowledgeUnits PendingKnowledgeUnit[]   @relation("ReviewedPendingKnowledgeUnits")
 
   diagnosticTests DiagnosticTest[]
   moodEntries     MoodEntry[]
 
-  assistanceExchanges AssistanceExchange[]
+  assistanceExchanges     AssistanceExchange[]
   recommendationIssuances RecommendationIssuance[]
   recommendationResponses RecommendationResponse[]
-  reviewEngagements ReviewEngagement[]
-  mockTestAttempts MockTestAttempt[]
+  reviewEngagements       ReviewEngagement[]
+  mockTestAttempts        MockTestAttempt[]
 }
 
 model LearnerProfile {
@@ -132,10 +133,10 @@ enum Difficulty {
 // in columns.
 enum ResponseFormat {
   SINGLE_CHOICE // pick exactly one of N options. Covers the A/B/C/D MCQ this app was built on AND IELTS True/False/Not Given (same shape, 3 options)
-  MULTI_CHOICE  // pick M of N options
-  SHORT_TEXT    // PRODUCE text into one or more blanks — gap fill, word formation, sentence transformation
-  MATCHING      // pair each left item with a right item — IELTS matching headings/information/features
-  ORDERING      // arrange items into the correct sequence
+  MULTI_CHOICE // pick M of N options
+  SHORT_TEXT // PRODUCE text into one or more blanks — gap fill, word formation, sentence transformation
+  MATCHING // pair each left item with a right item — IELTS matching headings/information/features
+  ORDERING // arrange items into the correct sequence
 }
 
 model Passage {
@@ -151,13 +152,13 @@ model Passage {
 }
 
 model Question {
-  id                String        @id @default(cuid())
-  questionCode      String        @unique // human-readable, e.g. "DIAG36_Q01"
-  type              QuestionType
-  skill             SkillCategory
-  difficulty        Difficulty    @default(MEDIUM)
-  topic             String // e.g. "reported_speech" — required, normalized
-  promptText        String
+  id           String        @id @default(cuid())
+  questionCode String        @unique // human-readable, e.g. "DIAG36_Q01"
+  type         QuestionType
+  skill        SkillCategory
+  difficulty   Difficulty    @default(MEDIUM)
+  topic        String // e.g. "reported_speech" — required, normalized
+  promptText   String
 
   // ── Answer shape (QM-1) ──────────────────────────────────────────
   // `payload` holds everything format-specific: the options, the blanks, the
@@ -202,16 +203,16 @@ model Question {
   curriculumSession   CurriculumSession? @relation(fields: [curriculumSessionId], references: [id])
 
   // Content Intelligence (M3.1) — nullable; null for seeded/extracted questions
-  knowledgeUnitId    String?
-  knowledgeUnit      KnowledgeUnit?        @relation(fields: [knowledgeUnitId], references: [id])
-  generatedViaJobId  String?
-  generatedViaJob    QuestionGenerationJob? @relation("GeneratedQuestions", fields: [generatedViaJobId], references: [id])
+  knowledgeUnitId   String?
+  knowledgeUnit     KnowledgeUnit?         @relation(fields: [knowledgeUnitId], references: [id])
+  generatedViaJobId String?
+  generatedViaJob   QuestionGenerationJob? @relation("GeneratedQuestions", fields: [generatedViaJobId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  attempts     QuestionAttempt[]
-  errorEntries ErrorNotebookEntry[]
+  attempts      QuestionAttempt[]
+  errorEntries  ErrorNotebookEntry[]
   mockTestSlots MockTestTemplateQuestion[]
 
   @@index([skill, topic])
@@ -219,11 +220,11 @@ model Question {
 }
 
 model QuestionAttempt {
-  id                  String             @id @default(cuid())
-  userId              String
-  user                User               @relation(fields: [userId], references: [id])
-  questionId          String
-  question            Question           @relation(fields: [questionId], references: [id])
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
 
   // `selectedOption` (QM-1: legacy) — an "A"|"B"|"C"|"D" letter cannot express
   // typed text, a set of pairs, or an ordering. Kept for the existing readers;
@@ -265,7 +266,7 @@ model QuestionAttempt {
   // practiceRecommendation. This is the fix, first of the "retire
   // CurriculumSession" batch (docs/DECISION_LOG.md).
   programCurriculumId String?
-  programCurriculum    ProgramCurriculum? @relation(fields: [programCurriculumId], references: [id])
+  programCurriculum   ProgramCurriculum? @relation(fields: [programCurriculumId], references: [id])
 
   @@index([userId, questionId])
   @@index([userId, curriculumSessionId])
@@ -400,6 +401,30 @@ model UserSessionProgress {
   @@unique([userId, curriculumSessionId])
 }
 
+/**
+ * Structural mirror of UserSessionProgress, for the ProgramCurriculum (v2)
+ * spine instead of CurriculumSession. Both spines run in parallel on
+ * purpose (docs/DECISION_LOG.md) — this table exists so a Program slot's
+ * start/complete lifecycle can be tracked the same way a CurriculumSession's
+ * always could, even though (per investigation on 2026-07-26) that tracking
+ * was never actually wired into the UI for CurriculumSession either until
+ * this same change. See lib/analytics/behaviorEngine.ts for the consumer
+ * this eventually unblocks (not yet repointed — separate follow-up).
+ */
+model UserProgramProgress {
+  id                  String            @id @default(cuid())
+  userId              String
+  user                User              @relation(fields: [userId], references: [id])
+  programCurriculumId String
+  programCurriculum   ProgramCurriculum @relation(fields: [programCurriculumId], references: [id])
+  status              ProgressStatus    @default(NOT_STARTED)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  scoreAchieved       Float?
+
+  @@unique([userId, programCurriculumId])
+}
+
 // ──────────────────────────────────────────────────────────────────
 // LEXI AI CHATBOT
 // ──────────────────────────────────────────────────────────────────
@@ -489,8 +514,8 @@ model ContentSource {
 
   createdAt DateTime @default(now())
 
-  importJobs           ImportJob[]
-  sourceReads          SourceRead[]
+  importJobs            ImportJob[]
+  sourceReads           SourceRead[]
   pendingKnowledgeUnits PendingKnowledgeUnit[]
 }
 
@@ -527,9 +552,9 @@ enum ReviewStatus {
 
 // Validation outcome from contentValidation.ts, stored on GeneratedQuestionDraft.
 enum DraftValidationStatus {
-  PASS    // no issues
+  PASS // no issues
   WARNING // low/medium severity issues only
-  FAIL    // at least one high-severity issue — draft cannot be approved
+  FAIL // at least one high-severity issue — draft cannot be approved
 }
 
 model ExtractedQuestionDraft {
@@ -575,16 +600,16 @@ model ExtractedQuestionDraft {
 // by a job reuse the existing ExtractedQuestionDraft → approveDraft() flow.
 
 model KnowledgeUnit {
-  id                String   @id @default(cuid())
-  topic             String   @unique // must match Question.topic exactly (canonical snake_case)
-  label             String           // human-readable Vietnamese label
-  targetEasyCount   Int      @default(5)
-  targetMediumCount Int      @default(5)
-  targetHardCount   Int      @default(3)
+  id                String @id @default(cuid())
+  topic             String @unique // must match Question.topic exactly (canonical snake_case)
+  label             String // human-readable Vietnamese label
+  targetEasyCount   Int    @default(5)
+  targetMediumCount Int    @default(5)
+  targetHardCount   Int    @default(3)
 
   sessions          KnowledgeUnitOnSession[]
   questions         Question[]
-  generatedDrafts   GeneratedQuestionDraft[] @relation("GeneratedDraftsForUnit")
+  generatedDrafts   GeneratedQuestionDraft[]         @relation("GeneratedDraftsForUnit")
   resolvedProposals PendingKnowledgeUnit[]
   programSlots      ProgramCurriculumKnowledgeUnit[]
 
@@ -633,10 +658,10 @@ enum SourceReadStatus {
 }
 
 model SourceRead {
-  id              String            @id @default(cuid())
+  id              String           @id @default(cuid())
   contentSourceId String
-  contentSource   ContentSource     @relation(fields: [contentSourceId], references: [id])
-  status          SourceReadStatus  @default(PENDING)
+  contentSource   ContentSource    @relation(fields: [contentSourceId], references: [id])
+  status          SourceReadStatus @default(PENDING)
 
   // The single cached extraction. ImportJob keeps its own rawExtractedText
   // for now (design doc §4.2) — not duplicated here, and not read from here
@@ -655,8 +680,8 @@ model SourceRead {
 enum TaxonomyJobStatus {
   PENDING
   PROPOSING // AI call in progress
-  PROPOSED  // proposals created, awaiting human review
-  RESOLVED  // every proposal for this job has left PENDING_REVIEW
+  PROPOSED // proposals created, awaiting human review
+  RESOLVED // every proposal for this job has left PENDING_REVIEW
   FAILED
 }
 
@@ -730,11 +755,11 @@ model PendingKnowledgeUnit {
 }
 
 enum GenerationJobStatus {
-  PENDING    // job created, not yet run
+  PENDING // job created, not yet run
   GENERATING // AI call in progress
-  REVIEWING  // drafts created, awaiting human review
-  COMPLETED  // all drafts reviewed
-  FAILED     // AI call or draft creation errored
+  REVIEWING // drafts created, awaiting human review
+  COMPLETED // all drafts reviewed
+  FAILED // AI call or draft creation errored
 }
 
 model QuestionGenerationJob {
@@ -743,7 +768,7 @@ model QuestionGenerationJob {
   difficulty   Difficulty
   targetCount  Int
   status       GenerationJobStatus @default(PENDING)
-  errorMessage String?             // set when status = FAILED
+  errorMessage String? // set when status = FAILED
 
   drafts          ExtractedQuestionDraft[] @relation("GenerationDrafts")
   questions       Question[]               @relation("GeneratedQuestions")
@@ -783,13 +808,13 @@ model GeneratedQuestionDraft {
   optionB           String
   optionC           String
   optionD           String
-  correctOption     String   // "A" | "B" | "C" | "D"
+  correctOption     String // "A" | "B" | "C" | "D"
   explanationVi     String
   commonMistake     String?
   learningObjective String?
-  questionType      String   // QuestionType value, cast to enum at approval
-  questionSkill     String   // SkillCategory value, cast to enum at approval
-  source            String   // "generated:<topic>:<difficulty>"
+  questionType      String // QuestionType value, cast to enum at approval
+  questionSkill     String // SkillCategory value, cast to enum at approval
+  source            String // "generated:<topic>:<difficulty>"
 
   // Review lifecycle — reuses existing ReviewStatus enum
   status     ReviewStatus @default(PENDING_REVIEW)
@@ -798,7 +823,7 @@ model GeneratedQuestionDraft {
   // Validation result written at draft creation by contentValidation.ts.
   // FAIL drafts are blocked from approval.
   validationStatus DraftValidationStatus @default(PASS)
-  validationIssues String?               // JSON: ValidationIssue[]
+  validationIssues String? // JSON: ValidationIssue[]
 
   // Set when APPROVED — prevents duplicate Question creation on re-approval
   approvedQuestionId String?
@@ -954,8 +979,8 @@ model RecommendationIssuance {
   topic           String?
   sessionNumber   Int?
   suggestedAction RecommendationSuggestedAction // Intent
-  priorityLabel   RecommendationPriorityLabel   // Basis provenance handle — which evidence category this was computed from (not a stored Understanding reference; none exists to point to)
-  procedure       String                        // Decision Procedure identity, e.g. "computeRecommendations@v1" — provenance only, never "what did the procedure contain"
+  priorityLabel   RecommendationPriorityLabel // Basis provenance handle — which evidence category this was computed from (not a stored Understanding reference; none exists to point to)
+  procedure       String // Decision Procedure identity, e.g. "computeRecommendations@v1" — provenance only, never "what did the procedure contain"
 
   // Basis — Goal citation (Ch.3 §3.1 Fields; Inv 2 requires every Goal served
   // to be cited). Goal is represented as scalar LearnerProfile fields, not a
@@ -969,8 +994,8 @@ model RecommendationIssuance {
   // priorityLabel field above) — this closes the Goal-citation half of Basis
   // specifically, not the Understanding-pointer half, which the architecture
   // does not currently support persisting.
-  goalTargetExam  String?   // snapshot of LearnerProfile.targetExam
-  goalTargetScore Float?    // snapshot of LearnerProfile.targetScore
+  goalTargetExam  String? // snapshot of LearnerProfile.targetExam
+  goalTargetScore Float? // snapshot of LearnerProfile.targetScore
   goalTargetDate  DateTime? // snapshot of LearnerProfile.targetGoalDate
 
   // Required, non-identity (Ch.3 §3.1). Carries the timestamp of the most
@@ -986,7 +1011,7 @@ model RecommendationIssuance {
   // faithful record of the whole Recommendation that was issued, not just the
   // identity subset — supporting §3.1 Invariant 5's "stay auditable". Nullable
   // because they are enrichment, not required by PD3's four named obligations.
-  rationale String?                 // Rationale — the "why" text presented to the learner (prescriptive, references the belief it derived from)
+  rationale String? // Rationale — the "why" text presented to the learner (prescriptive, references the belief it derived from)
   firmness  RecommendationFirmness? // Firmness — how strongly offered, bounded by basis-confidence
 
   issuedAt DateTime @default(now())
@@ -1117,11 +1142,11 @@ model MockTestTemplate {
 // queryable/indexable, and leaves room for a future per-slot field (e.g. a
 // section label override) without a JSON schema migration.
 model MockTestTemplateQuestion {
-  id         String            @id @default(cuid())
+  id         String           @id @default(cuid())
   templateId String
-  template   MockTestTemplate  @relation(fields: [templateId], references: [id])
+  template   MockTestTemplate @relation(fields: [templateId], references: [id])
   questionId String
-  question   Question          @relation(fields: [questionId], references: [id])
+  question   Question         @relation(fields: [questionId], references: [id])
   order      Int // 1-based position in the paper
 
   @@unique([templateId, order])
@@ -1134,12 +1159,12 @@ enum MockTestAttemptStatus {
 }
 
 model MockTestAttempt {
-  id         String                 @id @default(cuid())
+  id         String                @id @default(cuid())
   userId     String
-  user       User                   @relation(fields: [userId], references: [id])
+  user       User                  @relation(fields: [userId], references: [id])
   templateId String
-  template   MockTestTemplate       @relation(fields: [templateId], references: [id])
-  status     MockTestAttemptStatus  @default(IN_PROGRESS)
+  template   MockTestTemplate      @relation(fields: [templateId], references: [id])
+  status     MockTestAttemptStatus @default(IN_PROGRESS)
 
   startedAt   DateTime  @default(now())
   submittedAt DateTime?
@@ -1203,12 +1228,12 @@ model Program {
 }
 
 model ProgramCurriculum {
-  id        String      @id @default(cuid())
-  programId String
-  program   Program     @relation(fields: [programId], references: [id])
-  order     Int // 1-based position — the only thing that determines sequence; no separate phase/week grouping (CurriculumPhase's job is just "3 named bands of session numbers", reproducible by a UI range-label over `order` if ever needed, not a stored relation)
-  title     String
-  objective String?
+  id          String      @id @default(cuid())
+  programId   String
+  program     Program     @relation(fields: [programId], references: [id])
+  order       Int // 1-based position — the only thing that determines sequence; no separate phase/week grouping (CurriculumPhase's job is just "3 named bands of session numbers", reproducible by a UI range-label over `order` if ever needed, not a stored relation)
+  title       String
+  objective   String?
   // Reuses the existing SessionType enum (REGULAR/MINI_TEST/CHECKPOINT/
   // MOCK_EXAM) rather than a new one — its meaning was never
   // CurriculumSession-specific, and MOCK_EXAM here is a labelling concern
@@ -1219,6 +1244,7 @@ model ProgramCurriculum {
 
   knowledgeUnits   ProgramCurriculumKnowledgeUnit[]
   questionAttempts QuestionAttempt[] // attempts submitted while practicing this slot
+  userProgress     UserProgramProgress[]
 
   @@unique([programId, order])
 }
