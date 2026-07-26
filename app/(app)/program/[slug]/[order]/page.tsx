@@ -66,7 +66,11 @@ export default async function ProgramSlotPage({
         </h1>
         {slot.objective && <p className="text-sm text-zinc-500">{slot.objective}</p>}
       </div>
-      <PracticeQuiz questions={questions} completionHref={`/program/${program.slug}`} />
+      <PracticeQuiz
+        questions={questions}
+        programCurriculumId={slot.id}
+        completionHref={`/program/${program.slug}`}
+      />
     </div>
   );
 }

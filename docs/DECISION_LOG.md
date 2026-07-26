@@ -445,6 +445,18 @@ Also rejected: Using `responseTimeSignal` from BehaviorProfile to add a "deliber
 
 ---
 
+## Program v2 — QuestionAttempt gains `programCurriculumId` (retire-CurriculumSession, step 1)
+
+**Decision:** `QuestionAttempt` gets a new nullable `programCurriculumId` FK to `ProgramCurriculum`, mirroring the existing `curriculumSessionId` / `mockTestAttemptId` pattern exactly (same nullable-FK-tags-the-context shape, no separate join/answer table). Threaded through `/program/[slug]/[order]/page.tsx` → `PracticeQuiz` → `POST /api/questions/[id]/attempt`, including the duplicate-submission window check (now keyed on `curriculumSessionId` AND `programCurriculumId` together, not just the former).
+
+**Reason:** Verified by reading the actual Program slot page (PR #15) rather than trusting its own summary — `ProgramSlotPage` renders `<PracticeQuiz questions={questions} completionHref={...} />` with no session-context prop at all. Every attempt submitted while practicing a Program lesson was being recorded with `curriculumSessionId: null` and nothing else — invisible to `behaviorEngine.ts`, `studentLearningProfile.ts`, and `practiceRecommendation.ts`, all three of which only ever look for `curriculumSessionId`. The new spine was live but silently feeding no analytics. This is step 1 of retiring `CurriculumSession` (see the handoff note this session started from): schema + plumbing only — the 5 analytics files (`behaviorEngine.ts`, `repository.ts`, `service.ts`, `studentLearningProfile.ts`, `practiceRecommendation.ts`) still read `curriculumSessionId` exclusively and have **not** been repointed to also consider `programCurriculumId`. That is deliberately left for the next step: each of those five needs its actual use of the session grouping read and judged individually (per-topic accuracy? recency? behavior pacing?) before deciding whether it becomes "either FK" or gets a real unification — not a mechanical find-replace.
+
+**Rejected:** Waiting to add the FK until the analytics repointing is designed. Rejected because the gap (Program attempts recorded with zero context) is a live data-integrity issue independent of how analytics eventually reads it — every day this ships unfixed is more `QuestionAttempt` rows written with no way to recover which Program slot produced them after the fact.
+
+**Verified (2026-07-26, follow-up session, Windows host):** stale `.git/index.lock` was a leftover empty file with no owning process — removed. `npx prisma generate` and `npx prisma migrate deploy` both ran clean (migration applied on top of 18 prior ones, no drift). `npx tsc --noEmit` — zero errors. Live check: logged in as the seeded student, opened `/program/thi-vao-10-ha-noi/1`, answered a question, and read the resulting `QuestionAttempt` row back from `dev.db` directly — `programCurriculumId` was populated with the slot's id (`curriculumSessionId`/`mockTestAttemptId` correctly null). Not yet committed — schema, migration, and the three app-code files are still working-tree changes pending the user's go-ahead to commit.
+
+---
+
 ## Program — a lesson slot links MANY KnowledgeUnits, not one
 
 **Decision:** `ProgramCurriculum` (the v2 replacement for `CurriculumSession`) links to `KnowledgeUnit` through a join table (`ProgramCurriculumKnowledgeUnit`), not a single nullable FK.
@@ -482,3 +494,13 @@ Also rejected: Using `responseTimeSignal` from BehaviorProfile to add a "deliber
 **Reason:** `V1_V2_RECONCILIATION.md` already ruled `CurriculumSession` for removal — this is not a reversal of that ruling, only a sequencing call. Retiring 14 files' dependency on the old spine, several of which are the Decision Engine's own analytics layer, in the same pass as designing and verifying a new generic Program structure is more surgery than can be responsibly verified in one sitting. QM-1 set the precedent for exactly this situation (keep `optionA-D` live while `payload` becomes authoritative, cut over readers one at a time) — applied here the same way.
 
 **Rejected:** A single combined change deleting `CurriculumSession` and rewriting all 14 consumers alongside the new Program build. Explicitly disclosed to the founder as a scope decision before starting, not discovered as a gap afterward — retiring the old spine is separate, near-term follow-up work, not abandoned scope.
+
+---
+
+## Program v2 — UserProgramProgress + fixing the dead CurriculumSession start route
+
+**Decision:** Added `UserProgramProgress` mirroring `UserSessionProgress`, added Program start/complete routes (`POST /api/program/slots/[programCurriculumId]/start` and `/complete`), and wired both spines' start/complete calls into `PracticeQuiz.tsx`.
+
+**Reason:** Investigation found `POST /api/curriculum/sessions/[sessionNumber]/start` had zero callers anywhere in the app — `startedAt` was `null` on every one of the 4 real `UserSessionProgress` rows in `dev.db` despite all 4 being `COMPLETED`. This meant `behaviorEngine.ts`'s time-of-day/pace/duration signals were already non-functional for every existing user, not just a Program-specific gap. Fixed the dead route and its own idempotency bug (the upsert always overwrote `startedAt` on every call, contradicting its own docstring) in the same pass as building the Program equivalent, rather than shipping a second copy of a broken pattern.
+
+**Not done (deliberately):** Repointing the 5 analytics files (`behaviorEngine.ts`, `studentLearningProfile.ts`, `curriculum.ts`'s `getCurrentMission`, `practiceRecommendation.ts`, `errorNotebook.ts`'s SM-2) to also read `UserProgramProgress` — `UserProgramProgress` is currently write-only, populated but not yet consumed. Separate follow-up.

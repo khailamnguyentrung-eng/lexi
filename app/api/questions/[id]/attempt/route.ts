@@ -56,7 +56,7 @@ export async function POST(
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { response, timeSpentSec, curriculumSessionId } = body as Record<string, unknown>;
+  const { response, timeSpentSec, curriculumSessionId, programCurriculumId } = body as Record<string, unknown>;
   if (response === null || typeof response !== "object") {
     return NextResponse.json({ error: "response must be an object" }, { status: 400 });
   }
@@ -71,6 +71,7 @@ export async function POST(
   }
 
   const sessionId = typeof curriculumSessionId === "string" ? curriculumSessionId : null;
+  const programSlotId = typeof programCurriculumId === "string" ? programCurriculumId : null;
   const timeSpent =
     typeof timeSpentSec === "number" && Number.isFinite(timeSpentSec) && timeSpentSec >= 0
       ? Math.round(timeSpentSec)
@@ -89,6 +90,7 @@ export async function POST(
         userId: user.id,
         questionId: question.id,
         curriculumSessionId: sessionId,
+        programCurriculumId: programSlotId,
         attemptedAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
       },
       orderBy: { attemptedAt: "desc" },
@@ -106,6 +108,7 @@ export async function POST(
         score: grade.score,
         timeSpentSec: timeSpent,
         curriculumSessionId: sessionId,
+        programCurriculumId: programSlotId,
       },
     });
     return { isCorrect: grade.isCorrect, score: grade.score };

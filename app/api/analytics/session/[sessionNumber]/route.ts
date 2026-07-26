@@ -34,6 +34,6 @@ export async function GET(
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
 
-  const analytics = await getSessionAnalytics(user.id, curriculumSessionId, sessionNumber);
+  const analytics = await getSessionAnalytics(user.id, { curriculumSessionId }, sessionNumber);
   return NextResponse.json(toSessionAnalyticsResponse(analytics));
 }
