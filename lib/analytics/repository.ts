@@ -33,6 +33,7 @@ export interface AttemptWithQuestion {
   timeSpentSec: number | null;
   attemptedAt: Date;
   curriculumSessionId: string | null;
+  programCurriculumId: string | null;
   question: {
     id: string;
     questionCode: string;
@@ -74,16 +75,34 @@ export interface NotebookContextRow {
 // ──────────────────────────────────────────────────────────────────
 
 /**
- * Fetch all attempts submitted in a specific curriculum session.
- * Ordered by attemptedAt ASC so position-in-session is preserved
- * for section-drop analysis.
+ * Which spine an attempt-fetch is scoped to. CurriculumSession is the
+ * original linear-curriculum spine; ProgramCurriculum is the v2 generic
+ * spine (see docs/DECISION_LOG.md "Program v2 — QuestionAttempt gains
+ * programCurriculumId"). Both spines run in parallel on purpose — this
+ * type lets the same fetch/analytics functions serve either one without
+ * duplicating the query or the pure engine logic.
+ */
+export type AttemptScope =
+  | { curriculumSessionId: string }
+  | { programCurriculumId: string };
+
+/**
+ * Fetch all attempts submitted in a specific session — either a
+ * CurriculumSession (legacy spine) or a ProgramCurriculum slot (v2 spine),
+ * chosen by which key is present on `scope`. Ordered by attemptedAt ASC so
+ * position-in-session is preserved for section-drop analysis.
  */
 export async function fetchSessionAttempts(
   userId: string,
-  curriculumSessionId: string
+  scope: AttemptScope
 ): Promise<AttemptWithQuestion[]> {
+  const where =
+    "curriculumSessionId" in scope
+      ? { userId, curriculumSessionId: scope.curriculumSessionId }
+      : { userId, programCurriculumId: scope.programCurriculumId };
+
   const rows = await prisma.questionAttempt.findMany({
-    where: { userId, curriculumSessionId },
+    where,
     orderBy: { attemptedAt: "asc" },
     select: {
       id: true,
@@ -94,6 +113,7 @@ export async function fetchSessionAttempts(
       timeSpentSec: true,
       attemptedAt: true,
       curriculumSessionId: true,
+      programCurriculumId: true,
       question: {
         select: {
           id: true,
@@ -217,8 +237,8 @@ export async function fetchSessionComparisonData(
   sessionBId: string
 ): Promise<{ sessionA: AttemptWithQuestion[]; sessionB: AttemptWithQuestion[] }> {
   const [sessionA, sessionB] = await Promise.all([
-    fetchSessionAttempts(userId, sessionAId),
-    fetchSessionAttempts(userId, sessionBId),
+    fetchSessionAttempts(userId, { curriculumSessionId: sessionAId }),
+    fetchSessionAttempts(userId, { curriculumSessionId: sessionBId }),
   ]);
 
   return { sessionA, sessionB };
