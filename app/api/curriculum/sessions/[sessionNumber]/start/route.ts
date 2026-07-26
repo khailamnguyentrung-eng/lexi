@@ -38,7 +38,7 @@ export async function POST(
 
   const result = await prisma.userSessionProgress.upsert({
     where: { userId_curriculumSessionId: { userId: user.id, curriculumSessionId: session.id } },
-    update: { startedAt: new Date(), status: "IN_PROGRESS" },
+    update: { startedAt: new Date() },
     create: { userId: user.id, curriculumSessionId: session.id, status: "IN_PROGRESS", startedAt: new Date() },
   });
 

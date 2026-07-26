@@ -494,3 +494,13 @@ Also rejected: Using `responseTimeSignal` from BehaviorProfile to add a "deliber
 **Reason:** `V1_V2_RECONCILIATION.md` already ruled `CurriculumSession` for removal — this is not a reversal of that ruling, only a sequencing call. Retiring 14 files' dependency on the old spine, several of which are the Decision Engine's own analytics layer, in the same pass as designing and verifying a new generic Program structure is more surgery than can be responsibly verified in one sitting. QM-1 set the precedent for exactly this situation (keep `optionA-D` live while `payload` becomes authoritative, cut over readers one at a time) — applied here the same way.
 
 **Rejected:** A single combined change deleting `CurriculumSession` and rewriting all 14 consumers alongside the new Program build. Explicitly disclosed to the founder as a scope decision before starting, not discovered as a gap afterward — retiring the old spine is separate, near-term follow-up work, not abandoned scope.
+
+---
+
+## Program v2 — UserProgramProgress + fixing the dead CurriculumSession start route
+
+**Decision:** Added `UserProgramProgress` mirroring `UserSessionProgress`, added Program start/complete routes (`POST /api/program/slots/[programCurriculumId]/start` and `/complete`), and wired both spines' start/complete calls into `PracticeQuiz.tsx`.
+
+**Reason:** Investigation found `POST /api/curriculum/sessions/[sessionNumber]/start` had zero callers anywhere in the app — `startedAt` was `null` on every one of the 4 real `UserSessionProgress` rows in `dev.db` despite all 4 being `COMPLETED`. This meant `behaviorEngine.ts`'s time-of-day/pace/duration signals were already non-functional for every existing user, not just a Program-specific gap. Fixed the dead route and its own idempotency bug (the upsert always overwrote `startedAt` on every call, contradicting its own docstring) in the same pass as building the Program equivalent, rather than shipping a second copy of a broken pattern.
+
+**Not done (deliberately):** Repointing the 5 analytics files (`behaviorEngine.ts`, `studentLearningProfile.ts`, `curriculum.ts`'s `getCurrentMission`, `practiceRecommendation.ts`, `errorNotebook.ts`'s SM-2) to also read `UserProgramProgress` — `UserProgramProgress` is currently write-only, populated but not yet consumed. Separate follow-up.
