@@ -81,7 +81,7 @@ export default async function DashboardPage() {
             )}
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
-                href={`/program/${learningProfile.nextMission.programSlug}/${learningProfile.nextMission.order}`}
+                href={`/program/${encodeURIComponent(learningProfile.nextMission.programSlug)}/${learningProfile.nextMission.order}`}
                 className="rounded-full bg-lexi-primary px-4 py-2 text-sm font-medium text-white hover:bg-lexi-primary-dark"
               >
                 Luyện tập bài này

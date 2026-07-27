@@ -175,7 +175,7 @@ console.log("\nTest 3: CURRICULUM_PROGRESS fallback when no other signals");
   assert("Returns 1 recommendation", recs.length === 1);
   assert("Priority is CURRICULUM_PROGRESS", recs[0].priorityLabel === "CURRICULUM_PROGRESS");
   assert("Action is ADVANCE_SESSION", recs[0].suggestedAction === "ADVANCE_SESSION");
-  assert("Session number is correct", recs[0].mission?.order === 7);
+  assert("Mission order is correct", recs[0].mission?.order === 7);
   assert("Label uses session title", recs[0].label === "Câu điều kiện nâng cao");
 }
 

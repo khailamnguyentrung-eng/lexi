@@ -79,7 +79,7 @@ function recommendationHref(rec: PracticeRecommendation): string {
   if (rec.suggestedAction === "PRACTICE_TOPIC")
     return `/practice/topic/${encodeURIComponent(rec.topic)}`;
   if (rec.suggestedAction === "REVIEW_NOTEBOOK") return "/error-notebook";
-  return `/program/${rec.mission?.programSlug}/${rec.mission?.order}`;
+  return `/program/${encodeURIComponent(rec.mission?.programSlug ?? "")}/${rec.mission?.order}`;
 }
 
 function recommendationCta(action: SuggestedAction): string {

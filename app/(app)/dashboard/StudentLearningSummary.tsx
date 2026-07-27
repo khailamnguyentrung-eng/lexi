@@ -31,7 +31,7 @@ function recommendationHref(rec: PracticeRecommendation): string {
   if (rec.suggestedAction === "PRACTICE_TOPIC")
     return `/practice/topic/${encodeURIComponent(rec.topic)}`;
   if (rec.suggestedAction === "REVIEW_NOTEBOOK") return "/error-notebook";
-  return `/program/${rec.mission?.programSlug}/${rec.mission?.order}`;
+  return `/program/${encodeURIComponent(rec.mission?.programSlug ?? "")}/${rec.mission?.order}`;
 }
 
 function recommendationCta(action: SuggestedAction): string {
@@ -167,7 +167,7 @@ function SessionMissionCard({ mission }: { mission: NextMission | null }) {
         Luyện tập đều đặn mỗi ngày giúp em tiến bộ nhanh hơn.
       </p>
       <Link
-        href={`/program/${mission.programSlug}/${mission.order}`}
+        href={`/program/${encodeURIComponent(mission.programSlug)}/${mission.order}`}
         className="mt-3 inline-block rounded-full bg-lexi-primary px-4 py-2 text-sm font-medium text-white hover:bg-lexi-primary-dark"
       >
         Bắt đầu bài học

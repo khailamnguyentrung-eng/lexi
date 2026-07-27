@@ -250,7 +250,7 @@ export function computeRecommendations(
       results.push({
         topic: missionTopic,
         label: ctx.nextMission.title,
-        reason: "Tiếp tục lộ trình — buổi học tiếp theo đang chờ bạn.",
+        reason: "Tiếp tục lộ trình — bài học tiếp theo đang chờ bạn.",
         priority: 4,
         priorityLabel: "CURRICULUM_PROGRESS",
         suggestedAction: "ADVANCE_SESSION",
