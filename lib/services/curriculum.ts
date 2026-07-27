@@ -12,22 +12,6 @@ import { canonicalTopic } from "@/lib/analytics";
 // When the pool is at or below this count, all questions are returned as-is.
 const TARGET_PRACTICE_COUNT = 10;
 
-export async function getCurrentMission(userId: string) {
-  const completed = await prisma.userSessionProgress.findMany({
-    where: { userId, status: "COMPLETED" },
-    select: { curriculumSessionId: true },
-  });
-  const completedIds = new Set(completed.map((c) => c.curriculumSessionId));
-
-  const sessions = await prisma.curriculumSession.findMany({
-    orderBy: { sessionNumber: "asc" },
-    include: { phase: true },
-  });
-
-  const next = sessions.find((s) => !completedIds.has(s.id));
-  return next ?? sessions[0] ?? null;
-}
-
 // Most sessions have questions directly linked via Question.curriculumSessionId
 // (the primary home for a question). A few sessions — checkpoints/mock exams
 // that review prior material, or extension sessions with no dedicated test-bank
