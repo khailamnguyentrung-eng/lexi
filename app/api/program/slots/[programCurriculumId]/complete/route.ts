@@ -57,7 +57,7 @@ export async function POST(
   // entry's spaced-repetition schedule.
   if (!wasAlreadyCompleted) {
     try {
-      await applySM2ForSession(user.id, { programCurriculumId });
+      await applySM2ForSession(user.id, programCurriculumId);
     } catch (e) {
       console.error("[SM-2] applySM2ForSession failed silently:", e);
     }

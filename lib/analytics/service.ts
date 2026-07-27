@@ -17,7 +17,6 @@ import {
   fetchSessionAttempts,
   fetchNotebookContext,
   NotebookContextRow,
-  AttemptScope,
 } from "./repository";
 import {
   computeBlueprintCoverage,
@@ -52,12 +51,12 @@ export interface SessionAnalyticsOutput {
 // ──────────────────────────────────────────────────────────────────
 
 /**
- * Compute full analytics for one session — CurriculumSession or
- * ProgramCurriculum slot, per `scope` (see AttemptScope in repository.ts).
- * `sessionNumber` is a caller-supplied display label (session number or
- * Program slot order) — it is not read from `scope` and does not change
- * the SessionAnalyticsOutput.sessionNumber field name, since the existing
- * frontend/`toSessionAnalyticsResponse()` contract reads it by that name.
+ * Compute full analytics for one ProgramCurriculum slot.
+ * `sessionNumber` is a caller-supplied display label (the slot's `order`)
+ * — the SessionAnalyticsOutput.sessionNumber field name is unchanged since
+ * the frontend/`toSessionAnalyticsResponse()` contract reads it by that name
+ * (reused generic label, not renamed — same precedent documented elsewhere
+ * in this codebase for this exact field).
  *
  * Fetches session attempts, runs all analytics computations, then
  * fetches notebook context only if there are weakness topics to enrich.
@@ -65,10 +64,10 @@ export interface SessionAnalyticsOutput {
  */
 export async function getSessionAnalytics(
   userId: string,
-  scope: AttemptScope,
+  programCurriculumId: string,
   sessionNumber: number
 ): Promise<SessionAnalyticsOutput> {
-  const attempts = await fetchSessionAttempts(userId, scope);
+  const attempts = await fetchSessionAttempts(userId, programCurriculumId);
 
   const readiness = computeReadiness(attempts, [sessionNumber]);
   const blueprintCoverage = computeBlueprintCoverage(attempts);

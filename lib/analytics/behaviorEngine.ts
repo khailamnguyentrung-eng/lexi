@@ -213,62 +213,16 @@ export function computeBehaviorProfile(
 // ─────────────────────────────────────────────────────────
 
 export async function getBehaviorProfile(userId: string): Promise<BehaviorProfile> {
-  const [completedCurriculumSessions, completedProgramSlots] = await Promise.all([
-    prisma.userSessionProgress.findMany({
-      where: { userId, status: "COMPLETED" },
-      select: { curriculumSessionId: true, startedAt: true, completedAt: true },
-      orderBy: { completedAt: "desc" },
-      take: 30,
-    }),
-    prisma.userProgramProgress.findMany({
-      where: { userId, status: "COMPLETED" },
-      select: { programCurriculumId: true, startedAt: true, completedAt: true },
-      orderBy: { completedAt: "desc" },
-      take: 30,
-    }),
-  ]);
+  const completedProgramSlots = await prisma.userProgramProgress.findMany({
+    where: { userId, status: "COMPLETED" },
+    select: { programCurriculumId: true, startedAt: true, completedAt: true },
+    orderBy: { completedAt: "desc" },
+    take: 30,
+  });
 
-  // Merge both spines by completedAt, then take the most recent 30 overall —
-  // "recent sessions" should mean recent across whichever spine the student
-  // actually used, not 30-per-spine (which would double the effective window
-  // for a student who mixes both). contextId is whichever FK QuestionAttempt
-  // rows in that spine actually carry (curriculumSessionId or
-  // programCurriculumId) — NOT the UserSessionProgress/UserProgramProgress
-  // row's own id, which is a different value (see Global Constraints: this
-  // exact id/FK confusion was the bug being fixed here).
-  type MergedProgress = {
-    contextId: string;
-    scope: "curriculum" | "program";
-    startedAt: Date | null;
-    completedAt: Date | null;
-  };
-  const merged: MergedProgress[] = [
-    ...completedCurriculumSessions.map((s) => ({
-      contextId: s.curriculumSessionId,
-      scope: "curriculum" as const,
-      startedAt: s.startedAt,
-      completedAt: s.completedAt,
-    })),
-    ...completedProgramSlots.map((s) => ({
-      contextId: s.programCurriculumId,
-      scope: "program" as const,
-      startedAt: s.startedAt,
-      completedAt: s.completedAt,
-    })),
-  ]
-    .sort((a, b) => (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0))
-    .slice(0, 30);
+  const programSlotIds = completedProgramSlots.map((s) => s.programCurriculumId);
 
-  const curriculumSessionIds = merged.filter((m) => m.scope === "curriculum").map((m) => m.contextId);
-  const programSlotIds = merged.filter((m) => m.scope === "program").map((m) => m.contextId);
-
-  const [curriculumAttempts, programAttempts, rawMoods] = await Promise.all([
-    curriculumSessionIds.length > 0
-      ? prisma.questionAttempt.findMany({
-          where: { userId, curriculumSessionId: { in: curriculumSessionIds } },
-          select: { isCorrect: true, timeSpentSec: true, attemptedAt: true, curriculumSessionId: true },
-        })
-      : Promise.resolve([]),
+  const [programAttempts, rawMoods] = await Promise.all([
     programSlotIds.length > 0
       ? prisma.questionAttempt.findMany({
           where: { userId, programCurriculumId: { in: programSlotIds } },
@@ -282,18 +236,11 @@ export async function getBehaviorProfile(userId: string): Promise<BehaviorProfil
     }),
   ]);
 
-  // Group attempts by whichever context (session or slot) they belong to —
-  // one shared map since a SessionDataPoint doesn't care which spine it came from.
+  // Group attempts by which program slot they belong to.
   const attemptsByContext = new Map<
     string,
     { isCorrect: boolean; timeSpentSec: number | null; attemptedAt: Date }[]
   >();
-  for (const a of curriculumAttempts) {
-    if (a.curriculumSessionId == null) continue;
-    const existing = attemptsByContext.get(a.curriculumSessionId) ?? [];
-    existing.push(a);
-    attemptsByContext.set(a.curriculumSessionId, existing);
-  }
   for (const a of programAttempts) {
     if (a.programCurriculumId == null) continue;
     const existing = attemptsByContext.get(a.programCurriculumId) ?? [];
@@ -301,10 +248,10 @@ export async function getBehaviorProfile(userId: string): Promise<BehaviorProfil
     attemptsByContext.set(a.programCurriculumId, existing);
   }
 
-  const sessions: SessionDataPoint[] = merged.map((m) => ({
-    startedAt: m.startedAt,
-    completedAt: m.completedAt,
-    attempts: (attemptsByContext.get(m.contextId) ?? []).map((a) => ({
+  const sessions: SessionDataPoint[] = completedProgramSlots.map((s) => ({
+    startedAt: s.startedAt,
+    completedAt: s.completedAt,
+    attempts: (attemptsByContext.get(s.programCurriculumId) ?? []).map((a) => ({
       isCorrect: a.isCorrect,
       timeSpentSec: a.timeSpentSec,
       attemptedAt: a.attemptedAt,

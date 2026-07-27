@@ -32,7 +32,6 @@ export interface AttemptWithQuestion {
   isCorrect: boolean;
   timeSpentSec: number | null;
   attemptedAt: Date;
-  curriculumSessionId: string | null;
   programCurriculumId: string | null;
   question: {
     id: string;
@@ -75,34 +74,21 @@ export interface NotebookContextRow {
 // ──────────────────────────────────────────────────────────────────
 
 /**
- * Which spine an attempt-fetch is scoped to. CurriculumSession is the
- * original linear-curriculum spine; ProgramCurriculum is the v2 generic
- * spine (see docs/DECISION_LOG.md "Program v2 — QuestionAttempt gains
- * programCurriculumId"). Both spines run in parallel on purpose — this
- * type lets the same fetch/analytics functions serve either one without
- * duplicating the query or the pure engine logic.
- */
-export type AttemptScope =
-  | { curriculumSessionId: string }
-  | { programCurriculumId: string };
-
-/**
- * Fetch all attempts submitted in a specific session — either a
- * CurriculumSession (legacy spine) or a ProgramCurriculum slot (v2 spine),
- * chosen by which key is present on `scope`. Ordered by attemptedAt ASC so
- * position-in-session is preserved for section-drop analysis.
+ * Fetch all attempts submitted for a specific ProgramCurriculum slot.
+ * Ordered by attemptedAt ASC so position-in-session is preserved for
+ * section-drop analysis.
+ *
+ * Used to accept either a CurriculumSession or a ProgramCurriculum slot via
+ * an AttemptScope union — CurriculumSession was retired, so this now only
+ * ever serves Program (see docs/superpowers/plans/
+ * 2026-07-28-retire-curriculumsession-phase1.md).
  */
 export async function fetchSessionAttempts(
   userId: string,
-  scope: AttemptScope
+  programCurriculumId: string
 ): Promise<AttemptWithQuestion[]> {
-  const where =
-    "curriculumSessionId" in scope
-      ? { userId, curriculumSessionId: scope.curriculumSessionId }
-      : { userId, programCurriculumId: scope.programCurriculumId };
-
   const rows = await prisma.questionAttempt.findMany({
-    where,
+    where: { userId, programCurriculumId },
     orderBy: { attemptedAt: "asc" },
     select: {
       id: true,
@@ -112,7 +98,6 @@ export async function fetchSessionAttempts(
       isCorrect: true,
       timeSpentSec: true,
       attemptedAt: true,
-      curriculumSessionId: true,
       programCurriculumId: true,
       question: {
         select: {
@@ -226,61 +211,34 @@ export async function fetchNotebookContext(
 }
 
 /**
- * Find whichever spine's most recently completed unit (CurriculumSession or
- * ProgramCurriculum slot) is truly the most recent by completedAt — used by
- * studentLearningProfile.ts and practiceRecommendation.ts to feed
+ * Find the most recently completed ProgramCurriculum slot for this user —
+ * used by studentLearningProfile.ts and practiceRecommendation.ts to feed
  * getSessionAnalytics() for readiness/weakness-topic signals.
  *
- * Fixes a latent bug in the code this replaces: both call sites previously
- * ordered by `curriculumSession.sessionNumber desc`, not `completedAt desc`
- * — wrong whenever a session is completed out of numeric order (e.g. a
- * review/checkpoint session redone later). Ordering by completedAt is what
- * "most recently completed" should have always meant.
- *
- * Does NOT touch getCurrentMission()/mission-derived fields — those stay
- * CurriculumSession-only, deliberately (see docs/superpowers/plans/
- * 2026-07-26-repoint-behavior-and-readiness.md's Global Constraints).
+ * Previously compared CurriculumSession and ProgramCurriculum completions
+ * against each other (whichever was more recent); CurriculumSession was
+ * retired, so this now only reads UserProgramProgress (see
+ * docs/superpowers/plans/2026-07-28-retire-curriculumsession-phase1.md).
  */
 export interface MostRecentCompletedScope {
-  scope: AttemptScope;
-  label: number; // sessionNumber or Program slot order — the display label getSessionAnalytics expects
+  programCurriculumId: string;
+  label: number; // Program slot order — the display label getSessionAnalytics expects
 }
 
 export async function findMostRecentlyCompletedScope(userId: string): Promise<MostRecentCompletedScope | null> {
-  const [recentCurriculum, recentProgram] = await Promise.all([
-    prisma.userSessionProgress.findFirst({
-      where: { userId, status: "COMPLETED", completedAt: { not: null } },
-      orderBy: { completedAt: "desc" },
-      select: {
-        completedAt: true,
-        curriculumSessionId: true,
-        curriculumSession: { select: { sessionNumber: true } },
-      },
-    }),
-    prisma.userProgramProgress.findFirst({
-      where: { userId, status: "COMPLETED", completedAt: { not: null } },
-      orderBy: { completedAt: "desc" },
-      select: {
-        completedAt: true,
-        programCurriculumId: true,
-        programCurriculum: { select: { order: true } },
-      },
-    }),
-  ]);
+  const recent = await prisma.userProgramProgress.findFirst({
+    where: { userId, status: "COMPLETED", completedAt: { not: null } },
+    orderBy: { completedAt: "desc" },
+    select: {
+      programCurriculumId: true,
+      programCurriculum: { select: { order: true } },
+    },
+  });
 
-  const curriculumTime = recentCurriculum?.completedAt?.getTime() ?? -Infinity;
-  const programTime = recentProgram?.completedAt?.getTime() ?? -Infinity;
+  if (!recent) return null;
 
-  if (curriculumTime === -Infinity && programTime === -Infinity) return null;
-
-  if (programTime > curriculumTime) {
-    return {
-      scope: { programCurriculumId: recentProgram!.programCurriculumId },
-      label: recentProgram!.programCurriculum.order,
-    };
-  }
   return {
-    scope: { curriculumSessionId: recentCurriculum!.curriculumSessionId },
-    label: recentCurriculum!.curriculumSession.sessionNumber,
+    programCurriculumId: recent.programCurriculumId,
+    label: recent.programCurriculum.order,
   };
 }

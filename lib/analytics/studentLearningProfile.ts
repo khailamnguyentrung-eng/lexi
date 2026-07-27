@@ -473,7 +473,7 @@ export async function getStudentLearningProfile(
 
   if (recentCompleted) {
     try {
-      const analytics = await getSessionAnalytics(userId, recentCompleted.scope, recentCompleted.label);
+      const analytics = await getSessionAnalytics(userId, recentCompleted.programCurriculumId, recentCompleted.label);
       readiness = analytics.readiness;
       weaknessSignalTopics = analytics.weaknessTopics
         .filter((w) => w.accuracy < 0.7)

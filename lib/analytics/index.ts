@@ -57,7 +57,6 @@ export { canonicalTopic } from "./canonicalTopic";
 export type {
   AttemptWithQuestion,
   NotebookContextRow,
-  AttemptScope,
 } from "./repository";
 export {
   fetchSessionAttempts,

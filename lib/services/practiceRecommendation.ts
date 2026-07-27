@@ -308,7 +308,7 @@ export async function getAdaptiveRecommendations(
 
   if (recentCompleted) {
     try {
-      const analytics = await getSessionAnalytics(userId, recentCompleted.scope, recentCompleted.label);
+      const analytics = await getSessionAnalytics(userId, recentCompleted.programCurriculumId, recentCompleted.label);
       weaknessSignalTopics = analytics.weaknessTopics
         .filter((w) => w.accuracy < 0.7)
         .map((w) => ({
