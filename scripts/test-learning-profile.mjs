@@ -87,8 +87,7 @@ function buildLearningProfile(ctx) {
     improvingTopics,
     activeWeaknesses,
     recommendations: ctx.recommendations,
-    nextSessionNumber: ctx.nextSessionNumber,
-    nextSessionTitle: ctx.nextSessionTitle,
+    nextMission: ctx.nextMission,
   };
 }
 
@@ -130,8 +129,7 @@ function emptyCtx(overrides) {
     recommendations: [],
     readiness: null,
     skillSnapshot: [],
-    nextSessionNumber: null,
-    nextSessionTitle: null,
+    nextMission: null,
     ...overrides,
   };
 }
@@ -361,8 +359,7 @@ console.log("\nbuildLearningProfile — profile with weak topics");
     topicSummaries,
     masteryProfiles,
     masteryByTopic,
-    nextSessionNumber: 5,
-    nextSessionTitle: "Session Five",
+    nextMission: { programSlug: "test-program", order: 5, title: "Session Five", objective: null },
     recommendations: [
       { topic: "conditionals", label: "Conditionals", reason: "...", priority: 1, priorityLabel: "RECURRING_MISTAKE", suggestedAction: "PRACTICE_TOPIC", questionCount: 5, confidence: "HIGH" },
     ],
@@ -378,8 +375,8 @@ console.log("\nbuildLearningProfile — profile with weak topics");
   assert("masterySummary.totalTopics = 2",   profile.masterySummary.totalTopics === 2);
   assert("masterySummary NEEDS_REVIEW = 2",  profile.masterySummary.byState.NEEDS_REVIEW === 2);
   assert("recommendation included",          profile.recommendations.length === 1);
-  assert("nextSessionNumber = 5",            profile.nextSessionNumber === 5);
-  assert("nextSessionTitle set",             profile.nextSessionTitle === "Session Five");
+  assert("nextMission.order = 5",            profile.nextMission?.order === 5);
+  assert("nextMission.title set",            profile.nextMission?.title === "Session Five");
 }
 
 // ── buildLearningProfile — profile with mastered topics ───────────────────────
@@ -412,7 +409,7 @@ console.log("\nbuildLearningProfile — profile with mastered topics");
 
 console.log("\nbuildLearningProfile — no data (new student)");
 {
-  const ctx = emptyCtx({ nextSessionNumber: 1, nextSessionTitle: "Buổi 1" });
+  const ctx = emptyCtx({ nextMission: { programSlug: "test-program", order: 1, title: "Bài 1", objective: null } });
   const profile = buildLearningProfile(ctx);
 
   assert("learningTrend is INSUFFICIENT_DATA",  profile.learningTrend === "INSUFFICIENT_DATA");
@@ -421,7 +418,7 @@ console.log("\nbuildLearningProfile — no data (new student)");
   assert("masterySummary.totalTopics = 0",      profile.masterySummary.totalTopics === 0);
   assert("recommendations empty",               profile.recommendations.length === 0);
   assert("readiness is null",                   profile.readiness === null);
-  assert("nextSessionNumber = 1",               profile.nextSessionNumber === 1);
+  assert("nextMission.order = 1",               profile.nextMission?.order === 1);
 }
 
 // ── buildLearningProfile — recommendations included correctly ─────────────────

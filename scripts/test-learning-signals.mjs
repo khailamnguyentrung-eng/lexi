@@ -227,9 +227,7 @@ function makeProfile(overrides = {}) {
     improvingTopics: [],
     activeWeaknesses: [],
     recommendations: [],
-    nextSessionNumber: null,
-    nextSessionTitle: null,
-    nextSessionObjective: null,
+    nextMission: null,
     behaviorProfile: makeBehaviorProfile(),
     ...overrides,
   };

@@ -29,6 +29,7 @@
     "test:profile-v2": "node scripts/test-profile-v2.mjs",
     "test:question-formats": "node --import tsx scripts/test-question-formats.mjs",
     "test:ku1-partb-review": "node --import tsx scripts/test-ku1-partb-review.mjs",
+    "test:next-mission": "node --import tsx scripts/test-next-mission.mjs",
     "test:taxonomy-core": "node --import tsx scripts/test-taxonomy-core.mjs",
     "test:taxonomy-reader": "node --import tsx scripts/test-taxonomy-reader.mjs",
     "test:knowledge-coverage": "node scripts/test-knowledge-coverage.mjs",

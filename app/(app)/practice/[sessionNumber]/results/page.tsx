@@ -79,14 +79,14 @@ function recommendationHref(rec: PracticeRecommendation): string {
   if (rec.suggestedAction === "PRACTICE_TOPIC")
     return `/practice/topic/${encodeURIComponent(rec.topic)}`;
   if (rec.suggestedAction === "REVIEW_NOTEBOOK") return "/error-notebook";
-  return `/practice/${rec.sessionNumber}`;
+  return `/program/${encodeURIComponent(rec.mission?.programSlug ?? "")}/${rec.mission?.order}`;
 }
 
 function recommendationCta(action: SuggestedAction): string {
   switch (action) {
     case "PRACTICE_TOPIC":  return "Luyện tập ngay";
     case "REVIEW_NOTEBOOK": return "Ôn lại trong sổ lỗi";
-    case "ADVANCE_SESSION": return "Bắt đầu buổi học";
+    case "ADVANCE_SESSION": return "Bắt đầu bài học";
   }
 }
 
