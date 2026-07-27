@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
+import { applySM2ForSession } from "@/lib/services/errorNotebook";
 
 /**
  * POST /api/program/slots/[programCurriculumId]/complete
  *
  * Complete a Program lesson slot. Mirrors
  * POST /api/curriculum/sessions/[sessionNumber]/complete's score
- * computation and upsert shape exactly, keyed by programCurriculumId.
- *
- * Deliberately does NOT call an SM-2/error-notebook equivalent
- * (applySM2ForSession() is CurriculumSession-only) — extending spaced
- * repetition to Program slots is a separate, not-yet-requested feature,
- * not an oversight. See docs/superpowers/plans/2026-07-26-user-program-progress.md.
+ * computation and upsert shape exactly, keyed by programCurriculumId —
+ * including its SM-2/error-notebook update, now that applySM2ForSession()
+ * accepts either spine (see docs/superpowers/plans/2026-07-27-sm2-program-scope.md).
  *
  * Response: { progress: UserProgramProgress }
  */
@@ -45,6 +43,12 @@ export async function POST(
       scoreAchieved,
     },
   });
+
+  try {
+    await applySM2ForSession(user.id, { programCurriculumId });
+  } catch (e) {
+    console.error("[SM-2] applySM2ForSession failed silently:", e);
+  }
 
   return NextResponse.json({ progress });
 }
