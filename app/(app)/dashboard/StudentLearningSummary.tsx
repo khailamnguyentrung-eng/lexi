@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AcceptRecommendationLink } from "@/components/recommendations/AcceptRecommendationLink";
 import type { StudentLearningProfile, LearningTrend } from "@/lib/analytics/studentLearningProfile";
 import type { PracticeRecommendation, SuggestedAction } from "@/lib/services/practiceRecommendation";
+import type { NextMission } from "@/lib/services/program/nextMission";
 import type { ReadinessResult } from "@/lib/analytics";
 
 // ─────────────────────────────────────────────────────────
@@ -30,14 +31,14 @@ function recommendationHref(rec: PracticeRecommendation): string {
   if (rec.suggestedAction === "PRACTICE_TOPIC")
     return `/practice/topic/${encodeURIComponent(rec.topic)}`;
   if (rec.suggestedAction === "REVIEW_NOTEBOOK") return "/error-notebook";
-  return `/practice/${rec.sessionNumber}`;
+  return `/program/${rec.mission?.programSlug}/${rec.mission?.order}`;
 }
 
 function recommendationCta(action: SuggestedAction): string {
   switch (action) {
     case "PRACTICE_TOPIC":  return "Luyện tập ngay";
     case "REVIEW_NOTEBOOK": return "Ôn lại trong sổ lỗi";
-    case "ADVANCE_SESSION": return "Bắt đầu buổi học";
+    case "ADVANCE_SESSION": return "Bắt đầu bài học";
   }
 }
 
@@ -151,37 +152,25 @@ function TodayRecommendationSection({
 //   sees one clear action regardless of how much history exists.
 // ─────────────────────────────────────────────────────────
 
-function SessionMissionCard({
-  sessionNumber,
-  sessionTitle,
-}: {
-  sessionNumber: number | null;
-  sessionTitle: string | null;
-}) {
-  // No curriculum at all — brand new account, point to session 1
-  const targetSession = sessionNumber ?? 1;
-  const isFirstEver = sessionNumber === null;
+function SessionMissionCard({ mission }: { mission: NextMission | null }) {
+  if (mission === null) return null;
 
   return (
     <section className="rounded-3xl border border-lexi-soft bg-lexi-soft/40 p-5">
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-lexi-primary">
-        {isFirstEver ? "Bắt đầu hành trình" : "Việc nên làm hôm nay"}
+        Việc nên làm hôm nay
       </p>
       <p className="text-base font-semibold text-lexi-primary-dark">
-        {isFirstEver
-          ? "Hãy bắt đầu buổi luyện tập đầu tiên!"
-          : `Buổi ${targetSession}${sessionTitle ? `: ${sessionTitle}` : ""}`}
+        Bài {mission.order}: {mission.title}
       </p>
       <p className="mt-1 text-sm text-zinc-600">
-        {isFirstEver
-          ? "Lexi sẽ theo dõi tiến trình và đưa ra gợi ý sau mỗi buổi học."
-          : "Luyện tập đều đặn mỗi ngày giúp em tiến bộ nhanh hơn."}
+        Luyện tập đều đặn mỗi ngày giúp em tiến bộ nhanh hơn.
       </p>
       <Link
-        href={`/practice/${targetSession}`}
+        href={`/program/${mission.programSlug}/${mission.order}`}
         className="mt-3 inline-block rounded-full bg-lexi-primary px-4 py-2 text-sm font-medium text-white hover:bg-lexi-primary-dark"
       >
-        {isFirstEver ? "Bắt đầu buổi 1" : "Bắt đầu buổi học"}
+        Bắt đầu bài học
       </Link>
     </section>
   );
@@ -311,10 +300,7 @@ export function StudentLearningSummary({
           issuanceId={profile.currentRecommendationIssuanceId}
         />
       ) : (
-        <SessionMissionCard
-          sessionNumber={profile.nextSessionNumber}
-          sessionTitle={profile.nextSessionTitle}
-        />
+        <SessionMissionCard mission={profile.nextMission} />
       )}
 
       {hasTopics && <LearningMapSection profile={profile} />}

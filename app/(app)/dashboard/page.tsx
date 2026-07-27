@@ -69,22 +69,22 @@ export default async function DashboardPage() {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-lexi-primary-dark">
           Nhiệm vụ hôm nay
         </h2>
-        {learningProfile.nextSessionNumber !== null ? (
+        {learningProfile.nextMission !== null ? (
           <div>
             <p className="text-lg font-medium text-foreground">
-              Buổi {learningProfile.nextSessionNumber}: {learningProfile.nextSessionTitle}
+              Bài {learningProfile.nextMission.order}: {learningProfile.nextMission.title}
             </p>
-            {learningProfile.nextSessionObjective && (
+            {learningProfile.nextMission.objective && (
               <p className="mt-1 text-sm text-zinc-600">
-                {learningProfile.nextSessionObjective}
+                {learningProfile.nextMission.objective}
               </p>
             )}
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
-                href={`/practice/${learningProfile.nextSessionNumber}`}
+                href={`/program/${learningProfile.nextMission.programSlug}/${learningProfile.nextMission.order}`}
                 className="rounded-full bg-lexi-primary px-4 py-2 text-sm font-medium text-white hover:bg-lexi-primary-dark"
               >
-                Luyện tập buổi này
+                Luyện tập bài này
               </Link>
               <Link
                 href="/chat"
