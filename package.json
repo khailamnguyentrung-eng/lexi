@@ -21,6 +21,7 @@
     "test:recommendations-v2": "node scripts/test-recommendations-v2.mjs",
     "test:learning-profile": "node scripts/test-learning-profile.mjs",
     "test:sm2": "node scripts/test-sm2.mjs",
+    "test:sm2-program-scope": "node --import tsx scripts/test-sm2-program-scope.mjs",
     "test:review-engagement": "node scripts/test-review-engagement.mjs",
     "test:behavior-engine": "node scripts/test-behavior-engine.mjs",
     "test:behavior-engine-scope": "node --import tsx scripts/test-behavior-engine-scope.mjs",

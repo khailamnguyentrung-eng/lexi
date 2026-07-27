@@ -41,7 +41,7 @@ export async function POST(
   });
 
   try {
-    await applySM2ForSession(user.id, session.id);
+    await applySM2ForSession(user.id, { curriculumSessionId: session.id });
   } catch (e) {
     console.error("[SM-2] applySM2ForSession failed silently:", e);
   }
