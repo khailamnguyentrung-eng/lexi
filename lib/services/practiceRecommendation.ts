@@ -7,7 +7,8 @@ import {
   computeTopicMastery,
 } from "@/lib/analytics";
 import type { TopicNotebookSummary, MasteryState } from "@/lib/analytics";
-import { getCurrentMission } from "./curriculum";
+import { getNextMission } from "./program/nextMission";
+import type { NextMission } from "./program/nextMission";
 
 // ─────────────────────────────────────────────────────────
 // Types
@@ -41,7 +42,7 @@ export interface PracticeRecommendation {
   priorityLabel: RecommendationPriority;
   suggestedAction: SuggestedAction;
   questionCount: number;
-  sessionNumber?: number;
+  mission?: NextMission;
   confidence: RecommendationConfidence;
 }
 
@@ -104,8 +105,7 @@ interface WeaknessSignalInput {
 export interface RecommendationContext {
   topicSummaries: TopicNotebookSummary[];
   weaknessSignalTopics: WeaknessSignalInput[];
-  nextSessionNumber: number | null;
-  nextSessionTitle: string | null;
+  nextMission: NextMission | null;
   questionCountByTopic: Map<string, number>;
   /**
    * Optional mastery state per canonical topic (v2 mastery-aware mode).
@@ -244,18 +244,18 @@ export function computeRecommendations(
   }
 
   // ── Tier 4: CURRICULUM_PROGRESS ──────────────────────────────────────────
-  if (ctx.nextSessionNumber !== null) {
-    const sessionTopic = `session_${ctx.nextSessionNumber}`;
-    if (!seen.has(sessionTopic)) {
+  if (ctx.nextMission !== null) {
+    const missionTopic = `program_slot_${ctx.nextMission.order}`;
+    if (!seen.has(missionTopic)) {
       results.push({
-        topic: sessionTopic,
-        label: ctx.nextSessionTitle ?? `Buổi ${ctx.nextSessionNumber}`,
+        topic: missionTopic,
+        label: ctx.nextMission.title,
         reason: "Tiếp tục lộ trình — buổi học tiếp theo đang chờ bạn.",
         priority: 4,
         priorityLabel: "CURRICULUM_PROGRESS",
         suggestedAction: "ADVANCE_SESSION",
         questionCount: 0,
-        sessionNumber: ctx.nextSessionNumber,
+        mission: ctx.nextMission,
         confidence: "MEDIUM",
       });
     }
@@ -289,7 +289,7 @@ export async function getAdaptiveRecommendations(
   const [topicSummaries, mission, recentCompleted, allQuestionTopics] =
     await Promise.all([
       getTopicNotebookSummaries(userId),
-      getCurrentMission(userId),
+      getNextMission(userId),
       findMostRecentlyCompletedScope(userId),
       prisma.question.findMany({ select: { topic: true } }),
     ]);
@@ -324,8 +324,7 @@ export async function getAdaptiveRecommendations(
   return computeRecommendations({
     topicSummaries,
     weaknessSignalTopics,
-    nextSessionNumber: mission?.sessionNumber ?? null,
-    nextSessionTitle: mission?.title ?? null,
+    nextMission: mission,
     questionCountByTopic,
     masteryByTopic,
   });

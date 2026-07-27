@@ -974,8 +974,10 @@ model RecommendationIssuance {
 
   // Identity-bearing fields (Ch.3 §3.1 Fields) — compared in Phase 3 to
   // detect whether a new computation actually supersedes the current one.
-  // Exactly one of topic/sessionNumber is set, mirroring PracticeRecommendation's
-  // own shape (Action).
+  // Exactly one of topic/sessionNumber is set. sessionNumber is a reused
+  // generic label — held a CurriculumSession number historically, now holds
+  // a ProgramCurriculum slot's `order` (PracticeRecommendation.mission.order)
+  // since the v2 repoint; not renamed to avoid a migration for a label-only change.
   topic           String?
   sessionNumber   Int?
   suggestedAction RecommendationSuggestedAction // Intent

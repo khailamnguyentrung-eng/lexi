@@ -96,18 +96,18 @@ function computeRecommendations(ctx) {
   }
 
   // Tier 4: CURRICULUM_PROGRESS
-  if (ctx.nextSessionNumber !== null) {
-    const sessionTopic = `session_${ctx.nextSessionNumber}`;
-    if (!seen.has(sessionTopic)) {
+  if (ctx.nextMission !== null) {
+    const missionTopic = `program_slot_${ctx.nextMission.order}`;
+    if (!seen.has(missionTopic)) {
       results.push({
-        topic: sessionTopic,
-        label: ctx.nextSessionTitle ?? `Buổi ${ctx.nextSessionNumber}`,
+        topic: missionTopic,
+        label: ctx.nextMission.title,
         reason: "Tiếp tục lộ trình.",
         priority: 4,
         priorityLabel: "CURRICULUM_PROGRESS",
         suggestedAction: "ADVANCE_SESSION",
         questionCount: 0,
-        sessionNumber: ctx.nextSessionNumber,
+        mission: ctx.nextMission,
       });
     }
   }
@@ -131,8 +131,7 @@ function emptyCtx(overrides) {
   return {
     topicSummaries: [],
     weaknessSignalTopics: [],
-    nextSessionNumber: null,
-    nextSessionTitle: null,
+    nextMission: null,
     questionCountByTopic: new Map(),
     ...overrides,
   };
@@ -171,12 +170,12 @@ console.log("\nTest 2: DUE_REVIEW recommendation");
 
 console.log("\nTest 3: CURRICULUM_PROGRESS fallback when no other signals");
 {
-  const ctx = emptyCtx({ nextSessionNumber: 7, nextSessionTitle: "Câu điều kiện nâng cao" });
+  const ctx = emptyCtx({ nextMission: { programSlug: "test-program", order: 7, title: "Câu điều kiện nâng cao", objective: null } });
   const recs = computeRecommendations(ctx);
   assert("Returns 1 recommendation", recs.length === 1);
   assert("Priority is CURRICULUM_PROGRESS", recs[0].priorityLabel === "CURRICULUM_PROGRESS");
   assert("Action is ADVANCE_SESSION", recs[0].suggestedAction === "ADVANCE_SESSION");
-  assert("Session number is correct", recs[0].sessionNumber === 7);
+  assert("Session number is correct", recs[0].mission?.order === 7);
   assert("Label uses session title", recs[0].label === "Câu điều kiện nâng cao");
 }
 
@@ -209,7 +208,7 @@ console.log("\nTest 5: RECURRING topic with dueCount appears only at tier 1");
 
 console.log("\nTest 6: No next session → no CURRICULUM_PROGRESS entry");
 {
-  const ctx = emptyCtx({ nextSessionNumber: null });
+  const ctx = emptyCtx({ nextMission: null });
   const recs = computeRecommendations(ctx);
   assert("Empty recommendations when no signals and no session", recs.length === 0);
 }
@@ -223,7 +222,7 @@ console.log("\nTest 7: WEAKNESS_SIGNAL with accuracy >= 0.7 is skipped");
       { topic: "good_topic", label: "Good Topic", accuracy: 0.70 },
       { topic: "also_fine", label: "Also Fine",   accuracy: 0.85 },
     ],
-    nextSessionNumber: null,
+    nextMission: null,
   });
   const recs = computeRecommendations(ctx);
   assert("High-accuracy weakness signals produce no recommendations", recs.length === 0);
@@ -239,8 +238,7 @@ console.log("\nTest 8: All 4 tiers produced in correct order");
       makeSummary({ topic: "due_one", label: "Due One", improvementSignal: "NO_DATA",   dueCount: 1 }),
     ],
     weaknessSignalTopics: [{ topic: "weak", label: "Weak", accuracy: 0.4 }],
-    nextSessionNumber: 3,
-    nextSessionTitle: "Session Three",
+    nextMission: { programSlug: "test-program", order: 3, title: "Session Three", objective: null },
     questionCountByTopic: new Map([["hard", 5], ["due_one", 3], ["weak", 4]]),
   };
   const recs = computeRecommendations(ctx);
@@ -263,8 +261,7 @@ console.log("\nTest 9: Maximum 4 recommendations returned (cap enforced)");
       makeSummary({ topic: "d", label: "D", improvementSignal: "NO_DATA",   dueCount: 1 }),
     ],
     weaknessSignalTopics: [{ topic: "e", label: "E", accuracy: 0.3 }],
-    nextSessionNumber: 5,
-    nextSessionTitle: "Session 5",
+    nextMission: { programSlug: "test-program", order: 5, title: "Session 5", objective: null },
     questionCountByTopic: new Map([["a", 3], ["b", 3], ["c", 3], ["d", 3], ["e", 3]]),
   };
   const recs = computeRecommendations(ctx);
@@ -275,7 +272,7 @@ console.log("\nTest 9: Maximum 4 recommendations returned (cap enforced)");
 
 console.log("\nTest 10: Empty signals + session → only CURRICULUM_PROGRESS");
 {
-  const ctx = emptyCtx({ nextSessionNumber: 1, nextSessionTitle: "Buổi 1" });
+  const ctx = emptyCtx({ nextMission: { programSlug: "test-program", order: 1, title: "Buổi 1", objective: null } });
   const recs = computeRecommendations(ctx);
   assert("Returns 1 recommendation", recs.length === 1);
   assert("Is CURRICULUM_PROGRESS", recs[0].priorityLabel === "CURRICULUM_PROGRESS");
