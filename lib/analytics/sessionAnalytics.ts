@@ -26,16 +26,12 @@ import {
   WeaknessTopic,
   WrongAttemptDetail,
   PatternObservation,
-  TopicComparison,
-  SessionComparisonResult,
-  ComparisonDirection,
   ConfidenceTier,
 } from "./types";
 import {
   determineReadinessConfidence,
   determineWeaknessConfidence,
   determinePatternConfidence,
-  determineComparisonConfidence,
 } from "./confidenceEngine";
 import { canonicalTopic } from "./canonicalTopic";
 
@@ -364,109 +360,4 @@ function optionText(attempt: AttemptInput, option: string): string {
     case "D": return attempt.question.optionD;
     default: return option;
   }
-}
-
-// ──────────────────────────────────────────────────────────────────
-// Session comparison
-// ──────────────────────────────────────────────────────────────────
-
-/**
- * Compare per-topic accuracy between two sessions.
- *
- * Only topics with ≥2 attempts in BOTH sessions produce a meaningful delta.
- * Topics with data in only one session are still included with direction
- * INSUFFICIENT_DATA so the UI can explain the gap rather than silently omitting.
- *
- * "Similar" band: |delta| < 0.10 (10 percentage points).
- */
-export function computeSessionComparison(
-  sessionAAttempts: AttemptInput[],
-  sessionBAttempts: AttemptInput[],
-  sessionANumber: number,
-  sessionBNumber: number
-): SessionComparisonResult {
-  const groupByTopic = (attempts: AttemptInput[]) => {
-    const map = new Map<string, { correct: number; total: number }>();
-    for (const a of attempts) {
-      const topic = canonicalTopic(a.question.topic);
-      const existing = map.get(topic) ?? { correct: 0, total: 0 };
-      existing.total++;
-      if (a.isCorrect) existing.correct++;
-      map.set(topic, existing);
-    }
-    return map;
-  };
-
-  const groupA = groupByTopic(sessionAAttempts);
-  const groupB = groupByTopic(sessionBAttempts);
-
-  // Union of all topics that appear in either session
-  const allTopics = new Set([...groupA.keys(), ...groupB.keys()]);
-
-  const topics: TopicComparison[] = [];
-  let improvedCount = 0;
-  let declinedCount = 0;
-  let insufficientDataCount = 0;
-
-  for (const topic of allTopics) {
-    const a = groupA.get(topic) ?? null;
-    const b = groupB.get(topic) ?? null;
-
-    const session1 = a
-      ? { correct: a.correct, total: a.total, accuracy: a.correct / a.total }
-      : null;
-    const session2 = b
-      ? { correct: b.correct, total: b.total, accuracy: b.correct / b.total }
-      : null;
-
-    // Both sessions need ≥2 attempts to produce a meaningful comparison
-    const enoughDataA = (a?.total ?? 0) >= 2;
-    const enoughDataB = (b?.total ?? 0) >= 2;
-    const canCompare = enoughDataA && enoughDataB;
-
-    let delta: number | null = null;
-    let direction: ComparisonDirection;
-
-    if (canCompare && session1 && session2) {
-      delta = session2.accuracy - session1.accuracy;
-      if (delta > 0.10) {
-        direction = "IMPROVED";
-        improvedCount++;
-      } else if (delta < -0.10) {
-        direction = "DECLINED";
-        declinedCount++;
-      } else {
-        direction = "SIMILAR";
-      }
-    } else {
-      direction = "INSUFFICIENT_DATA";
-      insufficientDataCount++;
-    }
-
-    topics.push({
-      topic,
-      label: prettifyTopic(topic),
-      session1,
-      session2,
-      delta,
-      direction,
-      confidence: determineComparisonConfidence(a?.total ?? null, b?.total ?? null),
-    });
-  }
-
-  // Sort: comparable topics first (IMPROVED/DECLINED/SIMILAR), then INSUFFICIENT_DATA
-  topics.sort((a, b) => {
-    const order = (d: ComparisonDirection) =>
-      d === "INSUFFICIENT_DATA" ? 1 : 0;
-    return order(a.direction) - order(b.direction);
-  });
-
-  return {
-    session1Number: sessionANumber,
-    session2Number: sessionBNumber,
-    topics,
-    improvedCount,
-    declinedCount,
-    insufficientDataCount,
-  };
 }

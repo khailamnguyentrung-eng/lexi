@@ -16,7 +16,6 @@
 import {
   fetchSessionAttempts,
   fetchNotebookContext,
-  fetchSessionComparisonData,
   NotebookContextRow,
   AttemptScope,
 } from "./repository";
@@ -24,14 +23,12 @@ import {
   computeBlueprintCoverage,
   computeReadiness,
   computeWeaknessSignals,
-  computeSessionComparison,
 } from "./sessionAnalytics";
 import type {
   BlueprintCoverage,
   ReadinessResult,
   WeaknessTopic,
   NotebookContext,
-  SessionComparisonResult,
 } from "./types";
 
 // ──────────────────────────────────────────────────────────────────
@@ -92,30 +89,6 @@ export async function getSessionAnalytics(
     weaknessTopics,
     generatedAt: new Date().toISOString(),
   };
-}
-
-/**
- * Compare per-topic accuracy between two curriculum sessions.
- *
- * Returns a topic-by-topic delta view showing which areas improved,
- * declined, or stayed similar. Topics with insufficient data in either
- * session are included with direction INSUFFICIENT_DATA rather than omitted,
- * so the UI can explain the gap.
- */
-export async function getSessionComparison(
-  userId: string,
-  sessionAId: string,
-  sessionBId: string,
-  sessionANumber: number,
-  sessionBNumber: number
-): Promise<SessionComparisonResult> {
-  const { sessionA, sessionB } = await fetchSessionComparisonData(
-    userId,
-    sessionAId,
-    sessionBId
-  );
-
-  return computeSessionComparison(sessionA, sessionB, sessionANumber, sessionBNumber);
 }
 
 // ──────────────────────────────────────────────────────────────────

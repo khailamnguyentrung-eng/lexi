@@ -226,37 +226,6 @@ export async function fetchNotebookContext(
 }
 
 /**
- * Fetch attempts from two sessions for topic-to-topic comparison.
- *
- * Returns attempts for both sessions in a single call.
- * The engine (computeSessionComparison) receives them separately.
- */
-export async function fetchSessionComparisonData(
-  userId: string,
-  sessionAId: string,
-  sessionBId: string
-): Promise<{ sessionA: AttemptWithQuestion[]; sessionB: AttemptWithQuestion[] }> {
-  const [sessionA, sessionB] = await Promise.all([
-    fetchSessionAttempts(userId, { curriculumSessionId: sessionAId }),
-    fetchSessionAttempts(userId, { curriculumSessionId: sessionBId }),
-  ]);
-
-  return { sessionA, sessionB };
-}
-
-/**
- * Resolve a curriculum session's internal ID from its human-facing session number.
- * Used by route handlers to translate URL params to DB IDs before calling the repository.
- */
-export async function resolveSessionId(sessionNumber: number): Promise<string | null> {
-  const session = await prisma.curriculumSession.findUnique({
-    where: { sessionNumber },
-    select: { id: true },
-  });
-  return session?.id ?? null;
-}
-
-/**
  * Find whichever spine's most recently completed unit (CurriculumSession or
  * ProgramCurriculum slot) is truly the most recent by completedAt — used by
  * studentLearningProfile.ts and practiceRecommendation.ts to feed

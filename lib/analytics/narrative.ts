@@ -27,7 +27,6 @@
 
 import type {
   SessionAnalyticsResponse,
-  SessionComparisonResponse,
   WeaknessSignalItem,
   ReadinessBand,
   ConfidenceLevel,
@@ -69,21 +68,6 @@ export interface WeaknessNarrative {
   patternNote: string | null;
   /** Historical note from error notebook — only set when notebookContext exists. */
   notebookNote: string | null;
-}
-
-/**
- * Student-facing narrative for a two-session comparison.
- */
-export interface ComparisonNarrative {
-  headline: string;
-  /** 1-sentence summary of the overall change direction. */
-  summary: string;
-  /** Labels of topics where direction === IMPROVED. */
-  improvedAreas: string[];
-  /** Labels of topics where direction === DECLINED. */
-  needsAttention: string[];
-  /** Non-null only when confidence is OBSERVED. */
-  confidenceNote: string | null;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -249,83 +233,4 @@ function buildWeaknessGuidance(accuracy: number, label: string): string {
     return `Bạn gần đạt mức tốt ở ${label} rồi. Một chút luyện tập thêm sẽ tạo ra sự khác biệt lớn.`;
   }
   return `Bạn đang làm tốt ở ${label} — hãy chú ý giữ vững và luyện thêm để đạt kết quả cao hơn.`;
-}
-
-// ──────────────────────────────────────────────────────────────────
-// generateComparisonNarrative
-// ──────────────────────────────────────────────────────────────────
-
-/**
- * Generate student-facing narrative for a two-session comparison.
- *
- * Covers:
- *   1. Overall headline based on the balance of improved vs. declined topics
- *   2. 1-sentence summary of what changed
- *   3. Improved areas listed (direction === IMPROVED)
- *   4. Areas needing attention (direction === DECLINED)
- */
-export function generateComparisonNarrative(
-  response: SessionComparisonResponse
-): ComparisonNarrative {
-  const { summary, topics, confidence } = response;
-  const { improvedCount, declinedCount } = summary;
-
-  const totalComparable = topics.filter((t) => t.direction !== "INSUFFICIENT_DATA").length;
-
-  const improvedAreas = topics
-    .filter((t) => t.direction === "IMPROVED")
-    .map((t) => t.label);
-
-  const needsAttention = topics
-    .filter((t) => t.direction === "DECLINED")
-    .map((t) => t.label);
-
-  let headline: string;
-  let summaryText: string;
-
-  if (totalComparable === 0) {
-    headline = "Chưa đủ dữ liệu để so sánh chi tiết.";
-    summaryText =
-      "Cần thêm dữ liệu từ cả hai buổi học để có thể so sánh tiến bộ theo từng chủ đề. Hãy luyện thêm để Lexi có thể đánh giá chính xác hơn.";
-  } else if (improvedCount > declinedCount) {
-    headline = "Bạn đã tiến bộ so với buổi trước!";
-    summaryText = buildComparisonSummary(improvedCount, declinedCount);
-  } else if (declinedCount > improvedCount) {
-    headline = "Có một số phần cần chú ý thêm so với buổi trước.";
-    summaryText = buildComparisonSummary(improvedCount, declinedCount);
-  } else {
-    headline =
-      improvedCount > 0
-        ? "Kết quả có sự thay đổi cân bằng so với buổi trước."
-        : "Phong độ ổn định so với buổi trước.";
-    summaryText = buildComparisonSummary(improvedCount, declinedCount);
-  }
-
-  return {
-    headline,
-    summary: summaryText,
-    improvedAreas,
-    needsAttention,
-    confidenceNote: CONFIDENCE_NOTE[confidence],
-  };
-}
-
-/**
- * Build the 1-sentence comparison summary.
- * Always refers to "so với buổi trước" (compared to last session).
- */
-function buildComparisonSummary(improved: number, declined: number): string {
-  if (improved === 0 && declined === 0) {
-    return "Kết quả tương đương với buổi trước — bạn đang duy trì ổn định.";
-  }
-
-  const parts: string[] = [];
-  if (improved > 0) {
-    parts.push(`tiến bộ ở ${improved} chủ đề`);
-  }
-  if (declined > 0) {
-    parts.push(`cần chú ý thêm ở ${declined} chủ đề`);
-  }
-
-  return `So với buổi trước, bạn đã ${parts.join(" và ")}.`;
 }

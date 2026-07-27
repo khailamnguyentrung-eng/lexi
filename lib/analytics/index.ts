@@ -34,9 +34,6 @@ export type {
   WeaknessTopic,
   SessionAnalyticsResult,
   SectionDropAnalysis,
-  ComparisonDirection,
-  TopicComparison,
-  SessionComparisonResult,
 } from "./types";
 
 export { ConfidenceTier } from "./types";
@@ -65,8 +62,6 @@ export type {
 export {
   fetchSessionAttempts,
   fetchNotebookContext,
-  fetchSessionComparisonData,
-  resolveSessionId,
   findMostRecentlyCompletedScope,
 } from "./repository";
 
@@ -76,14 +71,12 @@ export {
   computeBlueprintCoverage,
   computeReadiness,
   computeWeaknessSignals,
-  computeSessionComparison,
 } from "./sessionAnalytics";
 
 // Service orchestration (repository + engine, no Prisma)
 export type { SessionAnalyticsOutput } from "./service";
 export {
   getSessionAnalytics,
-  getSessionComparison,
   enrichWeaknessWithNotebook,
 } from "./service";
 
@@ -102,24 +95,19 @@ export type {
   WrongAnswerItem,
   WeaknessSignalItem,
   SessionAnalyticsResponse,
-  TopicComparisonItem,
-  SessionComparisonResponse,
 } from "./contracts";
 export {
   toSessionAnalyticsResponse,
-  toSessionComparisonResponse,
 } from "./contracts";
 
 // Narrative layer — pure deterministic text generation from contract types
 export type {
   ReadinessNarrative,
   WeaknessNarrative,
-  ComparisonNarrative,
 } from "./narrative";
 export {
   generateReadinessNarrative,
   generateWeaknessNarrative,
-  generateComparisonNarrative,
 } from "./narrative";
 
 // Notebook intelligence — cross-references ErrorNotebookEntry with QuestionAttempt
