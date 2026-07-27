@@ -33,6 +33,17 @@ export interface NextMission {
  * defensively, same as its predecessor).
  */
 export async function getNextMission(userId: string): Promise<NextMission | null> {
+  // ⚠️ IMPORTANT: orderBy: { createdAt: "desc" } is required here. SQLite's
+  // findFirst() with no orderBy does not guarantee a specific row when multiple
+  // exist (may return oldest-first, newest-first, or arbitrary), making test
+  // isolation impossible. This orders by newest-first (desc).
+  //
+  // Trade-off: This assumes only ONE Program exists in practice (the current
+  // v1 invariant). If that invariant is ever violated — e.g. a leaked test/
+  // debug Program row that didn't get cleaned up — this function will silently
+  // serve the newest (wrong) one to real users rather than erroring. Future
+  // readers: if you see multiple Programs in production, this is a footgun;
+  // add an explicit slug parameter or a stricter query before that happens.
   const program = await prisma.program.findFirst({
     select: { id: true, slug: true },
     orderBy: { createdAt: "desc" },
