@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { canonicalTopic } from "@/lib/analytics/canonicalTopic";
+import { fetchSessionAttempts } from "@/lib/analytics";
+import type { AttemptScope } from "@/lib/analytics";
 
 // ── Legacy fixed-offset stub (unchanged — callers that use nextReviewDate/isFinalStage
 // keep working; SM-2 replaces write logic for notebook entries, not these helpers) ──
@@ -90,21 +92,22 @@ export function computeSM2Update(input: SM2UpdateInput): SM2UpdateResult {
 
 // ── SM-2 Service ──────────────────────────────────────────────────────────────
 
-// Called after a curriculum session completes. For each topic the student
-// practiced, if there is a reviewed (lastReviewedAt != null) open notebook
-// entry for that topic, update its SM-2 fields based on this session's accuracy.
+// Called after a CurriculumSession OR ProgramCurriculum slot completes
+// (whichever `scope` identifies). For each topic the student practiced, if
+// there is a reviewed (lastReviewedAt != null) open notebook entry for that
+// topic, update its SM-2 fields based on this session's accuracy.
 //
-// Failures are non-fatal: the caller wraps this in a try/catch so session
-// completion is never blocked.
+// Failures are non-fatal: both callers wrap this in a try/catch so
+// session/slot completion is never blocked.
 export async function applySM2ForSession(
   userId: string,
-  curriculumSessionId: string,
+  scope: AttemptScope,
 ): Promise<void> {
-  // 1. Fetch attempts for this session with question topic
-  const attempts = await prisma.questionAttempt.findMany({
-    where: { userId, curriculumSessionId },
-    select: { isCorrect: true, question: { select: { topic: true } } },
-  });
+  // 1. Fetch attempts for this scope (CurriculumSession or ProgramCurriculum
+  // slot) with question topic — reuses the same repository function
+  // getSessionAnalytics() already uses, rather than a third copy of the
+  // scope-branching where-clause.
+  const attempts = await fetchSessionAttempts(userId, scope);
 
   if (attempts.length === 0) return;
 
