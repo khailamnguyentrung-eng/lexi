@@ -32,6 +32,12 @@ export async function POST(
   const scoreAchieved =
     attempts.length > 0 ? attempts.filter((a) => a.isCorrect).length / attempts.length : null;
 
+  const priorProgress = await prisma.userProgramProgress.findUnique({
+    where: { userId_programCurriculumId: { userId: user.id, programCurriculumId } },
+    select: { status: true },
+  });
+  const wasAlreadyCompleted = priorProgress?.status === "COMPLETED";
+
   const progress = await prisma.userProgramProgress.upsert({
     where: { userId_programCurriculumId: { userId: user.id, programCurriculumId } },
     update: { status: "COMPLETED", completedAt: new Date(), scoreAchieved },
@@ -44,10 +50,17 @@ export async function POST(
     },
   });
 
-  try {
-    await applySM2ForSession(user.id, { programCurriculumId });
-  } catch (e) {
-    console.error("[SM-2] applySM2ForSession failed silently:", e);
+  // SM-2 advances reviewStage on every call — it is deliberately not
+  // idempotent. Only apply it on the transition INTO completed, so replaying
+  // an already-finished slot (reachable in one click from the program index,
+  // which links every slot unconditionally) cannot double-advance a notebook
+  // entry's spaced-repetition schedule.
+  if (!wasAlreadyCompleted) {
+    try {
+      await applySM2ForSession(user.id, { programCurriculumId });
+    } catch (e) {
+      console.error("[SM-2] applySM2ForSession failed silently:", e);
+    }
   }
 
   return NextResponse.json({ progress });
