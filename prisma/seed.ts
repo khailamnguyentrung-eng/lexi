@@ -27,7 +27,6 @@ interface SeedQuestion {
   sourceExam: string | null;
   passageTitle: string | null;
   passageBody: string | null;
-  curriculumSessionNumber: number | null;
 }
 
 interface SeedKnowledgeUnit {
@@ -36,23 +35,6 @@ interface SeedKnowledgeUnit {
   targetEasyCount: number;
   targetMediumCount: number;
   targetHardCount: number;
-}
-
-interface SeedCurriculum {
-  phases: Array<{ order: number; name: string; startSession: number; endSession: number; goal: string }>;
-  sessions: Array<{
-    sessionNumber: number;
-    phaseOrder: number;
-    title: string;
-    objective: string;
-    grammarTopics: string[];
-    vocabThemes: string[];
-    exercises: Array<{ type: string; description: string }>;
-    resources: Array<{ label: string; url: string }>;
-    timeBlocks: Array<{ label: string; startMin: number; endMin: number }>;
-    unitMapping: string | null;
-    sessionType: string;
-  }>;
 }
 
 function readJson<T>(relativePath: string): T | null {
@@ -107,57 +89,6 @@ async function seedAdmin() {
   });
 
   console.log(`Seeded admin user: ${email} / ${password}`);
-}
-
-async function seedCurriculum() {
-  const data = readJson<SeedCurriculum>("seed-data/curriculum.json");
-  if (!data) return;
-
-  const phaseIdByOrder = new Map<number, string>();
-  for (const phase of data.phases) {
-    const created = await prisma.curriculumPhase.upsert({
-      where: { id: `phase-${phase.order}` },
-      update: { ...phase },
-      create: { id: `phase-${phase.order}`, ...phase },
-    });
-    phaseIdByOrder.set(phase.order, created.id);
-  }
-
-  for (const session of data.sessions) {
-    const phaseId = phaseIdByOrder.get(session.phaseOrder);
-    if (!phaseId) continue;
-
-    await prisma.curriculumSession.upsert({
-      where: { sessionNumber: session.sessionNumber },
-      update: {
-        phaseId,
-        title: session.title,
-        objective: session.objective,
-        grammarTopics: JSON.stringify(session.grammarTopics ?? []),
-        vocabThemes: JSON.stringify(session.vocabThemes ?? []),
-        exercises: JSON.stringify(session.exercises ?? []),
-        resources: JSON.stringify(session.resources ?? []),
-        timeBlocks: JSON.stringify(session.timeBlocks ?? []),
-        unitMapping: session.unitMapping,
-        sessionType: session.sessionType as never,
-      },
-      create: {
-        sessionNumber: session.sessionNumber,
-        phaseId,
-        title: session.title,
-        objective: session.objective,
-        grammarTopics: JSON.stringify(session.grammarTopics ?? []),
-        vocabThemes: JSON.stringify(session.vocabThemes ?? []),
-        exercises: JSON.stringify(session.exercises ?? []),
-        resources: JSON.stringify(session.resources ?? []),
-        timeBlocks: JSON.stringify(session.timeBlocks ?? []),
-        unitMapping: session.unitMapping,
-        sessionType: session.sessionType as never,
-      },
-    });
-  }
-
-  console.log(`Seeded ${data.phases.length} phases and ${data.sessions.length} curriculum sessions.`);
 }
 
 /**
@@ -235,14 +166,6 @@ async function seedQuestions() {
       }
     }
 
-    let curriculumSessionId: string | undefined;
-    if (q.curriculumSessionNumber) {
-      const session = await prisma.curriculumSession.findUnique({
-        where: { sessionNumber: q.curriculumSessionNumber },
-      });
-      curriculumSessionId = session?.id;
-    }
-
     await prisma.question.upsert({
       where: { questionCode: q.questionCode },
       update: {
@@ -262,7 +185,6 @@ async function seedQuestions() {
         source: q.source,
         sourceExam: q.sourceExam,
         passageId,
-        curriculumSessionId,
       },
       create: {
         questionCode: q.questionCode,
@@ -282,7 +204,6 @@ async function seedQuestions() {
         source: q.source,
         sourceExam: q.sourceExam,
         passageId,
-        curriculumSessionId,
       },
     });
   }
@@ -354,7 +275,6 @@ async function linkQuestionsToKnowledgeUnits() {
 async function main() {
   await seedStudent();
   await seedAdmin();
-  await seedCurriculum();
   await seedKnowledgeUnits();
   await seedQuestions();
   await linkQuestionsToKnowledgeUnits();
