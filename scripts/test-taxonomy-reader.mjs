@@ -22,8 +22,8 @@
  * proposedTopic starts with "demo_topic_from_mock" (mock's own topic naming,
  * unlikely to ever collide with a real proposal), and a throwaway
  * KnowledgeUnit fixture used to test the alreadyInRegistry skip. Never
- * touches the real 14+ KnowledgeUnit registry or the 59 real pending
- * proposals from earlier verification.
+ * touches the real 71 KnowledgeUnit registry or any PendingKnowledgeUnit
+ * rows it didn't itself create.
  */
 
 import { PrismaClient } from "@prisma/client";

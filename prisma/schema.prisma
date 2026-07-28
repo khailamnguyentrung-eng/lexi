@@ -225,22 +225,22 @@ model QuestionAttempt {
   // `selectedOption` (QM-1: legacy) — an "A"|"B"|"C"|"D" letter cannot express
   // typed text, a set of pairs, or an ordering. Kept for the existing readers;
   // `response` supersedes it.
-  selectedOption      String
+  selectedOption String
   // JSON, shape mirrors the question's ResponseFormat. See
   // lib/services/question-format. Nullable: not backfilled, deliberately —
   // V1_V2_RECONCILIATION.md rules all 31 existing attempt rows are dev
   // click-testing and get dropped, so converting them would be work spent on
   // rows already scheduled for deletion.
-  response            String?
-  isCorrect           Boolean
+  response       String?
+  isCorrect      Boolean
   // Partial credit, 0..1 — a MATCHING question with 3 of 4 pairs right is not
   // simply "wrong". Nullable because binary formats don't need it, and
   // `isCorrect` stays authoritative for every existing accuracy calculation
   // (analytics reads it in ~10 places; changing its meaning would silently
   // rewrite every mastery number).
-  score               Float?
-  timeSpentSec        Int?
-  attemptedAt         DateTime           @default(now())
+  score          Float?
+  timeSpentSec   Int?
+  attemptedAt    DateTime @default(now())
 
   // Set when this answer was submitted during a mock test — an answer
   // given during a mock test is still just a QuestionAttempt, tagged with
