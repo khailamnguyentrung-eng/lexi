@@ -42,7 +42,6 @@ export { ConfidenceTier } from "./types";
 export {
   determineWeaknessConfidence,
   determinePatternConfidence,
-  determineComparisonConfidence,
   determineSectionDropConfidence,
   determineReadinessConfidence,
   STUDENT_CONFIDENCE_LABEL,
