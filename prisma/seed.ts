@@ -279,12 +279,14 @@ async function main() {
   await seedQuestions();
   await linkQuestionsToKnowledgeUnits();
 
-  // Program (v2 spine) — additive, does not touch seedCurriculum()'s
-  // CurriculumSession rows above. Must run AFTER seedKnowledgeUnits() (needs
-  // the KU registry to match grammarTopics against) and AFTER seedQuestions()
-  // (assembleProgramGaps() only matters once real KUs and their questions
-  // exist to report gaps for). Idempotent — see both functions' docstrings —
-  // so this is safe on every reseed, not just the first one.
+  // Program (v2 spine) — reads the same curriculum.json file seed.ts used to
+  // also seed CurriculumPhase/CurriculumSession from, before that model family
+  // was retired (see docs/superpowers/plans/2026-07-28-retire-curriculumsession-phase2.md).
+  // Does not duplicate or touch that JSON parsing itself. Must run AFTER
+  // seedKnowledgeUnits() (needs the KU registry to match grammarTopics against)
+  // and AFTER seedQuestions() (assembleProgramGaps() only matters once real
+  // KUs and their questions exist to report gaps for). Idempotent — see both
+  // functions' docstrings — so this is safe on every reseed, not just the first one.
   const demo = await seedDemoProgram();
   console.log(
     demo.alreadyExisted
