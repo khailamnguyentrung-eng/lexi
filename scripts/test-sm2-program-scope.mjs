@@ -2,9 +2,7 @@
  * test-sm2-program-scope.mjs
  *
  * Live check (real dev.db, no mocks) that applySM2ForSession() correctly
- * applies an SM-2 update for BOTH a CurriculumSession-scoped call (regression
- * — the pre-existing behavior) and a ProgramCurriculum-scoped call (the new
- * behavior this task adds).
+ * applies an SM-2 update for a ProgramCurriculum-scoped call.
  *
  * Creates and tears down its own fixtures in `finally`, matching
  * test-ku1-partb-review.mjs's convention.
@@ -49,18 +47,6 @@ async function main() {
       source: "sm2-scope-test-fixture",
     },
   });
-  const phase = await prisma.curriculumPhase.create({
-    data: { name: "SM2 Scope Test Phase", order: 9996, startSession: 9996, endSession: 9996, goal: "n/a" },
-  });
-  const session = await prisma.curriculumSession.create({
-    data: {
-      phaseId: phase.id,
-      sessionNumber: 600000 + (stamp % 90000),
-      title: "SM2 Scope Test Session",
-      objective: "n/a",
-      timeBlocks: "[]",
-    },
-  });
   const program = await prisma.program.create({
     data: { slug: `sm2-scope-test-${stamp}`, title: "SM2 Scope Test Program" },
   });
@@ -84,33 +70,6 @@ async function main() {
   });
 
   try {
-    // Case 1: CurriculumSession-scoped call (regression check).
-    await prisma.questionAttempt.create({
-      data: {
-        userId: user.id,
-        questionId: question.id,
-        selectedOption: "A",
-        isCorrect: true,
-        curriculumSessionId: session.id,
-      },
-    });
-    await applySM2ForSession(user.id, { curriculumSessionId: session.id });
-
-    const afterCurriculum = await prisma.errorNotebookEntry.findUniqueOrThrow({ where: { id: entry.id } });
-    assert(
-      "CurriculumSession-scoped call advances reviewStage (regression check)",
-      afterCurriculum.reviewStage === 1
-    );
-    assert("CurriculumSession-scoped call sets nextReviewAt", afterCurriculum.nextReviewAt !== null);
-
-    // Reset the entry's SM-2 state before Case 2, so Case 2's assertions
-    // are unambiguous about the Program-scoped call causing the change.
-    await prisma.errorNotebookEntry.update({
-      where: { id: entry.id },
-      data: { reviewStage: 0, easeFactor: 2.5, nextReviewAt: null },
-    });
-
-    // Case 2: ProgramCurriculum-scoped call (the new behavior).
     await prisma.questionAttempt.create({
       data: {
         userId: user.id,
@@ -120,18 +79,16 @@ async function main() {
         programCurriculumId: slot.id,
       },
     });
-    await applySM2ForSession(user.id, { programCurriculumId: slot.id });
+    await applySM2ForSession(user.id, slot.id);
 
-    const afterProgram = await prisma.errorNotebookEntry.findUniqueOrThrow({ where: { id: entry.id } });
-    assert("ProgramCurriculum-scoped call advances reviewStage", afterProgram.reviewStage === 1);
-    assert("ProgramCurriculum-scoped call sets nextReviewAt", afterProgram.nextReviewAt !== null);
+    const after = await prisma.errorNotebookEntry.findUniqueOrThrow({ where: { id: entry.id } });
+    assert("advances reviewStage", after.reviewStage === 1);
+    assert("sets nextReviewAt", after.nextReviewAt !== null);
   } finally {
     await prisma.errorNotebookEntry.delete({ where: { id: entry.id } });
     await prisma.questionAttempt.deleteMany({ where: { userId: user.id } });
     await prisma.programCurriculum.delete({ where: { id: slot.id } });
     await prisma.program.delete({ where: { id: program.id } });
-    await prisma.curriculumSession.delete({ where: { id: session.id } });
-    await prisma.curriculumPhase.delete({ where: { id: phase.id } });
     await prisma.question.delete({ where: { id: question.id } });
     await prisma.user.delete({ where: { id: user.id } });
   }

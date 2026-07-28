@@ -1,14 +1,8 @@
 /**
  * test-behavior-engine-scope.mjs
  *
- * Live check (real dev.db, no mocks) that getBehaviorProfile():
- *   1. Actually finds QuestionAttempt rows for a completed CurriculumSession
- *      (proves the id-vs-curriculumSessionId mismatch bug is fixed — before
- *      this fix, attemptsBySession was keyed by the wrong id and this would
- *      always come back empty).
- *   2. Also picks up a completed ProgramCurriculum slot's attempts (the
- *      union this task adds).
- *   3. sessionCount reflects both spines combined.
+ * Live check (real dev.db, no mocks) that getBehaviorProfile() correctly
+ * finds QuestionAttempt rows for a completed ProgramCurriculum slot.
  *
  * Creates and tears down its own fixtures in `finally`, matching
  * test-ku1-partb-review.mjs's convention.
@@ -53,18 +47,6 @@ async function main() {
       source: "behavior-scope-test-fixture",
     },
   });
-  const phase = await prisma.curriculumPhase.create({
-    data: { name: "Behavior Scope Test Phase", order: 9998, startSession: 9998, endSession: 9998, goal: "n/a" },
-  });
-  const session = await prisma.curriculumSession.create({
-    data: {
-      phaseId: phase.id,
-      sessionNumber: 800000 + (stamp % 90000),
-      title: "Behavior Scope Test Session",
-      objective: "n/a",
-      timeBlocks: "[]",
-    },
-  });
   const program = await prisma.program.create({
     data: { slug: `behavior-scope-test-${stamp}`, title: "Behavior Scope Test Program" },
   });
@@ -75,15 +57,6 @@ async function main() {
   const now = new Date();
   const tenMinAgo = new Date(now.getTime() - 10 * 60 * 1000);
 
-  await prisma.userSessionProgress.create({
-    data: {
-      userId: user.id,
-      curriculumSessionId: session.id,
-      status: "COMPLETED",
-      startedAt: tenMinAgo,
-      completedAt: now,
-    },
-  });
   await prisma.userProgramProgress.create({
     data: {
       userId: user.id,
@@ -94,18 +67,9 @@ async function main() {
     },
   });
 
-  // 3 attempts per spine (derivePaceProfile needs >= 3 attempts to count a session)
-  for (let i = 0; i < 3; i++) {
-    await prisma.questionAttempt.create({
-      data: {
-        userId: user.id,
-        questionId: question.id,
-        selectedOption: "A",
-        isCorrect: i !== 1,
-        timeSpentSec: 15,
-        curriculumSessionId: session.id,
-      },
-    });
+  // 5 attempts (derivePaceProfile needs >= 3 attempts to count a session;
+  // deriveResponseTimeSignal needs >= 5 non-null timeSpentSec records)
+  for (let i = 0; i < 5; i++) {
     await prisma.questionAttempt.create({
       data: {
         userId: user.id,
@@ -120,23 +84,20 @@ async function main() {
 
   try {
     const profile = await getBehaviorProfile(user.id);
-    assert("sessionCount counts both the CurriculumSession and the ProgramCurriculum slot", profile.sessionCount === 2);
+    assert("sessionCount counts the completed ProgramCurriculum slot", profile.sessionCount === 1);
     assert(
-      "avgSessionDurationMin is computed (proves startedAt/completedAt pairs from both spines feed in)",
+      "avgSessionDurationMin is computed from the startedAt/completedAt pair",
       profile.avgSessionDurationMin !== null && profile.avgSessionDurationMin > 0
     );
     assert(
-      "responseTimeSignal is MODERATE (proves attempts from BOTH spines actually reached the engine, not just their startedAt/completedAt timestamps)",
+      "responseTimeSignal is MODERATE (proves attempts reached the engine)",
       profile.responseTimeSignal === "MODERATE"
     );
   } finally {
     await prisma.questionAttempt.deleteMany({ where: { userId: user.id } });
     await prisma.userProgramProgress.deleteMany({ where: { userId: user.id } });
-    await prisma.userSessionProgress.deleteMany({ where: { userId: user.id } });
     await prisma.programCurriculum.delete({ where: { id: slot.id } });
     await prisma.program.delete({ where: { id: program.id } });
-    await prisma.curriculumSession.delete({ where: { id: session.id } });
-    await prisma.curriculumPhase.delete({ where: { id: phase.id } });
     await prisma.question.delete({ where: { id: question.id } });
     await prisma.user.delete({ where: { id: user.id } });
   }

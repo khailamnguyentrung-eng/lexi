@@ -2,16 +2,11 @@
  * test-analytics-scope.mjs
  *
  * Live check (real dev.db, no mocks) that fetchSessionAttempts() and
- * getSessionAnalytics() correctly branch on AttemptScope: a
- * curriculumSessionId scope must never return rows from a different
- * session/slot, and a programCurriculumId scope must return exactly the
- * attempts tagged with that slot.
+ * getSessionAnalytics() correctly return only the attempts tagged with a
+ * given ProgramCurriculum slot.
  *
- * DEVIATION from most test-*.mjs scripts, same reasoning as
- * test-ku1-partb-review.mjs: creates its own fixtures (User, Question,
- * CurriculumPhase/Session, Program/ProgramCurriculum, two QuestionAttempt
- * rows) and tears them all down in `finally`, so it never touches any
- * pre-existing row.
+ * Creates and tears down its own fixtures in `finally`, matching
+ * test-ku1-partb-review.mjs's convention.
  *
  * Run: node --import tsx scripts/test-analytics-scope.mjs
  */
@@ -54,34 +49,16 @@ async function main() {
       source: "scope-test-fixture",
     },
   });
-  const phase = await prisma.curriculumPhase.create({
-    data: { name: "Scope Test Phase", order: 9999, startSession: 9999, endSession: 9999, goal: "n/a" },
-  });
-  const session = await prisma.curriculumSession.create({
-    data: {
-      phaseId: phase.id,
-      sessionNumber: 900000 + (stamp % 90000),
-      title: "Scope Test Session",
-      objective: "n/a",
-      timeBlocks: "[]",
-    },
-  });
   const program = await prisma.program.create({
     data: { slug: `scope-test-${stamp}`, title: "Scope Test Program" },
   });
   const slot = await prisma.programCurriculum.create({
     data: { programId: program.id, order: 1, title: "Scope Test Slot" },
   });
-
-  const sessionAttempt = await prisma.questionAttempt.create({
-    data: {
-      userId: user.id,
-      questionId: question.id,
-      selectedOption: "A",
-      isCorrect: true,
-      curriculumSessionId: session.id,
-    },
+  const otherSlot = await prisma.programCurriculum.create({
+    data: { programId: program.id, order: 2, title: "Other Scope Test Slot" },
   });
+
   const slotAttempt = await prisma.questionAttempt.create({
     data: {
       userId: user.id,
@@ -91,44 +68,36 @@ async function main() {
       programCurriculumId: slot.id,
     },
   });
+  await prisma.questionAttempt.create({
+    data: {
+      userId: user.id,
+      questionId: question.id,
+      selectedOption: "A",
+      isCorrect: true,
+      programCurriculumId: otherSlot.id,
+    },
+  });
 
   try {
-    const byProgramScope = await fetchSessionAttempts(user.id, { programCurriculumId: slot.id });
+    const byProgramScope = await fetchSessionAttempts(user.id, slot.id);
     assert(
-      "programCurriculumId scope returns exactly the slot-scoped attempt",
+      "returns exactly the slot-scoped attempt, not the other slot's",
       byProgramScope.length === 1 && byProgramScope[0].id === slotAttempt.id
     );
 
-    const bySessionScope = await fetchSessionAttempts(user.id, { curriculumSessionId: session.id });
+    const programAnalytics = await getSessionAnalytics(user.id, slot.id, slot.order);
     assert(
-      "curriculumSessionId scope returns exactly the session-scoped attempt",
-      bySessionScope.length === 1 && bySessionScope[0].id === sessionAttempt.id
-    );
-    const programAnalytics = await getSessionAnalytics(user.id, { programCurriculumId: slot.id }, slot.order);
-    assert(
-      "getSessionAnalytics with programCurriculumId scope echoes the caller-supplied label as sessionNumber",
+      "getSessionAnalytics echoes the caller-supplied label as sessionNumber",
       programAnalytics.sessionNumber === slot.order
     );
     assert(
-      "getSessionAnalytics with programCurriculumId scope produces a readiness result",
+      "getSessionAnalytics produces a readiness result",
       programAnalytics.readiness != null
-    );
-
-    const sessionAnalytics = await getSessionAnalytics(
-      user.id,
-      { curriculumSessionId: session.id },
-      session.sessionNumber
-    );
-    assert(
-      "getSessionAnalytics with curriculumSessionId scope still works unchanged",
-      sessionAnalytics.readiness != null
     );
   } finally {
     await prisma.questionAttempt.deleteMany({ where: { userId: user.id } });
-    await prisma.programCurriculum.delete({ where: { id: slot.id } });
+    await prisma.programCurriculum.deleteMany({ where: { programId: program.id } });
     await prisma.program.delete({ where: { id: program.id } });
-    await prisma.curriculumSession.delete({ where: { id: session.id } });
-    await prisma.curriculumPhase.delete({ where: { id: phase.id } });
     await prisma.question.delete({ where: { id: question.id } });
     await prisma.user.delete({ where: { id: user.id } });
   }

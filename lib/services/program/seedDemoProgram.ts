@@ -23,7 +23,7 @@ import path from "node:path";
 import { prisma } from "@/lib/db/prisma";
 import { findMatchingKnowledgeUnitId } from "@/lib/services/content-intelligence/questionKnowledgeMapping";
 
-interface CurriculumSessionSeed {
+interface ProgramSeedSessionSource {
   sessionNumber: number;
   title: string;
   objective: string;
@@ -32,7 +32,7 @@ interface CurriculumSessionSeed {
 }
 
 interface CurriculumSeedFile {
-  sessions: CurriculumSessionSeed[];
+  sessions: ProgramSeedSessionSource[];
 }
 
 export interface SeedDemoProgramResult {
