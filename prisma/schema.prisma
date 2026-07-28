@@ -43,7 +43,6 @@ model User {
   chatSessions    ChatSession[]
   errorEntries    ErrorNotebookEntry[]
   skillMatrix     SkillMatrixEntry[]
-  progress        UserSessionProgress[]
   programProgress UserProgramProgress[]
   attempts        QuestionAttempt[]
 
@@ -199,9 +198,6 @@ model Question {
   passageId String?
   passage   Passage? @relation(fields: [passageId], references: [id])
 
-  curriculumSessionId String?
-  curriculumSession   CurriculumSession? @relation(fields: [curriculumSessionId], references: [id])
-
   // Content Intelligence (M3.1) — nullable; null for seeded/extracted questions
   knowledgeUnitId   String?
   knowledgeUnit     KnowledgeUnit?         @relation(fields: [knowledgeUnitId], references: [id])
@@ -245,31 +241,27 @@ model QuestionAttempt {
   score               Float?
   timeSpentSec        Int?
   attemptedAt         DateTime           @default(now())
-  curriculumSessionId String?
-  curriculumSession   CurriculumSession? @relation(fields: [curriculumSessionId], references: [id])
 
-  // Set when this answer was submitted during a mock test, mirroring the
-  // curriculumSessionId pattern above — an answer given during a mock test
-  // is still just a QuestionAttempt, tagged with which session it belongs
-  // to. See "MOCK TEST" section below for why there's no separate
-  // AnswerRecord table.
+  // Set when this answer was submitted during a mock test — an answer
+  // given during a mock test is still just a QuestionAttempt, tagged with
+  // which session it belongs to. See "MOCK TEST" section below for why
+  // there's no separate AnswerRecord table.
   mockTestAttemptId String?
   mockTestAttempt   MockTestAttempt? @relation(fields: [mockTestAttemptId], references: [id])
 
   // Set when this answer was submitted from a Program lesson slot (v2 spine —
-  // see Program/ProgramCurriculum below), same pattern as curriculumSessionId
-  // and mockTestAttemptId above: an attempt is still just a QuestionAttempt,
-  // tagged with which context it happened in. Added because
-  // /program/[slug]/[order] shipped in PR #15 without threading ANY
-  // session-context through — Program-slot attempts were being recorded with
-  // every context FK null, invisible to behaviorEngine/studentLearningProfile/
-  // practiceRecommendation. This is the fix, first of the "retire
-  // CurriculumSession" batch (docs/DECISION_LOG.md).
+  // see Program/ProgramCurriculum below), same pattern as mockTestAttemptId
+  // above: an attempt is still just a QuestionAttempt, tagged with which
+  // context it happened in. Added because /program/[slug]/[order] shipped
+  // in PR #15 without threading ANY session-context through — Program-slot
+  // attempts were being recorded with every context FK null, invisible to
+  // behaviorEngine/studentLearningProfile/practiceRecommendation. This is
+  // the fix, first of the "retire CurriculumSession" batch
+  // (docs/DECISION_LOG.md).
   programCurriculumId String?
   programCurriculum   ProgramCurriculum? @relation(fields: [programCurriculumId], references: [id])
 
   @@index([userId, questionId])
-  @@index([userId, curriculumSessionId])
   @@index([userId, mockTestAttemptId])
   @@index([userId, programCurriculumId])
 }
@@ -353,52 +345,6 @@ enum ProgressStatus {
   NOT_STARTED
   IN_PROGRESS
   COMPLETED
-}
-
-model CurriculumPhase {
-  id           String @id @default(cuid())
-  name         String // "Foundation" | "Core" | "Exam Prep"
-  order        Int
-  startSession Int
-  endSession   Int
-  goal         String
-
-  sessions CurriculumSession[]
-}
-
-model CurriculumSession {
-  id            String          @id @default(cuid())
-  phaseId       String
-  phase         CurriculumPhase @relation(fields: [phaseId], references: [id])
-  sessionNumber Int             @unique
-  title         String
-  objective     String // explicit lesson objective field
-  grammarTopics String? // JSON array of topic strings
-  vocabThemes   String? // JSON array
-  exercises     String? // JSON array of {type, description}
-  resources     String? // JSON array of {label, url}
-  timeBlocks    String // JSON array of {label, startMin, endMin}
-  unitMapping   String? // e.g. "Global Success Unit 1"
-  sessionType   SessionType     @default(REGULAR)
-
-  questions        Question[] // related questions, via Question.curriculumSessionId
-  questionAttempts QuestionAttempt[] // attempts submitted in this session context
-  userProgress     UserSessionProgress[]
-  knowledgeUnits   KnowledgeUnitOnSession[] // M3.1: topics that this session covers
-}
-
-model UserSessionProgress {
-  id                  String            @id @default(cuid())
-  userId              String
-  user                User              @relation(fields: [userId], references: [id])
-  curriculumSessionId String
-  curriculumSession   CurriculumSession @relation(fields: [curriculumSessionId], references: [id])
-  status              ProgressStatus    @default(NOT_STARTED)
-  startedAt           DateTime?
-  completedAt         DateTime?
-  scoreAchieved       Float?
-
-  @@unique([userId, curriculumSessionId])
 }
 
 /**
@@ -592,8 +538,11 @@ model ExtractedQuestionDraft {
 // ──────────────────────────────────────────────────────────────────
 // KnowledgeUnit: canonical topic registry. One row per topic string,
 // recording display label and target question counts per difficulty band.
-// Bridges Question.topic (a plain string) to CurriculumSession (via join
-// table) and enables the content gap analysis engine.
+// Enables the content gap analysis engine. (Previously also bridged to
+// CurriculumSession via a join table, KnowledgeUnitOnSession — that table
+// was never actually written to by any code path and was dropped along
+// with CurriculumSession itself; see docs/superpowers/plans/
+// 2026-07-28-retire-curriculumsession-phase2.md.)
 //
 // QuestionGenerationJob: minimal foundation for admin-triggered AI
 // generation. Full provider/cost fields deferred to M3.3+. Drafts produced
@@ -607,7 +556,6 @@ model KnowledgeUnit {
   targetMediumCount Int    @default(5)
   targetHardCount   Int    @default(3)
 
-  sessions          KnowledgeUnitOnSession[]
   questions         Question[]
   generatedDrafts   GeneratedQuestionDraft[]         @relation("GeneratedDraftsForUnit")
   resolvedProposals PendingKnowledgeUnit[]
@@ -617,15 +565,6 @@ model KnowledgeUnit {
   updatedAt DateTime @updatedAt
 
   @@index([topic]) // fast lookup during coverage computation
-}
-
-model KnowledgeUnitOnSession {
-  knowledgeUnit       KnowledgeUnit     @relation(fields: [knowledgeUnitId], references: [id])
-  knowledgeUnitId     String
-  curriculumSession   CurriculumSession @relation(fields: [curriculumSessionId], references: [id])
-  curriculumSessionId String
-
-  @@id([knowledgeUnitId, curriculumSessionId])
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -1189,9 +1128,11 @@ model MockTestAttempt {
 // PROGRAM (v2 curriculum spine — replaces CurriculumSession)
 // ──────────────────────────────────────────────────────────────────
 // docs/V1_V2_RECONCILIATION.md ruled CurriculumSession/CurriculumPhase for
-// removal; this is the replacement, built additively (CurriculumSession is
-// UNCHANGED and still live — see the founder-facing scope note in the commit
-// this section ships with). Two things this model deliberately gets right
+// removal; this is the replacement, built additively at first (CurriculumSession
+// remained UNCHANGED and still live — see the founder-facing scope note in the
+// commit this section originally shipped with — until Phase 2 of the retirement
+// plan removed it from the schema entirely; see docs/superpowers/plans/
+// 2026-07-28-retire-curriculumsession-phase2.md). Two things this model deliberately gets right
 // that CurriculumSession got wrong:
 //
 // 1. GENERIC, not hardcoded to one exam. Program is a named container (any
@@ -1233,7 +1174,7 @@ model ProgramCurriculum {
   id          String      @id @default(cuid())
   programId   String
   program     Program     @relation(fields: [programId], references: [id])
-  order       Int // 1-based position — the only thing that determines sequence; no separate phase/week grouping (CurriculumPhase's job is just "3 named bands of session numbers", reproducible by a UI range-label over `order` if ever needed, not a stored relation)
+  order       Int // 1-based position — the only thing that determines sequence; no separate phase/week grouping (CurriculumPhase, now removed, only ever grouped "3 named bands of session numbers", reproducible by a UI range-label over `order` if ever needed, not a stored relation)
   title       String
   objective   String?
   // Reuses the existing SessionType enum (REGULAR/MINI_TEST/CHECKPOINT/
