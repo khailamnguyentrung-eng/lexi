@@ -1,8 +1,12 @@
 /**
- * KU-1 part B, Path A — taxonomyReader.ts end-to-end, against the real
- * seeded 118-question source (Bo_de_test_Tieng_Anh_9.docx,
- * cmqoz5i580001mhwszkybi0d3 — the one real file on disk among the seeded
- * ContentSource rows; see lexi_backend_reality_gap memory / DECISION_LOG).
+ * KU-1 part B, Path A — taxonomyReader.ts end-to-end, against a real
+ * ContentSource (Bo_de_test_Tieng_Anh_9.docx, cms4fnm970005mhvwjciccvhj).
+ * NOT part of db:seed — ContentSource rows only ever come from an actual
+ * upload through /admin/content-import; this id must be re-pointed after
+ * any `prisma migrate reset` (or a fresh dev.db), since a reset drops this
+ * row and a re-upload gets a new cuid (see lexi_backend_reality_gap memory
+ * / DECISION_LOG — discovered 2026-07-28 when the CurriculumSession Phase 2
+ * retirement's fresh-reseed verification step first ran a genuine reset).
  *
  * Uses fileExtractor.extract() for real (real mammoth DOCX parsing, not a
  * fixture string) and whatever AI provider getAIProvider() actually
@@ -26,7 +30,7 @@ import { PrismaClient } from "@prisma/client";
 import { runTaxonomyJob, getOrCreateSourceRead } from "../lib/services/content-intelligence/taxonomyReader.ts";
 
 const prisma = new PrismaClient();
-const REAL_CONTENT_SOURCE_ID = "cmqoz5i580001mhwszkybi0d3"; // Bo_de_test_Tieng_Anh_9.docx, real file on disk
+const REAL_CONTENT_SOURCE_ID = "cms4fnm970005mhvwjciccvhj"; // Bo_de_test_Tieng_Anh_9.docx, real file on disk
 
 let passed = 0;
 let failed = 0;
