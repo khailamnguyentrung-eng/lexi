@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { getPhaseProgress } from "@/lib/services/curriculum";
+import { getProgramProgressSummary } from "@/lib/services/program/nextMission";
 import { getLearningStreak } from "@/lib/services/streak";
 import { getGreeting } from "@/lib/ai/encouragement";
 import { getStudentLearningProfile } from "@/lib/analytics/studentLearningProfile";
@@ -19,7 +19,7 @@ export default async function DashboardPage() {
   const [profile, phaseProgress, dueReviewCount, todayMoodEntry, streak, learningProfile] =
     await Promise.all([
       prisma.learnerProfile.findUnique({ where: { userId: user.id } }),
-      getPhaseProgress(user.id),
+      getProgramProgressSummary(user.id),
       prisma.errorNotebookEntry.count({
         where: {
           userId: user.id,
@@ -146,7 +146,7 @@ export default async function DashboardPage() {
             Tiến độ kỹ năng
           </h2>
           <span className="text-xs text-zinc-400">
-            Buổi {phaseProgress.completedSessions}/{phaseProgress.totalSessions || 24}
+            Bài {phaseProgress.completedSlots}/{phaseProgress.totalSlots}
           </span>
         </div>
         {learningProfile.skillSnapshot.length > 0 ? (

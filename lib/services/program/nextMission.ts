@@ -79,3 +79,30 @@ export async function getNextMission(userId: string): Promise<NextMission | null
     objective: chosen.objective,
   };
 }
+
+/**
+ * Completed/total slot count for the one Program — replaces
+ * curriculum.ts's retired getPhaseProgress(), which counted completed/total
+ * CurriculumSessions grouped by CurriculumPhase. ProgramCurriculum has no
+ * phase/grouping concept (see docs/superpowers/plans/
+ * 2026-07-28-retire-curriculumsession-phase1.md), so this is a flat count,
+ * not a rebuilt phase breakdown.
+ */
+export interface ProgramProgressSummary {
+  completedSlots: number;
+  totalSlots: number;
+}
+
+export async function getProgramProgressSummary(userId: string): Promise<ProgramProgressSummary> {
+  const program = await prisma.program.findFirst({ select: { id: true } });
+  if (!program) return { completedSlots: 0, totalSlots: 0 };
+
+  const [totalSlots, completedSlots] = await Promise.all([
+    prisma.programCurriculum.count({ where: { programId: program.id } }),
+    prisma.userProgramProgress.count({
+      where: { userId, status: "COMPLETED", programCurriculum: { programId: program.id } },
+    }),
+  ]);
+
+  return { completedSlots, totalSlots };
+}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getPhaseProgress } from "@/lib/services/curriculum";
+import { getProgramProgressSummary } from "@/lib/services/program/nextMission";
 import { getSkillMatrix, recomputeSkillMatrix } from "@/lib/services/skillMatrix";
 import { getWeakTopics } from "@/lib/services/weakness";
 
@@ -11,7 +11,7 @@ export default async function ProgressPage() {
   await recomputeSkillMatrix(user.id);
   const [skillMatrix, phaseProgress, weakTopics] = await Promise.all([
     getSkillMatrix(user.id),
-    getPhaseProgress(user.id),
+    getProgramProgressSummary(user.id),
     getWeakTopics(user.id),
   ]);
 
@@ -77,22 +77,9 @@ export default async function ProgressPage() {
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
           Lộ trình học
         </h2>
-        <div className="flex flex-col gap-4">
-          {phaseProgress.phases.map((phase) => (
-            <div key={phase.id}>
-              <div className="mb-1 flex justify-between text-sm text-zinc-700">
-                <span>{phase.name}</span>
-                <span className="text-xs text-zinc-400">
-                  Buổi {phase.startSession}–{phase.endSession}
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500">{phase.goal}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-4 text-sm text-zinc-600">
-          Đã hoàn thành <span className="font-semibold text-lexi-primary-dark">{phaseProgress.completedSessions}</span>{" "}
-          / {phaseProgress.totalSessions || 24} buổi học
+        <p className="text-sm text-zinc-600">
+          Đã hoàn thành <span className="font-semibold text-lexi-primary-dark">{phaseProgress.completedSlots}</span>{" "}
+          / {phaseProgress.totalSlots} bài học
         </p>
       </section>
     </div>
