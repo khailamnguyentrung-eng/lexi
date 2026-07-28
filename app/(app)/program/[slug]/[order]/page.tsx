@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { getQuestionPayload, toPublicPayload, type QuestionFormatFields } from "@/lib/services/question-format";
-import { PracticeQuiz } from "../../../practice/[sessionNumber]/PracticeQuiz";
+import { PracticeQuiz } from "./PracticeQuiz";
 
 /**
  * Practice a Program lesson slot — the "how" this actually reads live.

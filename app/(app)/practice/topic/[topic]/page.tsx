@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { canonicalTopic } from "@/lib/analytics";
 import { getQuestionPayload, toPublicPayload, type QuestionFormatFields } from "@/lib/services/question-format";
-import { PracticeQuiz } from "../../[sessionNumber]/PracticeQuiz";
+import { PracticeQuiz } from "../../../program/[slug]/[order]/PracticeQuiz";
 
 export default async function TopicPracticePage({
   params,

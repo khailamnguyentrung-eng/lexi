@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getCorrectMessage, getIncorrectIntro } from "@/lib/ai/encouragement";
 import { LensFloatingAssistant } from "@/components/lens/LensFloatingAssistant";
-import { AnswerInput } from "./AnswerInput";
+import { AnswerInput } from "../../../practice/[sessionNumber]/AnswerInput";
 import {
   describeResponse,
   describeCorrectAnswer,
@@ -35,18 +35,10 @@ interface AttemptFeedback {
 }
 
 export function PracticeQuiz({
-  sessionNumber,
-  sessionType,
-  curriculumSessionId,
   programCurriculumId,
   questions,
   completionHref,
 }: {
-  sessionNumber?: number;
-  sessionType?: string;
-  curriculumSessionId?: string;
-  // Program lesson slot id (v2 spine) — mirrors curriculumSessionId above.
-  // Passed by /program/[slug]/[order]; absent everywhere else.
   programCurriculumId?: string;
   questions: QuizQuestion[];
   completionHref?: string;
@@ -78,9 +70,7 @@ export function PracticeQuiz({
   // had (docs/superpowers/plans/2026-07-26-user-program-progress.md) — both
   // routes are idempotent, so a remount (e.g. fast refresh) is harmless.
   useEffect(() => {
-    if (sessionNumber !== undefined) {
-      fetch(`/api/curriculum/sessions/${sessionNumber}/start`, { method: "POST" }).catch(() => {});
-    } else if (programCurriculumId) {
+    if (programCurriculumId) {
       fetch(`/api/program/slots/${programCurriculumId}/start`, { method: "POST" }).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -108,7 +98,6 @@ export function PracticeQuiz({
 
     const timeSpentSec = Math.round((Date.now() - questionShownAtRef.current) / 1000);
     const body: Record<string, unknown> = { response, timeSpentSec };
-    if (curriculumSessionId) body.curriculumSessionId = curriculumSessionId;
     if (programCurriculumId) body.programCurriculumId = programCurriculumId;
 
     const res = await fetch(`/api/questions/${current.id}/attempt`, {
@@ -126,17 +115,10 @@ export function PracticeQuiz({
       const nextIndex = index + 1;
       setIndex(nextIndex);
       setFeedback(null);
-      // Show 5-second attention prompt at question 21 of a mock exam (index 20 = Q21)
-      if (nextIndex === 20 && sessionType === "MOCK_EXAM") {
-        setMidExamPrompt(true);
-      }
-    } else if (sessionNumber !== undefined) {
-      await fetch(`/api/curriculum/sessions/${sessionNumber}/complete`, { method: "POST" });
-      router.push(`/practice/${sessionNumber}/results`);
-    } else if (programCurriculumId) {
-      await fetch(`/api/program/slots/${programCurriculumId}/complete`, { method: "POST" });
-      router.push(completionHref ?? "/dashboard");
     } else {
+      if (programCurriculumId) {
+        await fetch(`/api/program/slots/${programCurriculumId}/complete`, { method: "POST" });
+      }
       router.push(completionHref ?? "/dashboard");
     }
   }
@@ -251,11 +233,7 @@ export function PracticeQuiz({
                 onClick={handleNext}
                 className="rounded-full bg-lexi-primary px-4 py-2 text-xs font-semibold text-white hover:bg-lexi-primary-dark"
               >
-                {index + 1 < questions.length
-                  ? "Câu tiếp theo"
-                  : sessionNumber !== undefined
-                    ? "Xem kết quả buổi học"
-                    : "Hoàn thành luyện tập"}
+                {index + 1 < questions.length ? "Câu tiếp theo" : "Hoàn thành luyện tập"}
               </button>
               {!feedback.isCorrect && current.responseFormat === "SINGLE_CHOICE" && (
                 <Link
