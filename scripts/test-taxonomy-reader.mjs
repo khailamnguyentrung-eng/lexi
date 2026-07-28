@@ -1,12 +1,19 @@
 /**
  * KU-1 part B, Path A — taxonomyReader.ts end-to-end, against a real
- * ContentSource (Bo_de_test_Tieng_Anh_9.docx, cms4fnm970005mhvwjciccvhj).
- * NOT part of db:seed — ContentSource rows only ever come from an actual
- * upload through /admin/content-import; this id must be re-pointed after
- * any `prisma migrate reset` (or a fresh dev.db), since a reset drops this
- * row and a re-upload gets a new cuid (see lexi_backend_reality_gap memory
- * / DECISION_LOG — discovered 2026-07-28 when the CurriculumSession Phase 2
- * retirement's fresh-reseed verification step first ran a genuine reset).
+ * ContentSource whose file genuinely exists on disk (see the DOCX lookup
+ * below). NOT part of db:seed — ContentSource rows only ever come from an
+ * actual upload through /admin/content-import, and no .docx/.pdf fixture
+ * is committed to this repo (see DECISION_LOG for why: a binary test
+ * fixture is a real decision, not added here in passing). So this script
+ * looks up whichever real DOCX ContentSource currently exists rather than
+ * hardcoding a specific cuid — a hardcoded id had to be manually re-pointed
+ * after every `prisma migrate reset` (discovered 2026-07-28 when the
+ * CurriculumSession Phase 2 retirement's fresh-reseed verification step
+ * first ran a genuine reset); this lookup removes that maintenance burden.
+ * If NO DOCX ContentSource exists (e.g. right after a fresh reset, before
+ * anyone has re-uploaded one), this script exits early with a clear message
+ * telling you to upload one via /admin/content-import, rather than a
+ * cryptic Prisma P2025.
  *
  * Uses fileExtractor.extract() for real (real mammoth DOCX parsing, not a
  * fixture string) and whatever AI provider getAIProvider() actually
@@ -23,14 +30,32 @@
  * unlikely to ever collide with a real proposal), and a throwaway
  * KnowledgeUnit fixture used to test the alreadyInRegistry skip. Never
  * touches the real 71 KnowledgeUnit registry or any PendingKnowledgeUnit
- * rows it didn't itself create.
+ * rows it didn't itself create. Never touches the ContentSource it looked
+ * up either — that row is owned by whoever uploaded it, not this script.
  */
 
 import { PrismaClient } from "@prisma/client";
 import { runTaxonomyJob, getOrCreateSourceRead } from "../lib/services/content-intelligence/taxonomyReader.ts";
 
 const prisma = new PrismaClient();
-const REAL_CONTENT_SOURCE_ID = "cms4fnm970005mhvwjciccvhj"; // Bo_de_test_Tieng_Anh_9.docx, real file on disk
+
+const realDocxSource = await prisma.contentSource.findFirst({
+  where: { fileType: "DOCX" },
+  orderBy: { createdAt: "asc" },
+  select: { id: true, fileName: true },
+});
+if (!realDocxSource) {
+  console.error(
+    "\nSKIPPED — no DOCX ContentSource exists in dev.db.\n" +
+      "This test needs a real uploaded document to exercise real mammoth DOCX\n" +
+      "parsing (not a fixture string). Upload any .docx via /admin/content-import\n" +
+      "(logged in as admin@lexi.local), then re-run this test.\n"
+  );
+  await prisma.$disconnect();
+  process.exit(1);
+}
+console.log(`Using ContentSource "${realDocxSource.fileName}" (${realDocxSource.id})`);
+const REAL_CONTENT_SOURCE_ID = realDocxSource.id;
 
 let passed = 0;
 let failed = 0;

@@ -1133,8 +1133,8 @@ model MockTestAttempt {
 // remained UNCHANGED and still live — see the founder-facing scope note in the
 // commit this section originally shipped with — until Phase 2 of the retirement
 // plan removed it from the schema entirely; see docs/superpowers/plans/
-// 2026-07-28-retire-curriculumsession-phase2.md). Two things this model deliberately gets right
-// that CurriculumSession got wrong:
+// 2026-07-28-retire-curriculumsession-phase2.md). Two things this model
+// deliberately gets right that CurriculumSession got wrong:
 //
 // 1. GENERIC, not hardcoded to one exam. Program is a named container (any
 //    number of them), not an assumed single "the curriculum". The 24-session
