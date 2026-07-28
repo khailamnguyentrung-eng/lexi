@@ -94,7 +94,10 @@ export interface ProgramProgressSummary {
 }
 
 export async function getProgramProgressSummary(userId: string): Promise<ProgramProgressSummary> {
-  const program = await prisma.program.findFirst({ select: { id: true } });
+  const program = await prisma.program.findFirst({
+    select: { id: true },
+    orderBy: { createdAt: "desc" },
+  });
   if (!program) return { completedSlots: 0, totalSlots: 0 };
 
   const [totalSlots, completedSlots] = await Promise.all([
