@@ -119,48 +119,6 @@ function generateWeaknessNarrative(weaknessSignals) {
   });
 }
 
-function buildComparisonSummary(improved, declined) {
-  if (improved === 0 && declined === 0) return "Kết quả tương đương với buổi trước — bạn đang duy trì ổn định.";
-  const parts = [];
-  if (improved > 0) parts.push(`tiến bộ ở ${improved} chủ đề`);
-  if (declined > 0) parts.push(`cần chú ý thêm ở ${declined} chủ đề`);
-  return `So với buổi trước, bạn đã ${parts.join(" và ")}.`;
-}
-
-function generateComparisonNarrative(response) {
-  const { summary, topics, confidence } = response;
-  const { improvedCount, declinedCount } = summary;
-  const totalComparable = topics.filter((t) => t.direction !== "INSUFFICIENT_DATA").length;
-
-  const improvedAreas = topics.filter((t) => t.direction === "IMPROVED").map((t) => t.label);
-  const needsAttention = topics.filter((t) => t.direction === "DECLINED").map((t) => t.label);
-
-  let headline, summaryText;
-  if (totalComparable === 0) {
-    headline = "Chưa đủ dữ liệu để so sánh chi tiết.";
-    summaryText = "Cần thêm dữ liệu từ cả hai buổi học để có thể so sánh tiến bộ theo từng chủ đề. Hãy luyện thêm để Lexi có thể đánh giá chính xác hơn.";
-  } else if (improvedCount > declinedCount) {
-    headline = "Bạn đã tiến bộ so với buổi trước!";
-    summaryText = buildComparisonSummary(improvedCount, declinedCount);
-  } else if (declinedCount > improvedCount) {
-    headline = "Có một số phần cần chú ý thêm so với buổi trước.";
-    summaryText = buildComparisonSummary(improvedCount, declinedCount);
-  } else {
-    headline = improvedCount > 0
-      ? "Kết quả có sự thay đổi cân bằng so với buổi trước."
-      : "Phong độ ổn định so với buổi trước.";
-    summaryText = buildComparisonSummary(improvedCount, declinedCount);
-  }
-
-  return {
-    headline,
-    summary: summaryText,
-    improvedAreas,
-    needsAttention,
-    confidenceNote: CONFIDENCE_NOTE[confidence],
-  };
-}
-
 // ──────────────────────────────────────────────────────────────────
 // Mock contract data
 // ──────────────────────────────────────────────────────────────────
@@ -226,28 +184,6 @@ const INSUFFICIENT_DATA_RESPONSE = {
   blueprintCoverage: { assessedCount: 0, partialCount: 0, unassessedCount: 8, sections: [] },
   weaknessSignals: [],
   sectionBreakdown: [],
-};
-
-const COMPARISON_WITH_IMPROVEMENT = {
-  session1Number: 22,
-  session2Number: 23,
-  confidence: "EMERGING",
-  topics: [
-    { topic: "conditionals",  label: "Conditionals",  direction: "IMPROVED",  delta: 0.5,  confidence: "EMERGING", session1: { correct: 0, total: 2, accuracy: 0 },   session2: { correct: 2, total: 2, accuracy: 1 } },
-    { topic: "passive_voice", label: "Passive Voice", direction: "IMPROVED",  delta: 0.25, confidence: "EMERGING", session1: { correct: 1, total: 4, accuracy: 0.25 }, session2: { correct: 2, total: 4, accuracy: 0.5 } },
-    { topic: "tenses",        label: "Tenses",        direction: "DECLINED",  delta: -0.5, confidence: "EMERGING", session1: { correct: 2, total: 2, accuracy: 1 },   session2: { correct: 0, total: 2, accuracy: 0 } },
-  ],
-  summary: { improvedCount: 2, declinedCount: 1, insufficientDataCount: 0 },
-};
-
-const COMPARISON_NO_DATA = {
-  session1Number: 20,
-  session2Number: 21,
-  confidence: "OBSERVED",
-  topics: [
-    { topic: "tenses", label: "Tenses", direction: "INSUFFICIENT_DATA", delta: null, confidence: "OBSERVED", session1: null, session2: null },
-  ],
-  summary: { improvedCount: 0, declinedCount: 0, insufficientDataCount: 1 },
 };
 
 const WEAKNESS_WITH_PATTERN = [
@@ -447,52 +383,6 @@ test("guidance uses mid-accuracy framing when accuracy ≤ 0.5 (exactly 0.5)", (
 });
 
 // ──────────────────────────────────────────────────────────────────
-// Suite 5: Comparison narratives
-// ──────────────────────────────────────────────────────────────────
-
-console.log("\nComparison narrative");
-
-test("mostly-improved comparison → positive headline", () => {
-  const n = generateComparisonNarrative(COMPARISON_WITH_IMPROVEMENT);
-  assertContains(n.headline, "tiến bộ", "positive headline");
-});
-
-test("improvedAreas lists improved topic labels", () => {
-  const n = generateComparisonNarrative(COMPARISON_WITH_IMPROVEMENT);
-  assert(n.improvedAreas.length === 2, `Expected 2 improved areas, got ${n.improvedAreas.length}`);
-  assert(n.improvedAreas.includes("Conditionals"), "Conditionals in improvedAreas");
-  assert(n.improvedAreas.includes("Passive Voice"), "Passive Voice in improvedAreas");
-});
-
-test("needsAttention lists declined topic labels", () => {
-  const n = generateComparisonNarrative(COMPARISON_WITH_IMPROVEMENT);
-  assert(n.needsAttention.length === 1, `Expected 1 declined area, got ${n.needsAttention.length}`);
-  assert(n.needsAttention[0] === "Tenses", `Expected Tenses, got ${n.needsAttention[0]}`);
-});
-
-test("summary mentions both improved and needs-attention counts", () => {
-  const n = generateComparisonNarrative(COMPARISON_WITH_IMPROVEMENT);
-  assertContains(n.summary, "tiến bộ ở 2 chủ đề", "improved count in summary");
-  assertContains(n.summary, "cần chú ý thêm ở 1 chủ đề", "declined count in summary");
-});
-
-test("EMERGING confidence → no confidence note", () => {
-  const n = generateComparisonNarrative(COMPARISON_WITH_IMPROVEMENT);
-  assert(n.confidenceNote === null, "Expected no confidence note for EMERGING");
-});
-
-test("no comparable topics → 'insufficient data' headline", () => {
-  const n = generateComparisonNarrative(COMPARISON_NO_DATA);
-  assertContains(n.headline, "Chưa đủ dữ liệu", "insufficient comparison headline");
-});
-
-test("improvedAreas and needsAttention are empty when no comparable topics", () => {
-  const n = generateComparisonNarrative(COMPARISON_NO_DATA);
-  assert(n.improvedAreas.length === 0, "Expected empty improvedAreas");
-  assert(n.needsAttention.length === 0, "Expected empty needsAttention");
-});
-
-// ──────────────────────────────────────────────────────────────────
 // Suite 6: Persona compliance (forbidden vocabulary)
 // ──────────────────────────────────────────────────────────────────
 
@@ -503,14 +393,12 @@ const ALL_NARRATIVES_TEXT = (() => {
   const rLow = generateReadinessNarrative(LOW_CONFIDENCE_RESPONSE);
   const rInsufficient = generateReadinessNarrative(INSUFFICIENT_DATA_RESPONSE);
   const w = generateWeaknessNarrative(WEAKNESS_WITH_PATTERN);
-  const c = generateComparisonNarrative(COMPARISON_WITH_IMPROVEMENT);
 
   return [
     rHigh.headline, rHigh.explanation ?? "", rHigh.strongestArea ?? "", rHigh.nextFocus ?? "",
     rLow.headline, rLow.explanation ?? "", rLow.confidenceNote ?? "",
     rInsufficient.headline, rInsufficient.explanation ?? "",
     ...(w.flatMap(x => [x.guidance, x.evidenceNote, x.patternNote ?? "", x.notebookNote ?? ""])),
-    c.headline, c.summary,
   ].join(" ");
 })();
 

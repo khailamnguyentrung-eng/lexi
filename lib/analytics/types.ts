@@ -185,27 +185,3 @@ export interface SectionDropAnalysis {
   confidence: ConfidenceTier;
 }
 
-/**
- * Comparison between two session attempts per topic.
- * Shows whether the student improved, declined, or had similar performance.
- */
-export type ComparisonDirection = "IMPROVED" | "DECLINED" | "SIMILAR" | "INSUFFICIENT_DATA";
-
-export interface TopicComparison {
-  topic: string;
-  label: string;
-  session1: { correct: number; total: number; accuracy: number } | null;
-  session2: { correct: number; total: number; accuracy: number } | null;
-  delta: number | null; // session2.accuracy - session1.accuracy
-  direction: ComparisonDirection;
-  confidence: ConfidenceTier;
-}
-
-export interface SessionComparisonResult {
-  session1Number: number;
-  session2Number: number;
-  topics: TopicComparison[];
-  improvedCount: number;
-  declinedCount: number;
-  insufficientDataCount: number;
-}

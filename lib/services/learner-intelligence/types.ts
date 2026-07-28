@@ -187,7 +187,7 @@ export interface SessionPatternObservation {
  * reflects completed sessions only.
  *
  * Note: abandonment rate (started-but-incomplete ÷ total started) requires
- * fetching UserSessionProgress with status IN_PROGRESS. Deferred to a future
+ * fetching UserProgramProgress with status IN_PROGRESS. Deferred to a future
  * milestone that extends BehaviorStateInput with that data.
  */
 export interface CompletionBehaviorObservation {

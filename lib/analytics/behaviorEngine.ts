@@ -213,30 +213,20 @@ export function computeBehaviorProfile(
 // ─────────────────────────────────────────────────────────
 
 export async function getBehaviorProfile(userId: string): Promise<BehaviorProfile> {
-  const completedSessions = await prisma.userSessionProgress.findMany({
+  const completedProgramSlots = await prisma.userProgramProgress.findMany({
     where: { userId, status: "COMPLETED" },
-    select: { id: true, startedAt: true, completedAt: true },
+    select: { programCurriculumId: true, startedAt: true, completedAt: true },
     orderBy: { completedAt: "desc" },
     take: 30,
   });
 
-  const sessionIds = completedSessions
-    .map((s) => s.id)
-    .filter((id): id is string => id != null);
+  const programSlotIds = completedProgramSlots.map((s) => s.programCurriculumId);
 
-  const [rawAttempts, rawMoods] = await Promise.all([
-    sessionIds.length > 0
+  const [programAttempts, rawMoods] = await Promise.all([
+    programSlotIds.length > 0
       ? prisma.questionAttempt.findMany({
-          where: {
-            userId,
-            curriculumSessionId: { in: sessionIds },
-          },
-          select: {
-            isCorrect: true,
-            timeSpentSec: true,
-            attemptedAt: true,
-            curriculumSessionId: true,
-          },
+          where: { userId, programCurriculumId: { in: programSlotIds } },
+          select: { isCorrect: true, timeSpentSec: true, attemptedAt: true, programCurriculumId: true },
         })
       : Promise.resolve([]),
     prisma.moodEntry.findMany({
@@ -246,19 +236,22 @@ export async function getBehaviorProfile(userId: string): Promise<BehaviorProfil
     }),
   ]);
 
-  // Group attempts by session id
-  const attemptsBySession = new Map<string, typeof rawAttempts>();
-  for (const attempt of rawAttempts) {
-    if (attempt.curriculumSessionId == null) continue;
-    const existing = attemptsBySession.get(attempt.curriculumSessionId) ?? [];
-    existing.push(attempt);
-    attemptsBySession.set(attempt.curriculumSessionId, existing);
+  // Group attempts by which program slot they belong to.
+  const attemptsByContext = new Map<
+    string,
+    { isCorrect: boolean; timeSpentSec: number | null; attemptedAt: Date }[]
+  >();
+  for (const a of programAttempts) {
+    if (a.programCurriculumId == null) continue;
+    const existing = attemptsByContext.get(a.programCurriculumId) ?? [];
+    existing.push(a);
+    attemptsByContext.set(a.programCurriculumId, existing);
   }
 
-  const sessions: SessionDataPoint[] = completedSessions.map((s) => ({
+  const sessions: SessionDataPoint[] = completedProgramSlots.map((s) => ({
     startedAt: s.startedAt,
     completedAt: s.completedAt,
-    attempts: (attemptsBySession.get(s.id) ?? []).map((a) => ({
+    attempts: (attemptsByContext.get(s.programCurriculumId) ?? []).map((a) => ({
       isCorrect: a.isCorrect,
       timeSpentSec: a.timeSpentSec,
       attemptedAt: a.attemptedAt,

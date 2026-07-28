@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
-import { getPhaseProgress } from "@/lib/services/curriculum";
+import { getProgramProgressSummary } from "@/lib/services/program/nextMission";
 import { getLearningStreak } from "@/lib/services/streak";
 import { getGreeting } from "@/lib/ai/encouragement";
 import { getStudentLearningProfile } from "@/lib/analytics/studentLearningProfile";
@@ -19,7 +19,7 @@ export default async function DashboardPage() {
   const [profile, phaseProgress, dueReviewCount, todayMoodEntry, streak, learningProfile] =
     await Promise.all([
       prisma.learnerProfile.findUnique({ where: { userId: user.id } }),
-      getPhaseProgress(user.id),
+      getProgramProgressSummary(user.id),
       prisma.errorNotebookEntry.count({
         where: {
           userId: user.id,
@@ -69,22 +69,22 @@ export default async function DashboardPage() {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-lexi-primary-dark">
           Nhiệm vụ hôm nay
         </h2>
-        {learningProfile.nextSessionNumber !== null ? (
+        {learningProfile.nextMission !== null ? (
           <div>
             <p className="text-lg font-medium text-foreground">
-              Buổi {learningProfile.nextSessionNumber}: {learningProfile.nextSessionTitle}
+              Bài {learningProfile.nextMission.order}: {learningProfile.nextMission.title}
             </p>
-            {learningProfile.nextSessionObjective && (
+            {learningProfile.nextMission.objective && (
               <p className="mt-1 text-sm text-zinc-600">
-                {learningProfile.nextSessionObjective}
+                {learningProfile.nextMission.objective}
               </p>
             )}
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
-                href={`/practice/${learningProfile.nextSessionNumber}`}
+                href={`/program/${encodeURIComponent(learningProfile.nextMission.programSlug)}/${learningProfile.nextMission.order}`}
                 className="rounded-full bg-lexi-primary px-4 py-2 text-sm font-medium text-white hover:bg-lexi-primary-dark"
               >
-                Luyện tập buổi này
+                Luyện tập bài này
               </Link>
               <Link
                 href="/chat"
@@ -146,7 +146,7 @@ export default async function DashboardPage() {
             Tiến độ kỹ năng
           </h2>
           <span className="text-xs text-zinc-400">
-            Buổi {phaseProgress.completedSessions}/{phaseProgress.totalSessions || 24}
+            Bài {phaseProgress.completedSlots}/{phaseProgress.totalSlots}
           </span>
         </div>
         {learningProfile.skillSnapshot.length > 0 ? (

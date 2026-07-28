@@ -39,24 +39,27 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  profile      LearnerProfile?
-  chatSessions ChatSession[]
-  errorEntries ErrorNotebookEntry[]
-  skillMatrix  SkillMatrixEntry[]
-  progress     UserSessionProgress[]
-  attempts     QuestionAttempt[]
+  profile         LearnerProfile?
+  chatSessions    ChatSession[]
+  errorEntries    ErrorNotebookEntry[]
+  skillMatrix     SkillMatrixEntry[]
+  progress        UserSessionProgress[]
+  programProgress UserProgramProgress[]
+  attempts        QuestionAttempt[]
 
   // Future admin content pipeline — unused by the MVP student flow.
-  contentSources          ContentSource[]          @relation("UploadedContentSources")
-  reviewedExtractedDrafts ExtractedQuestionDraft[] @relation("ReviewedExtractedDrafts")
+  contentSources                ContentSource[]          @relation("UploadedContentSources")
+  reviewedExtractedDrafts       ExtractedQuestionDraft[] @relation("ReviewedExtractedDrafts")
+  reviewedPendingKnowledgeUnits PendingKnowledgeUnit[]   @relation("ReviewedPendingKnowledgeUnits")
 
   diagnosticTests DiagnosticTest[]
   moodEntries     MoodEntry[]
 
-  assistanceExchanges AssistanceExchange[]
+  assistanceExchanges     AssistanceExchange[]
   recommendationIssuances RecommendationIssuance[]
   recommendationResponses RecommendationResponse[]
-  reviewEngagements ReviewEngagement[]
+  reviewEngagements       ReviewEngagement[]
+  mockTestAttempts        MockTestAttempt[]
 }
 
 model LearnerProfile {
@@ -130,10 +133,10 @@ enum Difficulty {
 // in columns.
 enum ResponseFormat {
   SINGLE_CHOICE // pick exactly one of N options. Covers the A/B/C/D MCQ this app was built on AND IELTS True/False/Not Given (same shape, 3 options)
-  MULTI_CHOICE  // pick M of N options
-  SHORT_TEXT    // PRODUCE text into one or more blanks — gap fill, word formation, sentence transformation
-  MATCHING      // pair each left item with a right item — IELTS matching headings/information/features
-  ORDERING      // arrange items into the correct sequence
+  MULTI_CHOICE // pick M of N options
+  SHORT_TEXT // PRODUCE text into one or more blanks — gap fill, word formation, sentence transformation
+  MATCHING // pair each left item with a right item — IELTS matching headings/information/features
+  ORDERING // arrange items into the correct sequence
 }
 
 model Passage {
@@ -149,13 +152,13 @@ model Passage {
 }
 
 model Question {
-  id                String        @id @default(cuid())
-  questionCode      String        @unique // human-readable, e.g. "DIAG36_Q01"
-  type              QuestionType
-  skill             SkillCategory
-  difficulty        Difficulty    @default(MEDIUM)
-  topic             String // e.g. "reported_speech" — required, normalized
-  promptText        String
+  id           String        @id @default(cuid())
+  questionCode String        @unique // human-readable, e.g. "DIAG36_Q01"
+  type         QuestionType
+  skill        SkillCategory
+  difficulty   Difficulty    @default(MEDIUM)
+  topic        String // e.g. "reported_speech" — required, normalized
+  promptText   String
 
   // ── Answer shape (QM-1) ──────────────────────────────────────────
   // `payload` holds everything format-specific: the options, the blanks, the
@@ -200,27 +203,28 @@ model Question {
   curriculumSession   CurriculumSession? @relation(fields: [curriculumSessionId], references: [id])
 
   // Content Intelligence (M3.1) — nullable; null for seeded/extracted questions
-  knowledgeUnitId    String?
-  knowledgeUnit      KnowledgeUnit?        @relation(fields: [knowledgeUnitId], references: [id])
-  generatedViaJobId  String?
-  generatedViaJob    QuestionGenerationJob? @relation("GeneratedQuestions", fields: [generatedViaJobId], references: [id])
+  knowledgeUnitId   String?
+  knowledgeUnit     KnowledgeUnit?         @relation(fields: [knowledgeUnitId], references: [id])
+  generatedViaJobId String?
+  generatedViaJob   QuestionGenerationJob? @relation("GeneratedQuestions", fields: [generatedViaJobId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  attempts     QuestionAttempt[]
-  errorEntries ErrorNotebookEntry[]
+  attempts      QuestionAttempt[]
+  errorEntries  ErrorNotebookEntry[]
+  mockTestSlots MockTestTemplateQuestion[]
 
   @@index([skill, topic])
   @@index([type])
 }
 
 model QuestionAttempt {
-  id                  String             @id @default(cuid())
-  userId              String
-  user                User               @relation(fields: [userId], references: [id])
-  questionId          String
-  question            Question           @relation(fields: [questionId], references: [id])
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
 
   // `selectedOption` (QM-1: legacy) — an "A"|"B"|"C"|"D" letter cannot express
   // typed text, a set of pairs, or an ordering. Kept for the existing readers;
@@ -244,8 +248,30 @@ model QuestionAttempt {
   curriculumSessionId String?
   curriculumSession   CurriculumSession? @relation(fields: [curriculumSessionId], references: [id])
 
+  // Set when this answer was submitted during a mock test, mirroring the
+  // curriculumSessionId pattern above — an answer given during a mock test
+  // is still just a QuestionAttempt, tagged with which session it belongs
+  // to. See "MOCK TEST" section below for why there's no separate
+  // AnswerRecord table.
+  mockTestAttemptId String?
+  mockTestAttempt   MockTestAttempt? @relation(fields: [mockTestAttemptId], references: [id])
+
+  // Set when this answer was submitted from a Program lesson slot (v2 spine —
+  // see Program/ProgramCurriculum below), same pattern as curriculumSessionId
+  // and mockTestAttemptId above: an attempt is still just a QuestionAttempt,
+  // tagged with which context it happened in. Added because
+  // /program/[slug]/[order] shipped in PR #15 without threading ANY
+  // session-context through — Program-slot attempts were being recorded with
+  // every context FK null, invisible to behaviorEngine/studentLearningProfile/
+  // practiceRecommendation. This is the fix, first of the "retire
+  // CurriculumSession" batch (docs/DECISION_LOG.md).
+  programCurriculumId String?
+  programCurriculum   ProgramCurriculum? @relation(fields: [programCurriculumId], references: [id])
+
   @@index([userId, questionId])
   @@index([userId, curriculumSessionId])
+  @@index([userId, mockTestAttemptId])
+  @@index([userId, programCurriculumId])
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -375,6 +401,30 @@ model UserSessionProgress {
   @@unique([userId, curriculumSessionId])
 }
 
+/**
+ * Structural mirror of UserSessionProgress, for the ProgramCurriculum (v2)
+ * spine instead of CurriculumSession. Both spines run in parallel on
+ * purpose (docs/DECISION_LOG.md) — this table exists so a Program slot's
+ * start/complete lifecycle can be tracked the same way a CurriculumSession's
+ * always could, even though (per investigation on 2026-07-26) that tracking
+ * was never actually wired into the UI for CurriculumSession either until
+ * this same change. See lib/analytics/behaviorEngine.ts for the consumer
+ * this eventually unblocks (not yet repointed — separate follow-up).
+ */
+model UserProgramProgress {
+  id                  String            @id @default(cuid())
+  userId              String
+  user                User              @relation(fields: [userId], references: [id])
+  programCurriculumId String
+  programCurriculum   ProgramCurriculum @relation(fields: [programCurriculumId], references: [id])
+  status              ProgressStatus    @default(NOT_STARTED)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  scoreAchieved       Float?
+
+  @@unique([userId, programCurriculumId])
+}
+
 // ──────────────────────────────────────────────────────────────────
 // LEXI AI CHATBOT
 // ──────────────────────────────────────────────────────────────────
@@ -464,7 +514,9 @@ model ContentSource {
 
   createdAt DateTime @default(now())
 
-  importJobs ImportJob[]
+  importJobs            ImportJob[]
+  sourceReads           SourceRead[]
+  pendingKnowledgeUnits PendingKnowledgeUnit[]
 }
 
 enum ImportJobStatus {
@@ -500,9 +552,9 @@ enum ReviewStatus {
 
 // Validation outcome from contentValidation.ts, stored on GeneratedQuestionDraft.
 enum DraftValidationStatus {
-  PASS    // no issues
+  PASS // no issues
   WARNING // low/medium severity issues only
-  FAIL    // at least one high-severity issue — draft cannot be approved
+  FAIL // at least one high-severity issue — draft cannot be approved
 }
 
 model ExtractedQuestionDraft {
@@ -548,16 +600,18 @@ model ExtractedQuestionDraft {
 // by a job reuse the existing ExtractedQuestionDraft → approveDraft() flow.
 
 model KnowledgeUnit {
-  id                String   @id @default(cuid())
-  topic             String   @unique // must match Question.topic exactly (canonical snake_case)
-  label             String           // human-readable Vietnamese label
-  targetEasyCount   Int      @default(5)
-  targetMediumCount Int      @default(5)
-  targetHardCount   Int      @default(3)
+  id                String @id @default(cuid())
+  topic             String @unique // must match Question.topic exactly (canonical snake_case)
+  label             String // human-readable Vietnamese label
+  targetEasyCount   Int    @default(5)
+  targetMediumCount Int    @default(5)
+  targetHardCount   Int    @default(3)
 
-  sessions        KnowledgeUnitOnSession[]
-  questions       Question[]
-  generatedDrafts GeneratedQuestionDraft[] @relation("GeneratedDraftsForUnit")
+  sessions          KnowledgeUnitOnSession[]
+  questions         Question[]
+  generatedDrafts   GeneratedQuestionDraft[]         @relation("GeneratedDraftsForUnit")
+  resolvedProposals PendingKnowledgeUnit[]
+  programSlots      ProgramCurriculumKnowledgeUnit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -574,12 +628,138 @@ model KnowledgeUnitOnSession {
   @@id([knowledgeUnitId, curriculumSessionId])
 }
 
+// ──────────────────────────────────────────────────────────────────
+// KU-1 PART B — SOURCE → PENDING KNOWLEDGE UNIT → REVIEW QUEUE
+// ──────────────────────────────────────────────────────────────────
+// docs/KU1_PARTB_DESIGN.md. The gap this closes: autoAssignKnowledgeUnit()
+// silently discards any topic with no matching KnowledgeUnit (a plain
+// `return false`). That silent discard is why the bank sits at 74 distinct
+// topic strings against 12 KnowledgeUnits, and why an IELTS/academic source
+// cannot grow the taxonomy at all today — its topics would just vanish the
+// same way.
+//
+// Two paths are deliberately kept separate (design doc §1):
+//   Path A (this section) — source → proposed KnowledgeUnits. Never touches
+//     Question. Low-risk, and is literally what "Lexi đọc và tạo được KU"
+//     from a source asks for.
+//   Path B (existing content-import pipeline) — source → Question rows.
+//     Unchanged by this section, except the one-line miss-handling change
+//     described on PendingKnowledgeUnit.taxonomyJobId below.
+//
+// SourceRead is the shared extraction stage both paths (and a future Path C
+// for exam-paper structure) read from, so a source is never re-extracted
+// per path — see design doc §1.5's "extract once, fan out".
+
+enum SourceReadStatus {
+  PENDING
+  READING
+  READ
+  FAILED
+}
+
+model SourceRead {
+  id              String           @id @default(cuid())
+  contentSourceId String
+  contentSource   ContentSource    @relation(fields: [contentSourceId], references: [id])
+  status          SourceReadStatus @default(PENDING)
+
+  // The single cached extraction. ImportJob keeps its own rawExtractedText
+  // for now (design doc §4.2) — not duplicated here, and not read from here
+  // yet, so Path B stays completely undisturbed by this addition.
+  rawExtractedText String?
+  chunks           String? // JSON DocumentChunk[] — chunker output, cached
+  chunkCount       Int?
+  errorMessage     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taxonomyJobs TaxonomyJob[]
+}
+
+enum TaxonomyJobStatus {
+  PENDING
+  PROPOSING // AI call in progress
+  PROPOSED // proposals created, awaiting human review
+  RESOLVED // every proposal for this job has left PENDING_REVIEW
+  FAILED
+}
+
+model TaxonomyJob {
+  id           String            @id @default(cuid())
+  sourceReadId String
+  sourceRead   SourceRead        @relation(fields: [sourceReadId], references: [id])
+  status       TaxonomyJobStatus @default(PENDING)
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proposals PendingKnowledgeUnit[]
+}
+
+enum PendingKUStatus {
+  PENDING_REVIEW
+  APPROVED
+  MERGED
+  RENAMED
+  REJECTED
+}
+
+model PendingKnowledgeUnit {
+  id String @id @default(cuid())
+
+  // Provenance — always set: which source proposed this topic, regardless of
+  // which path produced the proposal.
+  contentSourceId String
+  contentSource   ContentSource @relation(fields: [contentSourceId], references: [id])
+
+  // Nullable: only set when a Path A TaxonomyJob produced this proposal. A
+  // proposal recorded by the Path B miss-handling below (autoAssignKnowledgeUnit
+  // finding no matching KnowledgeUnit) has no TaxonomyJob — Path B never runs
+  // one — so this stays null in that case. See design doc §4.1.
+  taxonomyJobId String?
+  taxonomyJob   TaxonomyJob? @relation(fields: [taxonomyJobId], references: [id])
+
+  proposedTopic String // canonicalTopic()-normalized; deliberately NOT unique —
+  // duplicates across sources are expected and are exactly what
+  // the review queue's MERGE action exists to collapse.
+  proposedLabel String // human-readable (Vietnamese for VN exams, English for
+  // international sources — no forced-translation rule)
+
+  // Load-bearing: reviewing "is this a real KnowledgeUnit?" without seeing
+  // what in the source caused the proposal is guesswork. Mirrors the
+  // provenance discipline in RecommendationIssuance (Basis) and
+  // ReviewEngagement (snapshot at review time).
+  evidenceQuote    String
+  evidenceLocation String? // e.g. "Test 2 / Reading Passage 1"
+
+  aiConfidence Float?
+
+  reviewStatus     PendingKUStatus @default(PENDING_REVIEW)
+  reviewedByUserId String?
+  reviewedBy       User?           @relation("ReviewedPendingKnowledgeUnits", fields: [reviewedByUserId], references: [id])
+  reviewNote       String?
+
+  // Set on APPROVE (a new KnowledgeUnit was created) or MERGE (an existing
+  // one was chosen instead). Null while PENDING_REVIEW, and stays null on
+  // REJECTED/RENAMED-without-resolution.
+  resolvedUnitId String?
+  resolvedUnit   KnowledgeUnit? @relation(fields: [resolvedUnitId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([proposedTopic])
+  @@index([reviewStatus])
+}
+
 enum GenerationJobStatus {
-  PENDING    // job created, not yet run
+  PENDING // job created, not yet run
   GENERATING // AI call in progress
-  REVIEWING  // drafts created, awaiting human review
-  COMPLETED  // all drafts reviewed
-  FAILED     // AI call or draft creation errored
+  REVIEWING // drafts created, awaiting human review
+  COMPLETED // all drafts reviewed
+  FAILED // AI call or draft creation errored
 }
 
 model QuestionGenerationJob {
@@ -588,7 +768,7 @@ model QuestionGenerationJob {
   difficulty   Difficulty
   targetCount  Int
   status       GenerationJobStatus @default(PENDING)
-  errorMessage String?             // set when status = FAILED
+  errorMessage String? // set when status = FAILED
 
   drafts          ExtractedQuestionDraft[] @relation("GenerationDrafts")
   questions       Question[]               @relation("GeneratedQuestions")
@@ -628,13 +808,13 @@ model GeneratedQuestionDraft {
   optionB           String
   optionC           String
   optionD           String
-  correctOption     String   // "A" | "B" | "C" | "D"
+  correctOption     String // "A" | "B" | "C" | "D"
   explanationVi     String
   commonMistake     String?
   learningObjective String?
-  questionType      String   // QuestionType value, cast to enum at approval
-  questionSkill     String   // SkillCategory value, cast to enum at approval
-  source            String   // "generated:<topic>:<difficulty>"
+  questionType      String // QuestionType value, cast to enum at approval
+  questionSkill     String // SkillCategory value, cast to enum at approval
+  source            String // "generated:<topic>:<difficulty>"
 
   // Review lifecycle — reuses existing ReviewStatus enum
   status     ReviewStatus @default(PENDING_REVIEW)
@@ -643,7 +823,7 @@ model GeneratedQuestionDraft {
   // Validation result written at draft creation by contentValidation.ts.
   // FAIL drafts are blocked from approval.
   validationStatus DraftValidationStatus @default(PASS)
-  validationIssues String?               // JSON: ValidationIssue[]
+  validationIssues String? // JSON: ValidationIssue[]
 
   // Set when APPROVED — prevents duplicate Question creation on re-approval
   approvedQuestionId String?
@@ -794,13 +974,15 @@ model RecommendationIssuance {
 
   // Identity-bearing fields (Ch.3 §3.1 Fields) — compared in Phase 3 to
   // detect whether a new computation actually supersedes the current one.
-  // Exactly one of topic/sessionNumber is set, mirroring PracticeRecommendation's
-  // own shape (Action).
+  // Exactly one of topic/sessionNumber is set. sessionNumber is a reused
+  // generic label — held a CurriculumSession number historically, now holds
+  // a ProgramCurriculum slot's `order` (PracticeRecommendation.mission.order)
+  // since the v2 repoint; not renamed to avoid a migration for a label-only change.
   topic           String?
   sessionNumber   Int?
   suggestedAction RecommendationSuggestedAction // Intent
-  priorityLabel   RecommendationPriorityLabel   // Basis provenance handle — which evidence category this was computed from (not a stored Understanding reference; none exists to point to)
-  procedure       String                        // Decision Procedure identity, e.g. "computeRecommendations@v1" — provenance only, never "what did the procedure contain"
+  priorityLabel   RecommendationPriorityLabel // Basis provenance handle — which evidence category this was computed from (not a stored Understanding reference; none exists to point to)
+  procedure       String // Decision Procedure identity, e.g. "computeRecommendations@v1" — provenance only, never "what did the procedure contain"
 
   // Basis — Goal citation (Ch.3 §3.1 Fields; Inv 2 requires every Goal served
   // to be cited). Goal is represented as scalar LearnerProfile fields, not a
@@ -814,8 +996,8 @@ model RecommendationIssuance {
   // priorityLabel field above) — this closes the Goal-citation half of Basis
   // specifically, not the Understanding-pointer half, which the architecture
   // does not currently support persisting.
-  goalTargetExam  String?   // snapshot of LearnerProfile.targetExam
-  goalTargetScore Float?    // snapshot of LearnerProfile.targetScore
+  goalTargetExam  String? // snapshot of LearnerProfile.targetExam
+  goalTargetScore Float? // snapshot of LearnerProfile.targetScore
   goalTargetDate  DateTime? // snapshot of LearnerProfile.targetGoalDate
 
   // Required, non-identity (Ch.3 §3.1). Carries the timestamp of the most
@@ -831,7 +1013,7 @@ model RecommendationIssuance {
   // faithful record of the whole Recommendation that was issued, not just the
   // identity subset — supporting §3.1 Invariant 5's "stay auditable". Nullable
   // because they are enrichment, not required by PD3's four named obligations.
-  rationale String?                 // Rationale — the "why" text presented to the learner (prescriptive, references the belief it derived from)
+  rationale String? // Rationale — the "why" text presented to the learner (prescriptive, references the belief it derived from)
   firmness  RecommendationFirmness? // Firmness — how strongly offered, bounded by basis-confidence
 
   issuedAt DateTime @default(now())
@@ -928,4 +1110,156 @@ model ReviewEngagement {
 
   @@index([userId, reviewedAt])
   @@index([errorNotebookEntryId])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// MOCK TEST (docs/MOCKTESTTAB_DESIGN.md)
+// ──────────────────────────────────────────────────────────────────
+// The design doc sketches a SEPARATE `Question` model scoped to a mock test
+// (`mockTestId`, `contentJson`, `answerKey`). Deliberately not built that way
+// here: this session's whole point (V1_V2_RECONCILIATION.md, QM-1, KU-1) was
+// unifying the question bank into ONE `Question`/`ResponseFormat`/
+// `KnowledgeUnit` model instead of leaving parallel copies. A mock test paper
+// is a curated ORDERING of existing Question rows, not a new content type —
+// so `MockTestTemplateQuestion` is a join table (matching the
+// `KnowledgeUnitOnSession` precedent for "which rows compose this thing"),
+// and a submitted answer is still a `QuestionAttempt` (extended with a
+// nullable `mockTestAttemptId`, the same pattern `curriculumSessionId`
+// already uses) — not a parallel `AnswerRecord` table. One Evidence table for
+// every answer a learner ever submits, regardless of context.
+
+model MockTestTemplate {
+  id             String   @id @default(cuid())
+  title          String // e.g. "Thi thử vào 10 — Hà Nội"
+  description    String?
+  timeLimitMin   Int
+  totalQuestions Int
+  createdAt      DateTime @default(now())
+
+  questions MockTestTemplateQuestion[]
+  attempts  MockTestAttempt[]
+}
+
+// `order` is a plain column, not encoded in a JSON array on the template —
+// queryable/indexable, and leaves room for a future per-slot field (e.g. a
+// section label override) without a JSON schema migration.
+model MockTestTemplateQuestion {
+  id         String           @id @default(cuid())
+  templateId String
+  template   MockTestTemplate @relation(fields: [templateId], references: [id])
+  questionId String
+  question   Question         @relation(fields: [questionId], references: [id])
+  order      Int // 1-based position in the paper
+
+  @@unique([templateId, order])
+  @@unique([templateId, questionId])
+}
+
+enum MockTestAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+}
+
+model MockTestAttempt {
+  id         String                @id @default(cuid())
+  userId     String
+  user       User                  @relation(fields: [userId], references: [id])
+  templateId String
+  template   MockTestTemplate      @relation(fields: [templateId], references: [id])
+  status     MockTestAttemptStatus @default(IN_PROGRESS)
+
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+
+  // Aggregate, computed once on submit from this attempt's QuestionAttempt
+  // rows — nullable while IN_PROGRESS. Per-question correctness is NOT
+  // revealed to the learner until submission (real exams don't grade
+  // per-question mid-test); these three columns are what the results page
+  // reads without recomputing.
+  score        Float?
+  correctCount Int?
+  totalCount   Int?
+
+  questionAttempts QuestionAttempt[]
+
+  @@index([userId, status])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// PROGRAM (v2 curriculum spine — replaces CurriculumSession)
+// ──────────────────────────────────────────────────────────────────
+// docs/V1_V2_RECONCILIATION.md ruled CurriculumSession/CurriculumPhase for
+// removal; this is the replacement, built additively (CurriculumSession is
+// UNCHANGED and still live — see the founder-facing scope note in the commit
+// this section ships with). Two things this model deliberately gets right
+// that CurriculumSession got wrong:
+//
+// 1. GENERIC, not hardcoded to one exam. Program is a named container (any
+//    number of them), not an assumed single "the curriculum". The 24-session
+//    Hà Nội content is seeded as exactly one Program — demo data filling a
+//    general structure, not the structure itself.
+//
+// 2. A lesson slot maps to MANY KnowledgeUnits, not implicitly one topic.
+//    Measured against the real curriculum data before designing this:
+//    17 of the 24 existing sessions teach more than one grammarTopic at
+//    once, and 6 are checkpoint/review sessions matching none by exact
+//    string (they're deliberately cumulative). A single-topic-per-slot
+//    model cannot represent the curriculum that already exists.
+//
+// The auto-assembly pipeline (lib/services/program/) is what makes "add a
+// source, get a lesson" real: assembleProgramGaps() is idempotent — for
+// every KnowledgeUnit not yet covered by any slot in a Program, it appends
+// ONE new slot for it. Wired to run automatically after
+// approvePendingKnowledgeUnit()/mergePendingKnowledgeUnit() resolve a KU-1
+// part B proposal, so a newly-approved KnowledgeUnit gets a lesson slot in
+// the SAME action a human approves it — no separate manual step. It only
+// ever APPENDS; it never reorders or edits an existing slot, so a learner
+// partway through a Program never has their progress reshuffled under them
+// by a later import.
+
+model Program {
+  id          String   @id @default(cuid())
+  slug        String   @unique // stable URL identifier, e.g. "thi-vao-10-ha-noi" — never displayed, never reused for a different Program
+  title       String
+  description String?
+  targetExam  String? // e.g. "hanoi_thpt" — matches LearnerProfile.targetExam's convention, not a new vocabulary
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  curriculum ProgramCurriculum[]
+}
+
+model ProgramCurriculum {
+  id          String      @id @default(cuid())
+  programId   String
+  program     Program     @relation(fields: [programId], references: [id])
+  order       Int // 1-based position — the only thing that determines sequence; no separate phase/week grouping (CurriculumPhase's job is just "3 named bands of session numbers", reproducible by a UI range-label over `order` if ever needed, not a stored relation)
+  title       String
+  objective   String?
+  // Reuses the existing SessionType enum (REGULAR/MINI_TEST/CHECKPOINT/
+  // MOCK_EXAM) rather than a new one — its meaning was never
+  // CurriculumSession-specific, and MOCK_EXAM here is a labelling concern
+  // only (this is not how the real MockTestAttempt/MockTestTemplate flow
+  // works; a Program slot of type MOCK_EXAM just means "this lesson is a
+  // practice checkpoint", it does not create or link a MockTestAttempt).
+  sessionType SessionType @default(REGULAR)
+
+  knowledgeUnits   ProgramCurriculumKnowledgeUnit[]
+  questionAttempts QuestionAttempt[] // attempts submitted while practicing this slot
+  userProgress     UserProgramProgress[]
+
+  @@unique([programId, order])
+}
+
+// Join table, not a JSON array on ProgramCurriculum — queryable (e.g. "which
+// Program slots cover this KnowledgeUnit", the exact query
+// assembleProgramGaps() runs), matching the KnowledgeUnitOnSession /
+// MockTestTemplateQuestion precedent for "which rows compose this thing".
+model ProgramCurriculumKnowledgeUnit {
+  programCurriculumId String
+  programCurriculum   ProgramCurriculum @relation(fields: [programCurriculumId], references: [id])
+  knowledgeUnitId     String
+  knowledgeUnit       KnowledgeUnit     @relation(fields: [knowledgeUnitId], references: [id])
+
+  @@id([programCurriculumId, knowledgeUnitId])
 }

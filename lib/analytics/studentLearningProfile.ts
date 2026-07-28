@@ -45,6 +45,7 @@ import {
 } from "./masteryTracking";
 import type { MasteryState, TopicMasteryProfile } from "./masteryTracking";
 import { getSessionAnalytics } from "./service";
+import { findMostRecentlyCompletedScope } from "./repository";
 import {
   buildQuestionCountMap,
   computeRecommendations,
@@ -52,7 +53,8 @@ import {
 import type { PracticeRecommendation } from "@/lib/services/practiceRecommendation";
 import { resolveRecommendationIssuance } from "@/lib/services/recommendationIssuance";
 import { getSkillMatrix } from "@/lib/services/skillMatrix";
-import { getCurrentMission } from "@/lib/services/curriculum";
+import { getNextMission } from "@/lib/services/program/nextMission";
+import type { NextMission } from "@/lib/services/program/nextMission";
 import { getBehaviorProfile } from "./behaviorEngine";
 import type { BehaviorProfile } from "./behaviorEngine";
 import { computeLearningSignals } from "./learningSignalEngine";
@@ -143,9 +145,7 @@ export interface LearningProfileContext {
   recommendations: PracticeRecommendation[];
   readiness: ReadinessResult | null;
   skillSnapshot: SkillSnapshot[];
-  nextSessionNumber: number | null;
-  nextSessionTitle: string | null;
-  nextSessionObjective: string | null;
+  nextMission: NextMission | null;
   behaviorProfile: BehaviorProfile;
   currentStreak: number;
   targetGoalDate: Date | null;
@@ -172,8 +172,7 @@ export interface LearningProfileContext {
  *
  * What should happen next?
  *   recommendations    — up to 4 mastery-aware prioritized recommendations
- *   nextSessionNumber  — number of the next curriculum session to advance
- *   nextSessionTitle   — display title of that session
+ *   nextMission        — the next ProgramCurriculum slot to advance to
  */
 export interface StudentLearningProfile {
   userId: string;
@@ -189,9 +188,7 @@ export interface StudentLearningProfile {
   activeWeaknesses: ActiveWeakness[];
 
   recommendations: PracticeRecommendation[];
-  nextSessionNumber: number | null;
-  nextSessionTitle: string | null;
-  nextSessionObjective: string | null;
+  nextMission: NextMission | null;
   behaviorProfile: BehaviorProfile;
 
   // Phase 2 additions (M2.2–M2.5)
@@ -366,9 +363,7 @@ export function buildLearningProfile(
     improvingTopics,
     activeWeaknesses,
     recommendations: ctx.recommendations,
-    nextSessionNumber: ctx.nextSessionNumber,
-    nextSessionTitle: ctx.nextSessionTitle,
-    nextSessionObjective: ctx.nextSessionObjective,
+    nextMission: ctx.nextMission,
     behaviorProfile: ctx.behaviorProfile,
     currentStreak: ctx.currentStreak,
     goalCountdown: computeGoalCountdown(ctx.targetGoalDate, new Date()),
@@ -421,15 +416,8 @@ export async function getStudentLearningProfile(
   ] = await Promise.all([
     getTopicNotebookSummaries(userId),
     getSkillMatrix(userId),
-    getCurrentMission(userId),
-    prisma.userSessionProgress.findFirst({
-      where: { userId, status: "COMPLETED" },
-      orderBy: { curriculumSession: { sessionNumber: "desc" } },
-      select: {
-        curriculumSessionId: true,
-        curriculumSession: { select: { sessionNumber: true } },
-      },
-    }),
+    getNextMission(userId),
+    findMostRecentlyCompletedScope(userId),
     prisma.question.findMany({ select: { topic: true } }),
     getBehaviorProfile(userId).catch(() => ({
       preferredTimeOfDay: null,
@@ -485,11 +473,7 @@ export async function getStudentLearningProfile(
 
   if (recentCompleted) {
     try {
-      const analytics = await getSessionAnalytics(
-        userId,
-        recentCompleted.curriculumSessionId,
-        recentCompleted.curriculumSession.sessionNumber
-      );
+      const analytics = await getSessionAnalytics(userId, recentCompleted.programCurriculumId, recentCompleted.label);
       readiness = analytics.readiness;
       weaknessSignalTopics = analytics.weaknessTopics
         .filter((w) => w.accuracy < 0.7)
@@ -503,8 +487,7 @@ export async function getStudentLearningProfile(
   const candidateRecommendations = computeRecommendations({
     topicSummaries,
     weaknessSignalTopics,
-    nextSessionNumber: mission?.sessionNumber ?? null,
-    nextSessionTitle: mission?.title ?? null,
+    nextMission: mission,
     questionCountByTopic,
     masteryByTopic,
   });
@@ -559,9 +542,7 @@ export async function getStudentLearningProfile(
     recommendations,
     readiness,
     skillSnapshot,
-    nextSessionNumber: mission?.sessionNumber ?? null,
-    nextSessionTitle: mission?.title ?? null,
-    nextSessionObjective: mission?.objective ?? null,
+    nextMission: mission,
     behaviorProfile,
     currentStreak: streak,
     targetGoalDate: learnerGoalData?.targetGoalDate ?? null,

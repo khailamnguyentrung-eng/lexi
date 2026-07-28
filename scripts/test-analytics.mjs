@@ -137,47 +137,6 @@ function computeWeaknessSignals(attempts, topN = 3) {
   return results.slice(0, topN);
 }
 
-function computeSessionComparison(sessionA, sessionB, numA, numB) {
-  const groupByTopic = (attempts) => {
-    const map = new Map();
-    for (const a of attempts) {
-      const topic = canonicalTopic(a.question.topic);
-      const existing = map.get(topic) ?? { correct: 0, total: 0 };
-      existing.total++;
-      if (a.isCorrect) existing.correct++;
-      map.set(topic, existing);
-    }
-    return map;
-  };
-
-  const groupA = groupByTopic(sessionA);
-  const groupB = groupByTopic(sessionB);
-  const allTopics = new Set([...groupA.keys(), ...groupB.keys()]);
-
-  const topics = [];
-  let improvedCount = 0, declinedCount = 0, insufficientDataCount = 0;
-
-  for (const topic of allTopics) {
-    const a = groupA.get(topic) ?? null;
-    const b = groupB.get(topic) ?? null;
-    const canCompare = (a?.total ?? 0) >= 2 && (b?.total ?? 0) >= 2;
-
-    let delta = null, direction;
-    if (canCompare) {
-      delta = (b.correct / b.total) - (a.correct / a.total);
-      if (delta > 0.10) { direction = "IMPROVED"; improvedCount++; }
-      else if (delta < -0.10) { direction = "DECLINED"; declinedCount++; }
-      else direction = "SIMILAR";
-    } else {
-      direction = "INSUFFICIENT_DATA";
-      insufficientDataCount++;
-    }
-    topics.push({ topic, direction, delta });
-  }
-
-  return { session1Number: numA, session2Number: numB, topics, improvedCount, declinedCount, insufficientDataCount };
-}
-
 function enrichWeaknessWithNotebook(weaknessTopics, notebookRows) {
   const byTopic = new Map(notebookRows.map((r) => [r.topic, r]));
   return weaknessTopics.map((topic) => {
@@ -425,59 +384,6 @@ test("phonetics pattern (C×2) → studentVisible: false (tutor only)", () => {
   assert(p?.patternObservation !== null, "Expected pattern observation");
   assert(p.patternObservation.occurrenceCount === 2);
   assert(p.patternObservation.studentVisible === false);
-});
-
-// ──────────────────────────────────────────────────────────────────
-// Suite 5: Session comparison
-// ──────────────────────────────────────────────────────────────────
-
-console.log("\nSession comparison");
-
-const sessA = [
-  makeAttempt("GRAMMAR_MCQ", "conditionals", false, "B"),
-  makeAttempt("GRAMMAR_MCQ", "conditionals", false, "B"),
-  makeAttempt("GRAMMAR_MCQ", "conditionals", false, "B"),
-  makeAttempt("GRAMMAR_MCQ", "passive voice", true),
-  makeAttempt("GRAMMAR_MCQ", "passive voice", true),
-  makeAttempt("GRAMMAR_MCQ", "passive voice", true),
-];
-
-const sessB = [
-  makeAttempt("GRAMMAR_MCQ", "conditionals", true),
-  makeAttempt("GRAMMAR_MCQ", "conditionals", true),
-  makeAttempt("GRAMMAR_MCQ", "conditionals", true),
-  makeAttempt("GRAMMAR_MCQ", "passive_voice", false, "B"),
-  makeAttempt("GRAMMAR_MCQ", "passive_voice", false, "B"),
-  makeAttempt("GRAMMAR_MCQ", "passive_voice", false, "B"),
-];
-
-test("conditionals classified as IMPROVED", () => {
-  const r = computeSessionComparison(sessA, sessB, 22, 23);
-  const t = r.topics.find((x) => x.topic === "conditionals");
-  assert(t?.direction === "IMPROVED", `Expected IMPROVED, got ${t?.direction}`);
-});
-
-test("passive_voice classified as DECLINED (alias normalization)", () => {
-  const r = computeSessionComparison(sessA, sessB, 22, 23);
-  const t = r.topics.find((x) => x.topic === "passive_voice");
-  assert(t?.direction === "DECLINED", `Expected DECLINED, got ${t?.direction}`);
-});
-
-test("improvedCount=1, declinedCount=1", () => {
-  const r = computeSessionComparison(sessA, sessB, 22, 23);
-  assert(r.improvedCount === 1);
-  assert(r.declinedCount === 1);
-});
-
-test("N=1 per topic → INSUFFICIENT_DATA, delta null", () => {
-  const r = computeSessionComparison(
-    [makeAttempt("GRAMMAR_MCQ", "tenses", false, "B")],
-    [makeAttempt("GRAMMAR_MCQ", "tenses", true)],
-    22, 23
-  );
-  const t = r.topics.find((x) => x.topic === "tenses");
-  assert(t?.direction === "INSUFFICIENT_DATA");
-  assert(t?.delta === null);
 });
 
 // ──────────────────────────────────────────────────────────────────

@@ -5,6 +5,8 @@ import { SignOutButton } from "./SignOutButton";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Trang chủ", icon: "🏠" },
+  { href: "/program", label: "Học", icon: "📚" },
+  { href: "/mocktest", label: "Thi thử", icon: "🎯" },
   { href: "/chat", label: "Hỏi Lexi", icon: "💬" },
   { href: "/error-notebook", label: "Sổ lỗi sai", icon: "📓" },
   { href: "/progress", label: "Tiến độ", icon: "📊" },

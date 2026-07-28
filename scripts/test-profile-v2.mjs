@@ -99,9 +99,7 @@ function buildLearningProfile(ctx) {
     improvingTopics,
     activeWeaknesses,
     recommendations: ctx.recommendations,
-    nextSessionNumber: ctx.nextSessionNumber,
-    nextSessionTitle: ctx.nextSessionTitle,
-    nextSessionObjective: ctx.nextSessionObjective,
+    nextMission: ctx.nextMission,
     behaviorProfile: ctx.behaviorProfile,
     // M2.5 fields
     currentStreak: ctx.currentStreak,
@@ -130,9 +128,7 @@ function emptyCtx(overrides = {}) {
     recommendations: [],
     readiness: null,
     skillSnapshot: [],
-    nextSessionNumber: null,
-    nextSessionTitle: null,
-    nextSessionObjective: null,
+    nextMission: null,
     behaviorProfile: makeBehaviorProfile(),
     currentStreak: 0,
     targetGoalDate: null,
@@ -270,15 +266,13 @@ console.log("\n── existing profile fields unchanged by M2.5 ─────�
 {
   const ctx = emptyCtx({
     currentStreak: 5,
-    nextSessionNumber: 3,
-    nextSessionTitle: "Buổi 3",
-    nextSessionObjective: "Learn tenses",
+    nextMission: { programSlug: "test-program", order: 3, title: "Bài 3", objective: "Learn tenses" },
   });
   const profile = buildLearningProfile(ctx);
   assert("userId still on profile", profile.userId === "test-user");
-  assert("nextSessionNumber still on profile", profile.nextSessionNumber === 3);
-  assert("nextSessionTitle still on profile", profile.nextSessionTitle === "Buổi 3");
-  assert("nextSessionObjective still on profile", profile.nextSessionObjective === "Learn tenses");
+  assert("nextMission.order on profile", profile.nextMission?.order === 3);
+  assert("nextMission.title on profile", profile.nextMission?.title === "Bài 3");
+  assert("nextMission.objective on profile", profile.nextMission?.objective === "Learn tenses");
   assert("behaviorProfile still on profile", profile.behaviorProfile !== undefined);
   assert("learningTrend still on profile", profile.learningTrend === "INSUFFICIENT_DATA");
   assert("activeWeaknesses still on profile", Array.isArray(profile.activeWeaknesses));

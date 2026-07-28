@@ -12,6 +12,8 @@ import type {
   GenerateQuestionsResult,
   NormalizeQuestionsInput,
   NormalizeQuestionsResult,
+  ProposeTaxonomyInput,
+  ProposeTaxonomyResult,
 } from "./types";
 
 // Provider error messages can be long (Gemini's 429 body is ~1KB of JSON) and
@@ -81,6 +83,24 @@ export function withRuntimeFallback(primary: AIProvider, fallback: AIProvider): 
           `[AI FALLBACK ACTIVE] ${primary.name} generateQuestions failed (${errMsg}). Using ${fallback.name}.`
         );
         const result = await fallback.generateQuestions(input);
+        return { ...result, fallbackReason: summarizeProviderError(primary.name, errMsg) };
+      }
+    },
+
+    // Fall back on any error. Mock returns a proposal grounded in a real
+    // snippet of the actual rawText (see mockProvider.ts) — clearly labeled,
+    // still requires human review before any KnowledgeUnit is created.
+    async proposeTaxonomy(input: ProposeTaxonomyInput): Promise<ProposeTaxonomyResult> {
+      try {
+        return await primary.proposeTaxonomy(input);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `[AI FALLBACK ACTIVE] ${primary.name} proposeTaxonomy failed (${errMsg}). Using ${fallback.name}.`
+        );
+        const result = await fallback.proposeTaxonomy(input);
+        // Mirrors normalizeQuestions/generateQuestions: override the
+        // fallback's own honest "mock served this" with WHY it had to.
         return { ...result, fallbackReason: summarizeProviderError(primary.name, errMsg) };
       }
     },

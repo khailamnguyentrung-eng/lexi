@@ -195,6 +195,28 @@ already correct.
 
 ---
 
+## 6.5 The gate is closed (2026-07-15, live `dev.db` — not yet in seed data)
+
+Using the KU-1 part B review queue (`docs/KU1_PARTB_DESIGN.md`) on the real 62 proposals Path B's
+miss-handling had accumulated: **122/122 questions now carry a `knowledgeUnitId`. 0 unmapped.**
+Registry grew from 12 → **71 KnowledgeUnits** (16 already resolved earlier in the session; **55
+approved + 1 merge** — `modal_verbs_should` into `modal_verbs_advice`, the one pair confirmed via real
+`correctOption` data to test the identical rule — resolved with the founder's explicit authorization
+for this specific batch, since the review step is deliberately reserved for a human). 74 distinct
+`Question.topic` strings, 71 KUs + 3 merged-away topics (the two `present_perfect_*` duplicates plus
+`modal_verbs_should`) accounts for all 74.
+
+**Now durable (2026-07-15, same day).** `prisma/seed-data/knowledge-units.json` carries all 71 units
+with proper Vietnamese labels (not the naive `naiveLabelFromTopic()` placeholders); `prisma/seed.ts`
+gained `linkQuestionsToKnowledgeUnits()`, which backfills `knowledgeUnitId` by the same deterministic
+topic match `autoAssignKnowledgeUnit()` uses, plus a small `KNOWN_TOPIC_MERGES` map encoding the 3
+review-queue MERGE decisions (topics with no `KnowledgeUnit` of their own) that a plain string match
+can never reach. **Verified on a truly from-scratch database (fresh SQLite file, not just the live
+`dev.db`): 118/118 seeded questions linked, 0 unmapped.** Re-running against the live `dev.db` is
+idempotent (0 relinked — everything was already correct) and non-destructive (upsert-only; a fresh
+seed run upgrades the 55 naive English labels to proper Vietnamese ones in place, without touching any
+existing `knowledgeUnitId`).
+
 ## 6. Sequencing, and the one gate
 
 The gate: **`Question.curriculumSessionId` must not be dropped until every question has a

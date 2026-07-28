@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { getCurrentMission } from "@/lib/services/curriculum";
+import { getNextMission } from "@/lib/services/program/nextMission";
 
 export interface AssembledContext {
   targetScore: number | null;
@@ -19,7 +19,7 @@ export async function assembleContext(userId: string): Promise<AssembledContext>
       take: 5,
       select: { concept: true },
     }),
-    getCurrentMission(userId),
+    getNextMission(userId),
   ]);
 
   return {

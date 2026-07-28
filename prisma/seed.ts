@@ -2,6 +2,9 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
+import { findMatchingKnowledgeUnitId } from "../lib/services/content-intelligence/questionKnowledgeMapping";
+import { seedDemoProgram } from "../lib/services/program/seedDemoProgram";
+import { assembleProgramGaps } from "../lib/services/program/assembleProgramGaps";
 
 const prisma = new PrismaClient();
 
@@ -158,21 +161,33 @@ async function seedCurriculum() {
 }
 
 /**
- * The canonical topic taxonomy (KU-1, 2026-07-15).
+ * The canonical topic taxonomy.
  *
  * Seeded BEFORE questions so the registry exists before anything classifies
- * into it. Deliberately narrow: only the 12 topics that actually carry >=3
- * questions today, not all 74 distinct `Question.topic` strings. `topic` is
- * free text entered at import time, so deriving the taxonomy from it wholesale
- * would inherit its noise — 51 of those 74 are backed by a single question, and
- * the resulting registry would demand ~840 generated questions to fill gaps
- * that shouldn't exist. This list is curated instead (Ch.1 §9: Content-Item
- * curation belongs to a curating authority, not to a script).
+ * into it.
  *
- * `topic` must match `Question.topic` EXACTLY — coverage matches on the string
- * (`computeCoverageReport`: `questions.filter(q => q.topic === unit.topic)`),
- * not on `Question.knowledgeUnitId`. Growing this list is how the taxonomy
- * grows until the FigJam v2 Pending-KU review queue exists.
+ * History: started narrow (KU-1, 2026-07-15) — only the 12 topics that
+ * carried >=3 questions, curated by hand (Ch.1 §9: Content-Item curation
+ * belongs to a curating authority, not to a script). Grew to all 71 distinct
+ * topics via KU-1 part B's review queue (docs/KU1_PARTB_DESIGN.md):
+ * `autoAssignKnowledgeUnit()`'s miss-handling recorded every unmatched topic
+ * as a `PendingKnowledgeUnit` instead of discarding it, a human resolved all
+ * 62 real proposals through `pendingKnowledgeUnitReview.ts` (55 approved, 1
+ * merge — see DECISION_LOG "KU-1 part B — merge criterion"), and this file is
+ * that resolution made durable. Encoding it here is what makes the
+ * `V1_V2_RECONCILIATION.md` §6 gate (122/122 questions linked) survive a
+ * reseed — before this, it existed only in the live dev.db.
+ *
+ * `topic` must match `Question.topic` EXACTLY for all 71 — coverage matches
+ * on the string (`computeCoverageReport`: `questions.filter(q => q.topic ===
+ * unit.topic)`), not on `Question.knowledgeUnitId`, a decision recorded
+ * before this queue existed (DECISION_LOG "M3.2"). The registry's remaining 3
+ * distinct topics (the two `present_perfect_*` phrasing variants plus
+ * `modal_verbs_should`) were resolved by MERGE rather than by their own KU —
+ * intentionally not listed here; `linkQuestionsToKnowledgeUnits()` below
+ * reaches them via `knowledgeUnitId`, which is why that FK, not string
+ * coverage, is this repo's growing source of truth for "is this topic
+ * covered" (see the same DECISION_LOG entry's coverage-report caveat).
  */
 async function seedKnowledgeUnits() {
   const units = readJson<SeedKnowledgeUnit[]>("seed-data/knowledge-units.json");
@@ -275,12 +290,89 @@ async function seedQuestions() {
   console.log(`Seeded ${questions.length} questions and ${passageIdByTitle.size} passages.`);
 }
 
+/**
+ * Topics resolved by MERGE rather than their own KnowledgeUnit (KU-1 part B
+ * review queue, 2026-07-15 — see DECISION_LOG "KU-1 part B — merge
+ * criterion"). No KnowledgeUnit row has these as its `topic`, so the plain
+ * string match in `linkQuestionsToKnowledgeUnits()` can never reach them —
+ * verified on a from-scratch reseed: without this map, 4 of 118 seeded
+ * questions land unmapped, all four on exactly these three topics. This map
+ * is what makes that merge decision durable, the same way the 71-entry
+ * registry above makes the 55 approvals durable.
+ */
+const KNOWN_TOPIC_MERGES: Record<string, string> = {
+  present_perfect_for_since: "present_perfect",
+  present_perfect_since_for: "present_perfect",
+  modal_verbs_should: "modal_verbs_advice",
+};
+
+/**
+ * Backfill `Question.knowledgeUnitId` by exact topic-string match, for every
+ * question in the database — not just ones this run just seeded, so a
+ * question created outside the seed script (e.g. via the content-import
+ * pipeline) still gets linked. Reuses `findMatchingKnowledgeUnitId()` (the
+ * same pure, deterministic matcher `autoAssignKnowledgeUnit()` uses) rather
+ * than reimplementing the match, so seed-time linking and import-time linking
+ * can never quietly diverge.
+ *
+ * Runs AFTER seedKnowledgeUnits() and seedQuestions(), and only ever fills a
+ * currently-null knowledgeUnitId — never overwrites an existing assignment,
+ * so this is safe to re-run on a database that already has manual
+ * reassignments from the admin `assignQuestionToKnowledgeUnit()` tools.
+ *
+ * A leftover unmatched question after this step is expected in general (the
+ * registry only covers what's been curated or reviewed — see
+ * seedKnowledgeUnits()'s comment), but as of 2026-07-15 the registry above
+ * covers every topic in `seed-data/questions.json`, so on a clean seed this
+ * should report 0 unmatched. Logged either way rather than silently passing,
+ * since a silent gap here is exactly the failure mode
+ * V1_V2_RECONCILIATION.md §6's gate exists to catch.
+ */
+async function linkQuestionsToKnowledgeUnits() {
+  const units = await prisma.knowledgeUnit.findMany({ select: { id: true, topic: true } });
+  const unmapped = await prisma.question.findMany({
+    where: { knowledgeUnitId: null },
+    select: { id: true, topic: true },
+  });
+
+  let linked = 0;
+  for (const q of unmapped) {
+    const effectiveTopic = KNOWN_TOPIC_MERGES[q.topic] ?? q.topic;
+    const knowledgeUnitId = findMatchingKnowledgeUnitId(effectiveTopic, units);
+    if (!knowledgeUnitId) continue;
+    await prisma.question.update({ where: { id: q.id }, data: { knowledgeUnitId } });
+    linked++;
+  }
+
+  const stillUnmapped = unmapped.length - linked;
+  console.log(`Linked ${linked} question(s) to a KnowledgeUnit by topic match.`);
+  if (stillUnmapped > 0) {
+    console.log(`${stillUnmapped} question(s) remain unmapped — no KnowledgeUnit exists for their topic yet.`);
+  }
+}
+
 async function main() {
   await seedStudent();
   await seedAdmin();
   await seedCurriculum();
   await seedKnowledgeUnits();
   await seedQuestions();
+  await linkQuestionsToKnowledgeUnits();
+
+  // Program (v2 spine) — additive, does not touch seedCurriculum()'s
+  // CurriculumSession rows above. Must run AFTER seedKnowledgeUnits() (needs
+  // the KU registry to match grammarTopics against) and AFTER seedQuestions()
+  // (assembleProgramGaps() only matters once real KUs and their questions
+  // exist to report gaps for). Idempotent — see both functions' docstrings —
+  // so this is safe on every reseed, not just the first one.
+  const demo = await seedDemoProgram();
+  console.log(
+    demo.alreadyExisted
+      ? `Program "${demo.slug}" already exists, skipped re-seeding.`
+      : `Seeded Program "${demo.slug}": ${demo.slotsCreated} slots from curriculum.json (${demo.sessionsWithNoMatchedKU.length} sessions with no matched KnowledgeUnit, ${demo.unmatchedTopics.length} unmatched topic strings — expected, see seedDemoProgram.ts).`,
+  );
+  const gaps = await assembleProgramGaps();
+  console.log(`Assembled ${gaps.slotsCreated} additional Program slot(s) for KnowledgeUnits not covered by the seeded curriculum.`);
 }
 
 main()

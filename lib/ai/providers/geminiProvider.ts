@@ -5,7 +5,15 @@ import {
   normalizeWithRetry,
   generateWithRetry,
 } from "./normalizationCore";
-import type { AIProvider, ChatMessageInput, GenerateQuestionsInput, GenerateQuestionsResult } from "./types";
+import { PROPOSE_TAXONOMY_SYSTEM_PROMPT, proposeTaxonomyWithRetry } from "./taxonomyCore";
+import type {
+  AIProvider,
+  ChatMessageInput,
+  GenerateQuestionsInput,
+  GenerateQuestionsResult,
+  ProposeTaxonomyInput,
+  ProposeTaxonomyResult,
+} from "./types";
 
 // Gemini uses "model" where Anthropic/our ChatMessageInput use
 // "assistant" — translate at the boundary so the rest of the codebase
@@ -58,5 +66,20 @@ export const geminiProvider: AIProvider = {
       targetCount,
     );
     return { ...result, servedBy: "gemini", fallbackReason: null };
+  },
+
+  async proposeTaxonomy({ rawText, existingTopics }: ProposeTaxonomyInput): Promise<ProposeTaxonomyResult> {
+    const { accepted, rejected, retryCount } = await proposeTaxonomyWithRetry(
+      (messages) => callGemini(PROPOSE_TAXONOMY_SYSTEM_PROMPT, messages),
+      rawText,
+      existingTopics,
+    );
+    return {
+      proposals: accepted,
+      retryCount,
+      servedBy: "gemini",
+      fallbackReason: null,
+      rejectedByVerification: rejected.length,
+    };
   },
 };

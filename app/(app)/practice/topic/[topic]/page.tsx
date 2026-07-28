@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { canonicalTopic } from "@/lib/analytics";
-import { PracticeQuiz } from "../../[sessionNumber]/PracticeQuiz";
+import { getQuestionPayload, toPublicPayload, type QuestionFormatFields } from "@/lib/services/question-format";
+import { PracticeQuiz } from "../../../program/[slug]/[order]/PracticeQuiz";
 
 export default async function TopicPracticePage({
   params,
@@ -21,16 +22,33 @@ export default async function TopicPracticePage({
       type: true,
       topic: true,
       promptText: true,
+      responseFormat: true,
+      payload: true,
       optionA: true,
       optionB: true,
       optionC: true,
       optionD: true,
+      correctOption: true,
     },
   });
 
   const questions = allQuestions
     .filter((q) => canonicalTopic(q.topic) === canonical)
-    .slice(0, 10);
+    .slice(0, 10)
+    .flatMap((q) => {
+      const payload = getQuestionPayload(q as unknown as QuestionFormatFields);
+      if (!payload) return [];
+      return [
+        {
+          id: q.id,
+          type: q.type,
+          topic: q.topic,
+          promptText: q.promptText,
+          responseFormat: q.responseFormat,
+          publicPayload: toPublicPayload(q.responseFormat, payload),
+        },
+      ];
+    });
 
   if (questions.length === 0) notFound();
 
@@ -49,19 +67,7 @@ export default async function TopicPracticePage({
           {questions.length} câu hỏi về chủ đề này
         </p>
       </div>
-      <PracticeQuiz
-        questions={questions.map((q) => ({
-          id: q.id,
-          type: q.type,
-          topic: q.topic,
-          promptText: q.promptText,
-          optionA: q.optionA,
-          optionB: q.optionB,
-          optionC: q.optionC,
-          optionD: q.optionD,
-        }))}
-        completionHref="/dashboard"
-      />
+      <PracticeQuiz questions={questions} completionHref="/dashboard" />
     </div>
   );
 }

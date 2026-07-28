@@ -1,4 +1,11 @@
-import type { AIProvider, NormalizedQuestionDraft, GenerateQuestionsInput, GenerateQuestionsResult } from "./types";
+import type {
+  AIProvider,
+  NormalizedQuestionDraft,
+  GenerateQuestionsInput,
+  GenerateQuestionsResult,
+  ProposeTaxonomyInput,
+  ProposeTaxonomyResult,
+} from "./types";
 
 // Used when no real AI provider is configured (no ANTHROPIC_API_KEY or
 // GOOGLE_GEMINI_API_KEY, or AI_PROVIDER=mock explicitly), so the chat UI
@@ -96,6 +103,35 @@ function buildMockDrafts(sourceFileName: string): NormalizedQuestionDraft[] {
   ];
 }
 
+// Same honesty rule as buildMockDrafts: clearly labeled, not a fabricated
+// reading of the real document. The one thing this can't fake without lying
+// to the reviewer is evidenceQuote — PendingKnowledgeUnit.evidenceQuote's
+// whole purpose is "this is real text from the source" (see the schema
+// comment, and taxonomyCore.ts's verifyEvidenceQuotes()), so even the mock
+// pulls an actual literal snippet from rawText rather than inventing one.
+// Returns nothing at all for an empty/whitespace-only document — a demo
+// proposal grounded in no text would defeat the entire point of this field.
+function buildMockTaxonomyProposal(rawText: string, existingTopics: string[]) {
+  const snippet = rawText.trim().slice(0, 80);
+  if (!snippet) return [];
+  const label = "Chủ điểm mẫu (demo)";
+  let topic = "demo_topic_from_mock";
+  let n = 2;
+  while (existingTopics.includes(topic)) {
+    topic = `demo_topic_from_mock_${n}`;
+    n++;
+  }
+  return [
+    {
+      proposedTopic: topic,
+      proposedLabel: label,
+      evidenceQuote: snippet,
+      evidenceLocation: null,
+      confidence: 0.5,
+    },
+  ];
+}
+
 export const mockProvider: AIProvider = {
   name: "mock",
   async chat({ messages }) {
@@ -117,6 +153,16 @@ export const mockProvider: AIProvider = {
       retryCount: 0,
       servedBy: "mock",
       fallbackReason: null,
+    };
+  },
+
+  async proposeTaxonomy({ rawText, existingTopics }: ProposeTaxonomyInput): Promise<ProposeTaxonomyResult> {
+    return {
+      proposals: buildMockTaxonomyProposal(rawText, existingTopics),
+      retryCount: 0,
+      servedBy: "mock",
+      fallbackReason: null,
+      rejectedByVerification: 0, // mock's own quote is always a real rawText substring by construction
     };
   },
 };

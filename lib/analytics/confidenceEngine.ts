@@ -44,28 +44,6 @@ export function determinePatternConfidence(occurrenceCount: number): ConfidenceT
 }
 
 /**
- * Determine confidence for per-topic comparison (session 22 vs 23).
- *
- * Thresholds:
- * - OBSERVED: 2–3 attempts in both sessions
- * - EMERGING: 4–5 attempts in both sessions
- * - CONFIRMED: ≥ 5 attempts in both sessions (minimum per session)
- *
- * Requires data in both sessions. If either is missing, the comparison
- * direction is INSUFFICIENT_DATA (handled at the comparison level).
- */
-export function determineComparisonConfidence(
-  session1Total: number | null,
-  session2Total: number | null
-): ConfidenceTier {
-  if (!session1Total || !session2Total) return ConfidenceTier.OBSERVED;
-  const minN = Math.min(session1Total, session2Total);
-  if (minN >= 5) return ConfidenceTier.CONFIRMED;
-  if (minN >= 4) return ConfidenceTier.EMERGING;
-  return ConfidenceTier.OBSERVED;
-}
-
-/**
  * Determine confidence for section-drop analysis.
  *
  * Thresholds:

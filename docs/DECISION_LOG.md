@@ -312,3 +312,195 @@ Also rejected: Using `responseTimeSignal` from BehaviorProfile to add a "deliber
 **Reason:** Same reasoning already recorded for topic matching ("no fuzzy matching, no AI classification"): a near-miss is a judgement call, and silently accepting it hides a real learner error inside a "correct" mastery signal — which the Decision Engine then consumes as truth, with no downstream check to catch it. Curly apostrophes are folded because `don’t` vs `don't` is a keyboard artifact, not a language error. `acceptedAnswers` is a **list** because natural language has more than one right answer (`don't` / `do not`), and a grader knowing only one marks correct learners wrong — a silent corruption worse than a missing feature.
 
 **Rejected:** Levenshtein/embedding fuzzy matching, and single-string `acceptedAnswer`. The validator rejects an empty `acceptedAnswers` for the same reason: it would mark every learner wrong forever, without throwing.
+
+---
+
+## KU-1 part B — `PendingKnowledgeUnit.taxonomyJobId` is nullable
+
+**Decision:** `PendingKnowledgeUnit.taxonomyJobId` is an optional FK, not required.
+
+**Reason:** The design doc's first sketch implied it was required, but `autoAssignKnowledgeUnit()`'s miss-handling (below) runs inside the existing Path B import pipeline, which never creates a `TaxonomyJob` — that model belongs to Path A, which does not run during an import. `contentSourceId` stays required because it is reachable on both paths (directly on Path A; via `ExtractedQuestionDraft.importJob.contentSourceId` on Path B). A proposal is provenanced by whichever job actually produced it, and Path B produces one with no `TaxonomyJob` at all.
+
+**Rejected:** Requiring `taxonomyJobId` and creating a throwaway `TaxonomyJob` row per Path B miss just to satisfy the FK. Would fabricate a job that never ran an AI taxonomy read, misrepresenting provenance for the sake of a schema constraint.
+
+---
+
+## KU-1 part B — miss-handling records a proposal instead of discarding the topic
+
+**Decision:** `autoAssignKnowledgeUnit()` now creates a `PendingKnowledgeUnit` when no `KnowledgeUnit` matches a question's topic, deduped on `(contentSourceId, proposedTopic, reviewStatus=PENDING_REVIEW)`. The function's contract is otherwise unchanged: still non-throwing, still returns `false` on a miss (`approveDraft()` does not branch on the return value differently).
+
+**Reason:** Before this change the miss was a silent `return false` — the topic simply vanished, which is the entire gap `docs/KU1_PARTB_DESIGN.md` was written to close (verified against seeded data: 73 of 122 questions, 62 distinct topics, previously produced zero record of ever having been unmatched). Recording it is what lets an import — including a future non-Vietnamese source — grow the taxonomy through human review instead of silently capping it at whatever `knowledge-units.json` was hand-edited to contain. The dedup key includes `contentSourceId` (not global) because the review workflow is per-source, and includes the `PENDING_REVIEW` filter so a `REJECTED` proposal does not permanently block the same topic from being re-proposed by a later, different source.
+
+**Rejected:** (1) Deduping globally across all sources — would make one source's rejection permanently suppress a legitimate proposal from an unrelated source. (2) Not deduping at all — a single document with the same unknown topic on many questions (the common case) would flood the review queue with one row per question instead of one per topic.
+
+---
+
+## KU-1 part B — the naive label is generated, not left blank or AI-written
+
+**Decision:** A miss-generated proposal gets `proposedLabel` from a pure string transform (`snake_case` → `Title Case`), not a blank string and not an AI call.
+
+**Reason:** `proposedLabel` is required on the model (a reviewer needs *something* to read), but Path B's miss-handling has no AI step to ask — it is deterministic string-equality failure, not a judgement call, so there is nothing to set `aiConfidence` from either (left `null`). A blank label would look like a data-entry omission rather than a placeholder. A naive mechanical transform is honest about what it is — visibly not a real label — and cheap; a good Vietnamese or English label is exactly what the human review step (design doc §5, not yet built) exists to supply.
+
+**Rejected:** Calling the AI provider to draft a label at this point. Would spend a real API call (and, given the current dead Gemini quota, silently fall back to Mock) on every single unmatched topic during an ordinary import, for output a human reviewer is going to look at and likely rewrite anyway.
+
+---
+
+## KU-1 part B — Rename is Approve-with-override, not a fifth function
+
+**Decision:** The review queue has three functions — `approvePendingKnowledgeUnit()` (which accepts an optional `{ topic, label }` override), `mergePendingKnowledgeUnit()`, `rejectPendingKnowledgeUnit()` — not four. `reviewStatus` still records `RENAMED` distinctly from `APPROVED` when an override was actually applied.
+
+**Reason:** The design doc's own description of Rename is "edit topic/label, then approve" — one reviewer action with two steps, not two independent operations with independent meaning (there is no standalone "rename without approving" state that means anything). Collapsing them avoids duplicating the collision check, the KnowledgeUnit creation, and the status-update logic across two functions that would otherwise need to stay in sync.
+
+**Rejected:** A separate `renamePendingKnowledgeUnit()` that only edits `proposedTopic`/`proposedLabel` in place, requiring a second call to actually approve. Two calls for one reviewer action invites a proposal stuck half-renamed if the second call is never made, and duplicates logic for no benefit.
+
+---
+
+## KU-1 part B — a topic collision on Approve throws, not a silent Merge
+
+**Decision:** If `approvePendingKnowledgeUnit()` resolves to a topic that already has a `KnowledgeUnit` (e.g. two different sources independently proposed the same topic and the other was approved first), it throws `TopicAlreadyExistsError` carrying the existing unit's id, rather than silently switching to merge behaviour.
+
+**Reason:** A reviewer clicking Approve is asserting "this is a new, distinct concept" — reinterpreting that click as Merge would substitute the system's judgement for a human decision the design doc explicitly assigns to a person (§5, "the review queue (the human step)"). Carrying the existing unit's id in the error lets the caller (the API route, then the UI) offer "merge into it instead" as a one-click follow-up without a second lookup, so the human still ends up one click away from the likely-correct action — just not there by default.
+
+**Rejected:** Silently merging on collision. Would mean a reviewer's Approve sometimes creates a KnowledgeUnit and sometimes doesn't, with no signal which happened, which is the kind of ambiguity this whole design exists to remove (`evidenceQuote` being load-bearing is the same principle applied to the miss-handling side).
+
+---
+
+## KU-1 part B — Rename skips question backfill; Merge and Approve do not
+
+**Decision:** Approving with an unmodified topic and merging both bulk-link every `Question` row sharing the proposal's exact topic string to the resolved `KnowledgeUnit`. Approving *with* a topic override (Rename) links none.
+
+**Reason:** Approve-unmodified is safe because the created unit's topic is, by construction, exactly the string already on the matching `Question` rows — there is nothing to get wrong. Merge is safe for the same reason on the source side (the proposal's `proposedTopic` still matches the existing questions), even though the *target* unit's topic differs on purpose (see the coverage-report caveat below). Rename is different in kind: the reviewer has just declared the AI's proposed topic string wrong or non-canonical, so blindly bulk-linking every `Question` still carrying the *old, rejected* string would apply a correction the reviewer may not have intended to every one of those rows without them seeing it. Existing M3.3 admin tools (`assignQuestionToKnowledgeUnit` / `getUnmappedQuestions`) already handle deliberate one-by-one reassignment; that is the correct tool for a renamed topic's cleanup, not an automatic bulk action hidden inside Rename.
+
+**Rejected:** Bulk-linking by the *original* `proposedTopic` string even on Rename. Would auto-apply a correction to potentially many `Question` rows as a side effect of a name edit the reviewer made for the *new* `KnowledgeUnit`, not for those specific rows.
+
+---
+
+## KU-1 part B — Merge does not update `computeCoverageReport()`, and that is a recorded gap
+
+**Decision:** `mergePendingKnowledgeUnit()` links matching questions via `Question.knowledgeUnitId` only. It does not rewrite `Question.topic`, and it does not change `computeCoverageReport()`'s string-matching behaviour.
+
+**Reason:** `computeCoverageReport()` counts `q.topic === unit.topic` (M3.2's decision above, made before this review queue existed). A merge's entire purpose is to assert that two *different* topic strings represent the *same* concept — so after a merge, the target unit's topic will, by definition, not equal the merged questions' topic string. `Question.topic` is a normalized fact about the source data (also read by `ErrorNotebookEntry.concept` and elsewhere); silently rewriting it as a side effect of an admin merge action would be revisionist and could break other topic-string-dependent behaviour that has nothing to do with this review queue. Making `computeCoverageReport()` FK-aware instead is the right fix, but it means changing what M3.2 already decided for a different module — a decision that module's owner should make deliberately, not one this feature should make as a side effect.
+
+**Rejected:** (1) Rewriting `Question.topic` on merge. (2) Silently making `computeCoverageReport()` also check the FK as part of this change. Both are real fixes to a real gap; both are out of scope here and are flagged instead of quietly patched.
+
+---
+
+## KU-1 part B, Path A — a separate `taxonomyCore.ts`, not added to `normalizationCore.ts`
+
+**Decision:** The prompt, parser, and retry wrapper for taxonomy proposal live in a new `lib/ai/providers/taxonomyCore.ts`, not inside the existing `normalizationCore.ts`.
+
+**Reason:** This repo already has a precedent decision on exactly this question — "M4.2 — Generation prompt in normalizationCore.ts (not a separate file)" above — and its own stated criterion is reuse: generation was kept in `normalizationCore.ts` because it reuses `parseDrafts()` and the `NormalizedQuestionDraft` shape. Taxonomy proposal reuses neither — its output shape (`proposedTopic`/`proposedLabel`/`evidenceQuote`/`confidence`) has nothing in common with a `Question`. Putting it in `normalizationCore.ts` would satisfy neither that decision's own test nor this one; it would only be proximity.
+
+**Rejected:** Adding `PROPOSE_TAXONOMY_SYSTEM_PROMPT` and `proposeTaxonomyWithRetry()` into `normalizationCore.ts`. Mirrors the shape (prompt + parser + retry) without sharing any code.
+
+---
+
+## KU-1 part B, Path A — evidenceQuote is verified against the source text, not trusted
+
+**Decision:** `taxonomyCore.ts`'s `verifyEvidenceQuotes()` checks that every proposal's `evidenceQuote` is a literal (whitespace-normalized only) substring of the actual extracted text before it is persisted. A proposal whose quote doesn't check out is dropped, not fixed, not fuzzy-matched.
+
+**Reason:** `PendingKnowledgeUnit.evidenceQuote` is already documented as load-bearing — the entire review queue's trustworthiness rests on a reviewer being able to check "is this real" against something concrete. A model can assert a topic exists in a document without quoting it; an unverified quote that looks legitimate is worse than an obviously-fake one, because the reviewer trusts it without checking. Only whitespace (line-wraps, double spaces) is normalized before comparison — the same discipline already recorded for topic-string matching ("no fuzzy matching, no AI classification"): any other divergence (dropped words, paraphrase) means the model didn't actually quote the source, which is exactly the case this guard exists to catch.
+
+**Rejected:** Trusting the model's `evidenceQuote` outright. Also rejected: fuzzy/similarity-based verification (e.g. edit distance) — would accept a paraphrase as a quote, defeating the field's purpose.
+
+---
+
+## KU-1 part B, Path A — a rejected quote is silently dropped, but the COUNT is not
+
+**Decision:** `ProposeTaxonomyResult` carries `rejectedByVerification: number` (a count) rather than either silently discarding rejected proposals with no trace, or surfacing their full detail (the fabricated text, the reason) through the `AIProvider` interface boundary.
+
+**Reason:** Silently dropping the count entirely would be exactly the kind of invisible discrepancy the `AIStatusLine` truthfulness fix already exists to prevent elsewhere in this codebase (`servedBy`/`fallbackReason` on `NormalizeQuestionsResult`/`GenerateQuestionsResult`) — the model proposed N things, only some survived, and a caller needs to know that gap exists. But the full rejected detail is internal QA information, not something an admin UI needs to render per-item; a count is enough to show "N were filtered" without piping fabricated-quote text through an interface whose other callers don't expect it.
+
+**Rejected:** (1) Dropping rejected proposals with no signal at all — the AIStatusLine precedent this repo already set says that's a lie by omission. (2) Threading the full `rejected` detail array through `AIProvider.proposeTaxonomy()` — the interface boundary is the wrong place for QA debug detail that only `taxonomyCore.ts` itself needs.
+
+---
+
+## KU-1 part B, Path A — B-1(b) ruled: read full text directly, no chunking yet
+
+**Decision:** `taxonomyReader.ts` sends the source's entire extracted text to the AI provider in one call. No document chunking, no separate "summarize the structure first" step.
+
+**Reason:** This is design doc §7's own recorded recommendation (B-1), now actually built rather than left as an open option. The documents this repo actually has (seeded `ContentSource` rows, real import sources) are import-pipeline-sized, not book-length — chunking exists in the codebase (`chunker.ts`) for exactly the multi-hundred-question case Path A hasn't needed yet. Building a chunked/summary-first path speculatively, before a real source proves the single-call approach insufficient, would be exactly the kind of scope this repo's own Constitution (Ch.1 §9) argues against — content-shaped decisions belong to evidence, not anticipation.
+
+**Rejected:** Chunking every source up front "to be safe". Reuses none of `chunker.ts`'s Vietnamese-exam-specific header regex anyway (see `KU1_PARTB_DESIGN.md` §3.5), so building chunking support now would mean building a second, taxonomy-specific chunker for a case that hasn't occurred yet.
+
+---
+
+## KU-1 part B — merge criterion: identical rule, not merely similar structure
+
+**Decision:** Resolving the 62 real pending proposals (2026-07-15), a merge required the underlying grammar RULE to be identical — not just a similar sentence-transformation shape. Confirmed by reading each candidate pair's actual `correctOption` data, not by topic-name similarity. Applied once: `modal_verbs_should` → `modal_verbs_advice` (both proposals' real answers are "should" for advice-giving; different only because two different exam chunks produced two different topic-string guesses for the same rule). Everything else — including pairs with genuinely similar mechanics, e.g. `reported_commands` vs `reported_requests` (both "S + verb + O + to-infinitive", differing only in the reporting verb ask/tell) — was approved as its own distinct KnowledgeUnit.
+
+**Reason:** Under-merging (keeping two KUs that turn out to be the same thing) is a one-click fix later via this same review queue. Over-merging (collapsing two genuinely different skills into one KU) silently destroys the distinction — a learner who has mastered reported commands but not reported requests would show as "mastered" on a merged unit, which is exactly the failure mode the Decision Engine's Knowledge State work (`DECISION_ENGINE_OPTIONS.md`) depends on not happening. Reading real answer data rather than trusting topic-name resemblance matters for the same reason `taxonomyCore.ts`'s evidence-quote verification exists: a plausible-looking merge that turns out wrong is worse than an obviously-unmerged pair, because nobody double-checks it.
+
+**Rejected:** Merging on topic-name or evidence-sentence similarity alone (would have wrongly merged `reported_commands`/`reported_requests`, four `relative_clauses_*` sub-types, and three `passive_voice_*` sub-types — each verified via real answer data to test a mechanically distinct rule).
+
+---
+
+## KU-1 — seed durability: a `KNOWN_TOPIC_MERGES` map, not renaming `Question.topic`
+
+**Decision:** `prisma/seed.ts`'s `linkQuestionsToKnowledgeUnits()` tries a direct topic-string match first, then falls back to a small hardcoded `KNOWN_TOPIC_MERGES` record (3 entries: the two `present_perfect_*` phrasing variants and `modal_verbs_should`, each mapped to the KU they were merged into) — rather than rewriting those 4 questions' `topic` field to match their target KU.
+
+**Reason:** Verified empirically: without this map, a from-scratch reseed (fresh SQLite file, `prisma db push` + `npm run db:seed`) leaves exactly 4 of 118 questions unmapped — precisely the ones on a merged topic, because the review queue's MERGE action deliberately never creates a `KnowledgeUnit` whose topic equals theirs (see "KU-1 part B — Merge does not update `computeCoverageReport()`" above). The map is the seed-time encoding of a decision that already happened once, live, through `mergePendingKnowledgeUnit()` — reproducing it must reproduce that exact prior human decision, not re-derive a new one. Rewriting `Question.topic` instead would fix the seed-time symptom but reopen the exact hazard the merge decision above already rejected: `Question.topic` is read elsewhere (`ErrorNotebookEntry.concept`, `computeCoverageReport()`), so changing it here would be the same silent, hard-to-audit side effect on 4 rows this time instead of one row at a time through the reviewed UI path.
+
+**Rejected:** Rewriting `Question.topic` to the merge target during seeding. Also rejected: leaving the 4 questions unmapped on a fresh seed and treating it as an acceptable gap — `V1_V2_RECONCILIATION.md` §6's gate is specifically "122/122 linked", and a reseed silently regressing 4 of them defeats the entire point of making the registry durable.
+
+---
+
+## Program v2 — QuestionAttempt gains `programCurriculumId` (retire-CurriculumSession, step 1)
+
+**Decision:** `QuestionAttempt` gets a new nullable `programCurriculumId` FK to `ProgramCurriculum`, mirroring the existing `curriculumSessionId` / `mockTestAttemptId` pattern exactly (same nullable-FK-tags-the-context shape, no separate join/answer table). Threaded through `/program/[slug]/[order]/page.tsx` → `PracticeQuiz` → `POST /api/questions/[id]/attempt`, including the duplicate-submission window check (now keyed on `curriculumSessionId` AND `programCurriculumId` together, not just the former).
+
+**Reason:** Verified by reading the actual Program slot page (PR #15) rather than trusting its own summary — `ProgramSlotPage` renders `<PracticeQuiz questions={questions} completionHref={...} />` with no session-context prop at all. Every attempt submitted while practicing a Program lesson was being recorded with `curriculumSessionId: null` and nothing else — invisible to `behaviorEngine.ts`, `studentLearningProfile.ts`, and `practiceRecommendation.ts`, all three of which only ever look for `curriculumSessionId`. The new spine was live but silently feeding no analytics. This is step 1 of retiring `CurriculumSession` (see the handoff note this session started from): schema + plumbing only — the 5 analytics files (`behaviorEngine.ts`, `repository.ts`, `service.ts`, `studentLearningProfile.ts`, `practiceRecommendation.ts`) still read `curriculumSessionId` exclusively and have **not** been repointed to also consider `programCurriculumId`. That is deliberately left for the next step: each of those five needs its actual use of the session grouping read and judged individually (per-topic accuracy? recency? behavior pacing?) before deciding whether it becomes "either FK" or gets a real unification — not a mechanical find-replace.
+
+**Rejected:** Waiting to add the FK until the analytics repointing is designed. Rejected because the gap (Program attempts recorded with zero context) is a live data-integrity issue independent of how analytics eventually reads it — every day this ships unfixed is more `QuestionAttempt` rows written with no way to recover which Program slot produced them after the fact.
+
+**Verified (2026-07-26, follow-up session, Windows host):** stale `.git/index.lock` was a leftover empty file with no owning process — removed. `npx prisma generate` and `npx prisma migrate deploy` both ran clean (migration applied on top of 18 prior ones, no drift). `npx tsc --noEmit` — zero errors. Live check: logged in as the seeded student, opened `/program/thi-vao-10-ha-noi/1`, answered a question, and read the resulting `QuestionAttempt` row back from `dev.db` directly — `programCurriculumId` was populated with the slot's id (`curriculumSessionId`/`mockTestAttemptId` correctly null). Not yet committed — schema, migration, and the three app-code files are still working-tree changes pending the user's go-ahead to commit.
+
+---
+
+## Program — a lesson slot links MANY KnowledgeUnits, not one
+
+**Decision:** `ProgramCurriculum` (the v2 replacement for `CurriculumSession`) links to `KnowledgeUnit` through a join table (`ProgramCurriculumKnowledgeUnit`), not a single nullable FK.
+
+**Reason:** Measured against the real curriculum data before designing this, not assumed: 17 of the 24 existing sessions teach more than one `grammarTopic` at once, and 6 are checkpoint/review sessions matching none by exact string (deliberately cumulative, not a data quality problem). A single-KU-per-slot model cannot represent the curriculum that already exists — building it that way would have required either fragmenting real curated lessons into multiple slots (destroying the founder's own session-grouping decisions) or dropping topics silently. The join table costs one extra table for the ability to represent what the source data actually is.
+
+**Rejected:** `ProgramCurriculum.knowledgeUnitId String?` (single nullable FK). Would either force session 2 ("Phrasal verbs & củng cố các thì", 4 real grammarTopics) to pick one arbitrary topic to keep, or require splitting one curated lesson into four slots the founder never authored as four lessons.
+
+---
+
+## Program — the auto-assembler only ever appends, never edits or reorders
+
+**Decision:** `assembleProgramGaps()` creates a new `ProgramCurriculum` slot (at the end, `order = max + 1`) for every `KnowledgeUnit` not yet covered by any slot in the Program. It never modifies an existing slot's title, objective, order, or KnowledgeUnit links — not even to "improve" one.
+
+**Reason:** A Program is something a learner can be partway through. If growing the Program (by importing a new source, which creates new KnowledgeUnits) could also reorder or edit slots #1–71, a learner's sense of "I'm on lesson 12" would be invalidated by someone else's unrelated import days later. Monotonic, append-only growth is the one guarantee that makes a Program safe to be mid-course in while new content keeps arriving — which the founder was explicit is the expected steady state ("sau này tôi sẽ thêm resource khác nữa").
+
+**Rejected:** Any design where the assembler could re-derive or re-order the whole curriculum from scratch each run. Simpler to write, but makes "add a source" an action with an unbounded blast radius on every existing learner's position in the Program.
+
+---
+
+## Program — the assembler auto-runs after KU-1 review-queue actions, not on a schedule or a separate button
+
+**Decision:** `assembleProgramGaps()` is called automatically inside `approvePendingKnowledgeUnit()` and `mergePendingKnowledgeUnit()`, right after a proposal resolves — not as a cron job, not gated behind a separate "sync Program" admin action a human has to remember to click. Wrapped non-throwing (`tryAssembleProgramGaps()`), the same discipline `DECISION_LOG` already records for `autoAssignKnowledgeUnit()` ("Auto-assign is non-throwing") — a bug in program assembly must never block the human's actual approve/merge action from succeeding.
+
+**Reason:** This is literally the founder's ask, verified live end-to-end in the browser: approving a KnowledgeUnit through `/admin/knowledge-units` produced a new lesson slot at `/program/thi-vao-10-ha-noi/72` in the same click, with no second step. A scheduled job or a manual "regenerate" button would both add a lag between "content reviewed" and "lesson exists" that the founder's own words ("tạo bài học ngay") rule out.
+
+**Rejected:** A cron-scheduled sync. A manual "Cập nhật chương trình" admin button as the only trigger (kept as a mental fallback, not built, since the auto-hook already covers the real path — adding an unused manual trigger now would be speculative surface area, not a decision made from evidence).
+
+---
+
+## Program — CurriculumSession is untouched in this pass; the two spines run in parallel, disclosed
+
+**Decision:** This build adds `Program`/`ProgramCurriculum` as a new, fully additive system. `CurriculumSession`, `CurriculumPhase`, and the 14 files that still read `curriculumSessionId` (including Decision Engine consumers: `behaviorEngine.ts`, `studentLearningProfile.ts`, `practiceRecommendation.ts`, `repository.ts`, `service.ts`) are NOT modified, migrated, or removed here.
+
+**Reason:** `V1_V2_RECONCILIATION.md` already ruled `CurriculumSession` for removal — this is not a reversal of that ruling, only a sequencing call. Retiring 14 files' dependency on the old spine, several of which are the Decision Engine's own analytics layer, in the same pass as designing and verifying a new generic Program structure is more surgery than can be responsibly verified in one sitting. QM-1 set the precedent for exactly this situation (keep `optionA-D` live while `payload` becomes authoritative, cut over readers one at a time) — applied here the same way.
+
+**Rejected:** A single combined change deleting `CurriculumSession` and rewriting all 14 consumers alongside the new Program build. Explicitly disclosed to the founder as a scope decision before starting, not discovered as a gap afterward — retiring the old spine is separate, near-term follow-up work, not abandoned scope.
+
+---
+
+## Program v2 — UserProgramProgress + fixing the dead CurriculumSession start route
+
+**Decision:** Added `UserProgramProgress` mirroring `UserSessionProgress`, added Program start/complete routes (`POST /api/program/slots/[programCurriculumId]/start` and `/complete`), and wired both spines' start/complete calls into `PracticeQuiz.tsx`.
+
+**Reason:** Investigation found `POST /api/curriculum/sessions/[sessionNumber]/start` had zero callers anywhere in the app — `startedAt` was `null` on every one of the 4 real `UserSessionProgress` rows in `dev.db` despite all 4 being `COMPLETED`. This meant `behaviorEngine.ts`'s time-of-day/pace/duration signals were already non-functional for every existing user, not just a Program-specific gap. Fixed the dead route and its own idempotency bug (the upsert always overwrote `startedAt` on every call, contradicting its own docstring) in the same pass as building the Program equivalent, rather than shipping a second copy of a broken pattern.
+
+**Not done (deliberately):** Repointing the 5 analytics files (`behaviorEngine.ts`, `studentLearningProfile.ts`, `curriculum.ts`'s `getCurrentMission`, `practiceRecommendation.ts`, `errorNotebook.ts`'s SM-2) to also read `UserProgramProgress` — `UserProgramProgress` is currently write-only, populated but not yet consumed. Separate follow-up.

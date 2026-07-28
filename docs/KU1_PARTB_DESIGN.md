@@ -1,6 +1,82 @@
 # KU-1 Part B — Source → Pending KnowledgeUnit → Review Queue
 
-**Status:** **APPROVED (Path A) — founder ruling, 2026-07-15.** Ready to build. No code yet.
+**Status:** **APPROVED (Path A) — founder ruling, 2026-07-15.** Build order §8 step 1 **shipped and
+verified** the same day (`feat/ku1-partb-schema`, stacked on `feat/qm1-response-format`).
+
+**Evidence (run, not asserted):**
+- schema migration additive — 3 new tables only, no existing table altered
+- `tsc --noEmit` clean; `test:knowledge-mapping` **54/54** (15 new, testing the label generator and
+  the dedup guard incl. the cross-source and post-REJECTED cases); no regressions elsewhere
+- **round-trip against real seeded data:** ran the updated `autoAssignKnowledgeUnit()` over all 122
+  questions — **49 matched an existing KnowledgeUnit** (now actually linked via `knowledgeUnitId`,
+  previously 0/122 per Finding A), **73 missed across exactly 62 distinct topics → 62
+  `PendingKnowledgeUnit` rows** (not 73 — dedup worked), every row has `taxonomyJobId = null` and a
+  non-empty `evidenceQuote`. Re-ran the same 122 a second time: **0 additional rows created**
+
+**Also done, ahead of §8's listed order:** step 4 (the miss-handling change) shipped alongside step 1,
+since it was the only way to verify the schema against real data rather than an empty table.
+
+**Step 3 (review queue) shipped and verified 2026-07-15**, `feat/ku1-partb-review-queue`, stacked on
+the schema branch. Four actions (Approve / Rename / Merge / Reject) as `lib/services/content-
+intelligence/pendingKnowledgeUnitReview.ts` + API routes + an admin page at `/admin/knowledge-units`.
+
+- **Test evidence:** `test:ku1-partb-review` **25/25**, integration-style against real `dev.db` through
+  self-created and self-torn-down fixtures (no separate test database exists in this repo) — covers
+  approve, rename-as-approve-with-override, merge, reject, the **approve-collision** case
+  (`TopicAlreadyExistsError`, not a silent merge), double-resolution rejection, and that the merged
+  question's topic string genuinely still differs from the target KU's topic (the coverage-report
+  caveat below, asserted, not just described). No regressions: 54+42+54+80 existing tests unaffected;
+  `tsc --noEmit` clean.
+- **Used on the real 62 pending proposals**, not just fixtures: merged `present_perfect_for_since`
+  and `present_perfect_since_for` into the existing `present_perfect` KU — the exact duplicate the
+  design doc used as its motivating example — and approved `relative_clauses` as a genuinely new
+  concept. **62 → 59 pending; 49 → 53 of 122 questions now linked via `knowledgeUnitId`.**
+
+**A real limitation surfaced while building this, not before:** `computeCoverageReport()` counts by
+`q.topic === unit.topic` (M3.2's decision, DECISION_LOG). MERGE and RENAME both create a
+KnowledgeUnit whose topic *deliberately* does not equal the linked Question rows' topic string —
+that mismatch is the entire point of merging. So after a merge, the affected questions are correctly
+linked via `knowledgeUnitId` but **still undercounted by the string-based coverage report**. This is
+a pre-existing gap the review queue exposes, not one it introduces; fixing `computeCoverageReport()`
+to read the FK is a follow-up decision for the module M3.2 owns, out of scope here. Recorded in
+DECISION_LOG.
+
+**Step 2 (Path A reader) shipped and verified 2026-07-15**, `feat/ku1-partb-taxonomy-reader`, stacked
+on the review-queue branch. KU-1 part B is now fully built end-to-end: extract → propose → review.
+
+Ruled per §7: **B-1(b)** — read the source's full extracted text directly, no chunking, no separate
+structure-summary step (escalate only if a real source proves too large for one AI call; none has).
+Reuses the existing AI provider architecture rather than inventing a parallel one: `AIProvider` gained
+`proposeTaxonomy()`, implemented in all three providers (`claude`/`gemini`/`mock`) and wrapped by the
+same `withRuntimeFallback` that already makes Gemini-quota failures truthful for question generation.
+
+**The anti-hallucination guard, the one new thing this reader needed that Path B's importer never
+did:** a model can *assert* a topic exists in a document without *quoting* it. `evidenceQuote` is the
+field the whole review queue's trustworthiness rests on (§4.1) — so `taxonomyCore.ts`'s
+`verifyEvidenceQuotes()` checks every proposal's quote is a literal (whitespace-normalized) substring
+of the actual extracted text before it is ever persisted, dropping (not fixing) anything that fails.
+`ProposeTaxonomyResult.rejectedByVerification` surfaces the count so a caller can see the gap, matching
+the truthfulness discipline `servedBy`/`fallbackReason` already established.
+
+**Evidence:**
+- `test:taxonomy-core` **18/18** (pure — parser, the anti-hallucination guard including a
+  high-confidence *fabricated* quote correctly rejected, and the `alreadyInRegistry` defensive filter)
+- `test:taxonomy-reader` **12/12** — real end-to-end run against the actual seeded 118-question source
+  (`Bo_de_test_Tieng_Anh_9.docx`, the one real file among the seeded `ContentSource` rows). Confirmed
+  live: real `AI_PROVIDER=gemini` quota failure (429, documented dead) → real fallback to mock, with
+  `fallbackReason` correctly surfaced; `SourceRead` correctly reused (not re-extracted) across three
+  separate `runTaxonomyJob()` calls; every persisted proposal's `evidenceQuote` verified as a real
+  substring of the actual extracted document; `existingTopics` confirmed to actually reach the
+  provider (a pre-registered collision topic was avoided by the provider itself)
+- no regressions: 54+42+54+80+25 existing tests unaffected; `tsc --noEmit` clean
+
+**A process note, not a code defect:** while manually exercising `/admin/knowledge-units` in the
+browser during this session, two additional real proposals (`comparative_adverbs`,
+`word_stress_three_syllables`) were approved via real HTTP POST requests that were not a deliberate
+click — root cause not conclusively identified (suspected: the preview tooling's own background
+activity against the still-open tab). Verified both resulting `KnowledgeUnit` rows are well-formed
+with genuine evidence and would be uncontroversial approvals; no data corruption. The dev server was
+stopped once noticed. Recorded here for transparency, not swept past.
 **Depends on:** `docs/V1_V2_RECONCILIATION.md` (which makes this a **blocker**, not a follow-up).
 **Trigger:** founder's stated goal — *"đưa Cambridge IELTS Academic PDF, Lexi đọc và tạo được KU;
 các sources khác cũng tương tự."*
@@ -152,8 +228,8 @@ would let a hallucinated topic silently win the unique constraint against a real
 ```
 PendingKnowledgeUnit
   id
-  contentSourceId   → ContentSource   // provenance: which source proposed it
-  taxonomyJobId     → TaxonomyJob
+  contentSourceId   → ContentSource   // provenance: which source proposed it — always set
+  taxonomyJobId     → TaxonomyJob?    // NULLABLE — see below
   proposedTopic     String            // canonicalTopic()-normalized, NOT unique
   proposedLabel     String            // human-readable (Vietnamese for VN exams, EN for IELTS)
   evidenceQuote     String            // the source span that justified it — grounds review
@@ -165,6 +241,13 @@ PendingKnowledgeUnit
   resolvedUnitId    String?           // → KnowledgeUnit, set on APPROVE or MERGE
   createdAt / updatedAt
 ```
+
+**`taxonomyJobId` is nullable — a design correction caught before implementation.** The original
+sketch implied it was required, but §6's integration is called from `autoAssignKnowledgeUnit()`
+inside **Path B**, which has no `TaxonomyJob` in scope at all (that only exists on Path A). What
+*is* always reachable there is the `ContentSource` (via `ImportJob`), so `contentSourceId` stays
+required and `taxonomyJobId` is set only when a proposal came from an actual Path A run. A proposal
+is provenanced by whichever job produced it — never both, and possibly neither of `taxonomyJobId`.
 
 ```
 enum PendingKUStatus { PENDING_REVIEW  APPROVED  MERGED  RENAMED  REJECTED }

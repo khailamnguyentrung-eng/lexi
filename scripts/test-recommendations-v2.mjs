@@ -119,18 +119,18 @@ function computeRecommendations(ctx) {
   }
 
   // Tier 4: CURRICULUM_PROGRESS
-  if (ctx.nextSessionNumber !== null) {
-    const sessionTopic = `session_${ctx.nextSessionNumber}`;
-    if (!seen.has(sessionTopic)) {
+  if (ctx.nextMission !== null) {
+    const missionTopic = `program_slot_${ctx.nextMission.order}`;
+    if (!seen.has(missionTopic)) {
       results.push({
-        topic: sessionTopic,
-        label: ctx.nextSessionTitle ?? `Buổi ${ctx.nextSessionNumber}`,
-        reason: "Tiếp tục lộ trình — buổi học tiếp theo đang chờ bạn.",
+        topic: missionTopic,
+        label: ctx.nextMission.title,
+        reason: "Tiếp tục lộ trình — bài học tiếp theo đang chờ bạn.",
         priority: 4,
         priorityLabel: "CURRICULUM_PROGRESS",
         suggestedAction: "ADVANCE_SESSION",
         questionCount: 0,
-        sessionNumber: ctx.nextSessionNumber,
+        mission: ctx.nextMission,
         confidence: "MEDIUM",
       });
     }
@@ -160,8 +160,7 @@ function emptyCtx(overrides) {
   return {
     topicSummaries: [],
     weaknessSignalTopics: [],
-    nextSessionNumber: null,
-    nextSessionTitle: null,
+    nextMission: null,
     questionCountByTopic: new Map(),
     masteryByTopic: new Map(),
     ...overrides,
@@ -177,8 +176,7 @@ console.log("\nMastered — removed from RECURRING_MISTAKE (tier 1)");
       makeSummary({ topic: "conditionals", label: "Conditionals", improvementSignal: "RECURRING", totalOccurrences: 4 }),
     ],
     masteryByTopic: new Map([["conditionals", "MASTERED"]]),
-    nextSessionNumber: 5,
-    nextSessionTitle: "Session 5",
+    nextMission: { programSlug: "test-program", order: 5, title: "Session 5", objective: null },
   });
   const recs = computeRecommendations(ctx);
   assert(
@@ -249,8 +247,7 @@ console.log("\nStable — removed from RECURRING_MISTAKE (tier 1)");
       makeSummary({ topic: "conditionals", label: "Conditionals", improvementSignal: "RECURRING", totalOccurrences: 4 }),
     ],
     masteryByTopic: new Map([["conditionals", "STABLE"]]),
-    nextSessionNumber: 3,
-    nextSessionTitle: "Session 3",
+    nextMission: { programSlug: "test-program", order: 3, title: "Session 3", objective: null },
   });
   const recs = computeRecommendations(ctx);
   assert(
@@ -348,8 +345,7 @@ console.log("\nRecurring beats DUE_REVIEW and WEAKNESS_SIGNAL for same priority 
       makeSummary({ topic: "due_b",       label: "Due B",       improvementSignal: "NO_DATA",   dueCount: 2 }),
     ],
     weaknessSignalTopics: [{ topic: "weak_c", label: "Weak C", accuracy: 0.4 }],
-    nextSessionNumber: 7,
-    nextSessionTitle: "Session 7",
+    nextMission: { programSlug: "test-program", order: 7, title: "Session 7", objective: null },
     questionCountByTopic: new Map([["recurring_a", 5], ["due_b", 3], ["weak_c", 4]]),
     masteryByTopic: new Map([
       ["recurring_a", "NEEDS_REVIEW"],
@@ -463,7 +459,7 @@ console.log("\nConfidence — attached to each recommendation");
   assert("Weakness accuracy 0.65 → LOW confidence on recommendation", recs3[0].confidence === "LOW");
 
   // MEDIUM for curriculum progress
-  const ctx4 = emptyCtx({ nextSessionNumber: 5, nextSessionTitle: "Session 5" });
+  const ctx4 = emptyCtx({ nextMission: { programSlug: "test-program", order: 5, title: "Session 5", objective: null } });
   const recs4 = computeRecommendations(ctx4);
   assert("CURRICULUM_PROGRESS → MEDIUM confidence", recs4[0].confidence === "MEDIUM");
 }
@@ -477,8 +473,7 @@ console.log("\nBackward compatibility — no masteryByTopic (v1 behavior preserv
       makeSummary({ topic: "conditionals", label: "Conditionals", improvementSignal: "RECURRING", totalOccurrences: 4 }),
     ],
     weaknessSignalTopics: [],
-    nextSessionNumber: null,
-    nextSessionTitle: null,
+    nextMission: null,
     questionCountByTopic: new Map(),
     // masteryByTopic intentionally absent
   };
@@ -491,8 +486,7 @@ console.log("\nBackward compatibility — no masteryByTopic (v1 behavior preserv
   const ctx = {
     topicSummaries: [makeSummary({ topic: "tenses", label: "Tenses", dueCount: 2 })],
     weaknessSignalTopics: [],
-    nextSessionNumber: null,
-    nextSessionTitle: null,
+    nextMission: null,
     questionCountByTopic: new Map(),
     masteryByTopic: undefined,
   };

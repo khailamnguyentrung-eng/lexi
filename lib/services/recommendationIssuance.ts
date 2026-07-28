@@ -64,6 +64,13 @@ export interface RecommendationIssuanceResult {
  * Procedure). As-of is deliberately excluded — required by the Contract but
  * non-identity, per the reviewed design. Wording/formatting/explanation are
  * representational and never reach this type at all.
+ *
+ * sessionNumber is a reused generic label field — it held a CurriculumSession
+ * number historically, and now holds a ProgramCurriculum slot's `order`
+ * (see docs/superpowers/plans/2026-07-27-getcurrentmission-program-repoint.md).
+ * Not renamed to avoid an unnecessary migration on RecommendationIssuance's
+ * DB column of the same name — same precedent as SessionAnalyticsOutput.sessionNumber
+ * from an earlier plan this session.
  */
 interface RecommendationIdentity {
   topic: string | null;
@@ -76,7 +83,7 @@ interface RecommendationIdentity {
 function buildRecommendationIdentity(top: PracticeRecommendation): RecommendationIdentity {
   return {
     topic: top.topic,
-    sessionNumber: top.sessionNumber ?? null,
+    sessionNumber: top.mission?.order ?? null,
     suggestedAction: top.suggestedAction,
     priorityLabel: top.priorityLabel,
     procedure: PROCEDURE_ID,
@@ -226,7 +233,7 @@ export async function resolveRecommendationIssuance(
     data: {
       userId,
       topic: top.topic,
-      sessionNumber: top.sessionNumber ?? null,
+      sessionNumber: top.mission?.order ?? null,
       suggestedAction: top.suggestedAction,
       priorityLabel: top.priorityLabel,
       procedure: PROCEDURE_ID,

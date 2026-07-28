@@ -16,21 +16,18 @@
 import {
   fetchSessionAttempts,
   fetchNotebookContext,
-  fetchSessionComparisonData,
   NotebookContextRow,
 } from "./repository";
 import {
   computeBlueprintCoverage,
   computeReadiness,
   computeWeaknessSignals,
-  computeSessionComparison,
 } from "./sessionAnalytics";
 import type {
   BlueprintCoverage,
   ReadinessResult,
   WeaknessTopic,
   NotebookContext,
-  SessionComparisonResult,
 } from "./types";
 
 // ──────────────────────────────────────────────────────────────────
@@ -54,7 +51,12 @@ export interface SessionAnalyticsOutput {
 // ──────────────────────────────────────────────────────────────────
 
 /**
- * Compute full analytics for one curriculum session.
+ * Compute full analytics for one ProgramCurriculum slot.
+ * `sessionNumber` is a caller-supplied display label (the slot's `order`)
+ * — the SessionAnalyticsOutput.sessionNumber field name is unchanged since
+ * the frontend/`toSessionAnalyticsResponse()` contract reads it by that name
+ * (reused generic label, not renamed — same precedent documented elsewhere
+ * in this codebase for this exact field).
  *
  * Fetches session attempts, runs all analytics computations, then
  * fetches notebook context only if there are weakness topics to enrich.
@@ -62,10 +64,10 @@ export interface SessionAnalyticsOutput {
  */
 export async function getSessionAnalytics(
   userId: string,
-  curriculumSessionId: string,
+  programCurriculumId: string,
   sessionNumber: number
 ): Promise<SessionAnalyticsOutput> {
-  const attempts = await fetchSessionAttempts(userId, curriculumSessionId);
+  const attempts = await fetchSessionAttempts(userId, programCurriculumId);
 
   const readiness = computeReadiness(attempts, [sessionNumber]);
   const blueprintCoverage = computeBlueprintCoverage(attempts);
@@ -86,30 +88,6 @@ export async function getSessionAnalytics(
     weaknessTopics,
     generatedAt: new Date().toISOString(),
   };
-}
-
-/**
- * Compare per-topic accuracy between two curriculum sessions.
- *
- * Returns a topic-by-topic delta view showing which areas improved,
- * declined, or stayed similar. Topics with insufficient data in either
- * session are included with direction INSUFFICIENT_DATA rather than omitted,
- * so the UI can explain the gap.
- */
-export async function getSessionComparison(
-  userId: string,
-  sessionAId: string,
-  sessionBId: string,
-  sessionANumber: number,
-  sessionBNumber: number
-): Promise<SessionComparisonResult> {
-  const { sessionA, sessionB } = await fetchSessionComparisonData(
-    userId,
-    sessionAId,
-    sessionBId
-  );
-
-  return computeSessionComparison(sessionA, sessionB, sessionANumber, sessionBNumber);
 }
 
 // ──────────────────────────────────────────────────────────────────

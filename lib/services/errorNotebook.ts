@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { canonicalTopic } from "@/lib/analytics/canonicalTopic";
+import { fetchSessionAttempts } from "@/lib/analytics";
 
 // ── Legacy fixed-offset stub (unchanged — callers that use nextReviewDate/isFinalStage
 // keep working; SM-2 replaces write logic for notebook entries, not these helpers) ──
@@ -90,21 +91,25 @@ export function computeSM2Update(input: SM2UpdateInput): SM2UpdateResult {
 
 // ── SM-2 Service ──────────────────────────────────────────────────────────────
 
-// Called after a curriculum session completes. For each topic the student
-// practiced, if there is a reviewed (lastReviewedAt != null) open notebook
-// entry for that topic, update its SM-2 fields based on this session's accuracy.
+// Called after a ProgramCurriculum slot completes. For each topic the
+// student practiced, if there is a reviewed (lastReviewedAt != null) open
+// notebook entry for that topic, update its SM-2 fields based on this
+// session's accuracy.
 //
-// Failures are non-fatal: the caller wraps this in a try/catch so session
-// completion is never blocked.
+// Previously accepted either a CurriculumSession or a ProgramCurriculum
+// slot via an AttemptScope union — CurriculumSession was retired, so this
+// is now ProgramCurriculum-only (see docs/superpowers/plans/
+// 2026-07-28-retire-curriculumsession-phase1.md).
+//
+// Failures are non-fatal: the caller wraps this in a try/catch so
+// slot completion is never blocked.
 export async function applySM2ForSession(
   userId: string,
-  curriculumSessionId: string,
+  programCurriculumId: string,
 ): Promise<void> {
-  // 1. Fetch attempts for this session with question topic
-  const attempts = await prisma.questionAttempt.findMany({
-    where: { userId, curriculumSessionId },
-    select: { isCorrect: true, question: { select: { topic: true } } },
-  });
+  // Fetch attempts for this ProgramCurriculum slot with question topic —
+  // reuses the same repository function getSessionAnalytics() already uses.
+  const attempts = await fetchSessionAttempts(userId, programCurriculumId);
 
   if (attempts.length === 0) return;
 

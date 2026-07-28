@@ -3,7 +3,6 @@
  *
  * Defines the stable JSON shapes returned by:
  *   GET /api/analytics/session/[sessionNumber]   → SessionAnalyticsResponse
- *   GET /api/analytics/compare/[sessionA]/[sessionB] → SessionComparisonResponse
  *
  * BOUNDARY RULES
  * - No @prisma/client imports — these types must be serializable without Prisma
@@ -28,12 +27,7 @@ import type {
   SectionBreakdown,
   SectionCoverage,
   WeaknessTopic,
-  TopicComparison,
-  SessionComparisonResult,
-  ComparisonDirection,
 } from "./types";
-
-export type { ComparisonDirection };
 import type { SessionAnalyticsOutput } from "./service";
 
 // ──────────────────────────────────────────────────────────────────
@@ -164,42 +158,6 @@ export interface SessionAnalyticsResponse {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// SessionComparisonResponse — main contract
-// ──────────────────────────────────────────────────────────────────
-
-/** One topic's comparison between two sessions. */
-export interface TopicComparisonItem {
-  topic: string;
-  label: string;
-  direction: ComparisonDirection;
-  delta: number | null;         // session2.accuracy - session1.accuracy; null if INSUFFICIENT_DATA
-  confidence: ConfidenceLevel;
-  session1: { correct: number; total: number; accuracy: number } | null;
-  session2: { correct: number; total: number; accuracy: number } | null;
-}
-
-/**
- * Topic-by-topic comparison between two curriculum sessions.
- * Returned by GET /api/analytics/compare/[sessionA]/[sessionB].
- *
- * Field layout:
- *   topics           — full topic list, comparable topics first
- *   summary          — aggregate counts for quick UI display
- *   confidence       — overall comparison quality (min confidence across comparable topics)
- */
-export interface SessionComparisonResponse {
-  session1Number: number;
-  session2Number: number;
-  confidence: ConfidenceLevel;  // most conservative confidence across comparable topics
-  topics: TopicComparisonItem[];
-  summary: {
-    improvedCount: number;
-    declinedCount: number;
-    insufficientDataCount: number;
-  };
-}
-
-// ──────────────────────────────────────────────────────────────────
 // Mapping functions — engine/service output → API contract
 // ──────────────────────────────────────────────────────────────────
 
@@ -274,35 +232,6 @@ function mapWeaknessTopic(wt: WeaknessTopic): WeaknessSignalItem {
   };
 }
 
-function mapTopicComparison(tc: TopicComparison): TopicComparisonItem {
-  return {
-    topic: tc.topic,
-    label: tc.label,
-    direction: tc.direction as ComparisonDirection,
-    delta: tc.delta,
-    confidence: tc.confidence as ConfidenceLevel,
-    session1: tc.session1,
-    session2: tc.session2,
-  };
-}
-
-const CONFIDENCE_ORDER: Record<ConfidenceLevel, number> = {
-  OBSERVED: 0,
-  EMERGING: 1,
-  CONFIRMED: 2,
-};
-
-/** Derive the most conservative confidence across all comparable topics. */
-function overallComparisonConfidence(topics: TopicComparisonItem[]): ConfidenceLevel {
-  const comparable = topics.filter((t) => t.direction !== "INSUFFICIENT_DATA");
-  if (comparable.length === 0) return "OBSERVED";
-  return comparable.reduce<ConfidenceLevel>(
-    (lowest, t) =>
-      CONFIDENCE_ORDER[t.confidence] < CONFIDENCE_ORDER[lowest] ? t.confidence : lowest,
-    "CONFIRMED"
-  );
-}
-
 // ──────────────────────────────────────────────────────────────────
 // Public API — the two mapping functions used by route handlers
 // ──────────────────────────────────────────────────────────────────
@@ -334,27 +263,5 @@ export function toSessionAnalyticsResponse(
     },
     weaknessSignals: output.weaknessTopics.map(mapWeaknessTopic),
     sectionBreakdown: output.readiness.sectionBreakdown.map(mapSectionBreakdown),
-  };
-}
-
-/**
- * Convert service output → API contract for session comparison.
- * Called in GET /api/analytics/compare/[sessionA]/[sessionB].
- */
-export function toSessionComparisonResponse(
-  result: SessionComparisonResult
-): SessionComparisonResponse {
-  const topics = result.topics.map(mapTopicComparison);
-
-  return {
-    session1Number: result.session1Number,
-    session2Number: result.session2Number,
-    confidence: overallComparisonConfidence(topics),
-    topics,
-    summary: {
-      improvedCount: result.improvedCount,
-      declinedCount: result.declinedCount,
-      insufficientDataCount: result.insufficientDataCount,
-    },
   };
 }

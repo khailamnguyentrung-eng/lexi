@@ -32,7 +32,7 @@ export interface AttemptWithQuestion {
   isCorrect: boolean;
   timeSpentSec: number | null;
   attemptedAt: Date;
-  curriculumSessionId: string | null;
+  programCurriculumId: string | null;
   question: {
     id: string;
     questionCode: string;
@@ -74,16 +74,21 @@ export interface NotebookContextRow {
 // ──────────────────────────────────────────────────────────────────
 
 /**
- * Fetch all attempts submitted in a specific curriculum session.
- * Ordered by attemptedAt ASC so position-in-session is preserved
- * for section-drop analysis.
+ * Fetch all attempts submitted for a specific ProgramCurriculum slot.
+ * Ordered by attemptedAt ASC so position-in-session is preserved for
+ * section-drop analysis.
+ *
+ * Used to accept either a CurriculumSession or a ProgramCurriculum slot via
+ * an AttemptScope union — CurriculumSession was retired, so this now only
+ * ever serves Program (see docs/superpowers/plans/
+ * 2026-07-28-retire-curriculumsession-phase1.md).
  */
 export async function fetchSessionAttempts(
   userId: string,
-  curriculumSessionId: string
+  programCurriculumId: string
 ): Promise<AttemptWithQuestion[]> {
   const rows = await prisma.questionAttempt.findMany({
-    where: { userId, curriculumSessionId },
+    where: { userId, programCurriculumId },
     orderBy: { attemptedAt: "asc" },
     select: {
       id: true,
@@ -93,7 +98,7 @@ export async function fetchSessionAttempts(
       isCorrect: true,
       timeSpentSec: true,
       attemptedAt: true,
-      curriculumSessionId: true,
+      programCurriculumId: true,
       question: {
         select: {
           id: true,
@@ -206,32 +211,34 @@ export async function fetchNotebookContext(
 }
 
 /**
- * Fetch attempts from two sessions for topic-to-topic comparison.
+ * Find the most recently completed ProgramCurriculum slot for this user —
+ * used by studentLearningProfile.ts and practiceRecommendation.ts to feed
+ * getSessionAnalytics() for readiness/weakness-topic signals.
  *
- * Returns attempts for both sessions in a single call.
- * The engine (computeSessionComparison) receives them separately.
+ * Previously compared CurriculumSession and ProgramCurriculum completions
+ * against each other (whichever was more recent); CurriculumSession was
+ * retired, so this now only reads UserProgramProgress (see
+ * docs/superpowers/plans/2026-07-28-retire-curriculumsession-phase1.md).
  */
-export async function fetchSessionComparisonData(
-  userId: string,
-  sessionAId: string,
-  sessionBId: string
-): Promise<{ sessionA: AttemptWithQuestion[]; sessionB: AttemptWithQuestion[] }> {
-  const [sessionA, sessionB] = await Promise.all([
-    fetchSessionAttempts(userId, sessionAId),
-    fetchSessionAttempts(userId, sessionBId),
-  ]);
-
-  return { sessionA, sessionB };
+export interface MostRecentCompletedScope {
+  programCurriculumId: string;
+  label: number; // Program slot order — the display label getSessionAnalytics expects
 }
 
-/**
- * Resolve a curriculum session's internal ID from its human-facing session number.
- * Used by route handlers to translate URL params to DB IDs before calling the repository.
- */
-export async function resolveSessionId(sessionNumber: number): Promise<string | null> {
-  const session = await prisma.curriculumSession.findUnique({
-    where: { sessionNumber },
-    select: { id: true },
+export async function findMostRecentlyCompletedScope(userId: string): Promise<MostRecentCompletedScope | null> {
+  const recent = await prisma.userProgramProgress.findFirst({
+    where: { userId, status: "COMPLETED", completedAt: { not: null } },
+    orderBy: { completedAt: "desc" },
+    select: {
+      programCurriculumId: true,
+      programCurriculum: { select: { order: true } },
+    },
   });
-  return session?.id ?? null;
+
+  if (!recent) return null;
+
+  return {
+    programCurriculumId: recent.programCurriculumId,
+    label: recent.programCurriculum.order,
+  };
 }
