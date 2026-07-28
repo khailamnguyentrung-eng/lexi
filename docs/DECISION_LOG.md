@@ -504,3 +504,13 @@ Also rejected: Using `responseTimeSignal` from BehaviorProfile to add a "deliber
 **Reason:** Investigation found `POST /api/curriculum/sessions/[sessionNumber]/start` had zero callers anywhere in the app — `startedAt` was `null` on every one of the 4 real `UserSessionProgress` rows in `dev.db` despite all 4 being `COMPLETED`. This meant `behaviorEngine.ts`'s time-of-day/pace/duration signals were already non-functional for every existing user, not just a Program-specific gap. Fixed the dead route and its own idempotency bug (the upsert always overwrote `startedAt` on every call, contradicting its own docstring) in the same pass as building the Program equivalent, rather than shipping a second copy of a broken pattern.
 
 **Not done (deliberately):** Repointing the 5 analytics files (`behaviorEngine.ts`, `studentLearningProfile.ts`, `curriculum.ts`'s `getCurrentMission`, `practiceRecommendation.ts`, `errorNotebook.ts`'s SM-2) to also read `UserProgramProgress` — `UserProgramProgress` is currently write-only, populated but not yet consumed. Separate follow-up.
+
+---
+
+## CurriculumSession retirement — Phase 2 (schema drop) complete
+
+**Decision:** Dropped `CurriculumPhase`, `CurriculumSession`, `UserSessionProgress`, and `KnowledgeUnitOnSession` from the schema, and the two `curriculumSessionId` FK columns from `Question`/`QuestionAttempt`. This closes the retirement that Phase 1 (PR #19) started at the code layer — no model, column, route, or UI in this codebase reads or writes the CurriculumSession spine anymore.
+
+**Reason:** Phase 1 already removed every reader; a repo-wide grep confirmed the only remaining references anywhere in `app/`, `lib/`, `scripts/` were historical comments. The 32 rows across the three non-empty dropped tables (3 `CurriculumPhase`, 24 `CurriculumSession`, 5 `UserSessionProgress`) were pre-launch dev data, already ruled disposable by `V1_V2_RECONCILIATION.md`. `KnowledgeUnitOnSession` had zero rows and zero writers ever — dead on arrival, not something this retirement created. No `Question` or `QuestionAttempt` row was deleted; only their now-meaningless FK column was dropped.
+
+**Rejected:** Leaving the schema in place indefinitely as "harmless dead weight." Considered reasonable to defer (this is exactly what Phase 1's plan doc recommended — ship the low-risk code retirement first, schema drop later, separately), but once Phase 1 was merged and stable, nothing was gained by leaving 4 unread tables and 2 unread columns in the schema for a pre-launch app with no migration-safety reason to wait.

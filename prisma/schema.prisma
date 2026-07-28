@@ -348,14 +348,15 @@ enum ProgressStatus {
 }
 
 /**
- * Structural mirror of UserSessionProgress, for the ProgramCurriculum (v2)
- * spine instead of CurriculumSession. Both spines run in parallel on
- * purpose (docs/DECISION_LOG.md) — this table exists so a Program slot's
- * start/complete lifecycle can be tracked the same way a CurriculumSession's
- * always could, even though (per investigation on 2026-07-26) that tracking
- * was never actually wired into the UI for CurriculumSession either until
- * this same change. See lib/analytics/behaviorEngine.ts for the consumer
- * this eventually unblocks (not yet repointed — separate follow-up).
+ * Tracks a Program slot's start/complete lifecycle — userId + a
+ * ProgramCurriculum slot id, with status/startedAt/completedAt/
+ * scoreAchieved. Originally built as a structural mirror of the
+ * now-retired UserSessionProgress (see docs/superpowers/plans/
+ * 2026-07-28-retire-curriculumsession-phase2.md), back when both spines
+ * ran in parallel — investigation at the time (2026-07-26) found that
+ * lifecycle tracking had never actually been wired into the UI for
+ * CurriculumSession either, until the same change that added this table.
+ * See lib/analytics/behaviorEngine.ts for the consumer this unblocks.
  */
 model UserProgramProgress {
   id                  String            @id @default(cuid())

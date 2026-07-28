@@ -1,9 +1,11 @@
 /**
  * Seed the demo Program from the existing 24-session curated curriculum
  * (prisma/seed-data/curriculum.json) — the "demo data filling a fixed
- * structure" the founder asked for. Reads from the SAME file `seed.ts`
- * already uses to seed CurriculumSession; does not touch or duplicate that
- * data source, and does not touch CurriculumSession itself.
+ * structure" the founder asked for. Reads from the same file `seed.ts`
+ * used to also seed CurriculumPhase/CurriculumSession from, before that
+ * model family was retired (see docs/superpowers/plans/
+ * 2026-07-28-retire-curriculumsession-phase2.md) — this function's own
+ * reading of the JSON file is unaffected by that retirement.
  *
  * Matching a session's grammarTopics to real KnowledgeUnits reuses
  * `findMatchingKnowledgeUnitId()` — the same exact-string-only matcher used
