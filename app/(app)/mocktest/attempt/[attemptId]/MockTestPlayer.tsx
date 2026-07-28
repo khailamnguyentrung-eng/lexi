@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnswerInput } from "../../../practice/[sessionNumber]/AnswerInput";
+import { AnswerInput } from "../../../program/[slug]/[order]/AnswerInput";
 import type { QuestionResponse } from "@/lib/services/question-format";
 // Type-only import from a server module (attempts.ts touches Prisma) — erased
 // at compile time, so this stays safe from a "use client" file. Reusing the

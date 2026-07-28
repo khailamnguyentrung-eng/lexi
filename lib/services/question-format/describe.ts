@@ -6,7 +6,7 @@
  * is exactly the kind of drift QM-1's core exists to prevent elsewhere.
  *
  * Deliberately text, not a bespoke visual per format — see
- * app/(app)/practice/[sessionNumber]/AnswerInput.tsx's file header for why
+ * app/(app)/program/[slug]/[order]/AnswerInput.tsx's file header for why
  * that's out of scope.
  */
 

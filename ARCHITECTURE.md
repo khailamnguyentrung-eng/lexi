@@ -114,12 +114,11 @@ External AI providers (Anthropic API, Google Gemini API — or none, via Mock)
   (`getCurrentUser()`), `admin.ts` (`requireAdmin()`).
 - `lib/db/prisma.ts` — Prisma client singleton (standard
   Next.js-dev-mode-safe pattern, avoids exhausting connections on hot reload).
-- `lib/services/` — student-facing domain logic: `curriculum.ts` (today's
-  mission, phase progress, practice-question fallback for sessions with no
-  directly-linked questions), `errorNotebook.ts` (spaced-repetition date
-  stub), `skillMatrix.ts` (rule-based recompute), `weakness.ts` (weak-topic
-  ranking), `streak.ts` (computed learning streak, no schema needed),
-  `diagnosticTest.ts` (CEFR level estimate).
+- `lib/services/` — student-facing domain logic: `program/nextMission.ts`
+  (today's mission, flat Program-completion summary), `errorNotebook.ts`
+  (spaced-repetition date stub), `skillMatrix.ts` (rule-based recompute),
+  `weakness.ts` (weak-topic ranking), `streak.ts` (computed learning streak,
+  no schema needed), `diagnosticTest.ts` (CEFR level estimate).
 - `lib/services/content-import/` — the entire admin content pipeline, see
   §5.
 - `lib/phonetics.ts` — derives which substring to underline in a phonetics
@@ -367,8 +366,9 @@ annotations where precision matters — none of that has been tested yet).
   unique human-readable identifier (e.g. `"DIAG36_Q01"`) that both the seed
   data and the AI-normalization prompt use to avoid collisions.
   `curriculumSessionId` is nullable and optional — not every question is
-  tied to a specific lesson (see `getPracticeQuestions()`'s fallback logic
-  in `lib/services/curriculum.ts` for sessions with none directly linked).
+  tied to a specific lesson (`CurriculumSession` itself is retired from the
+  read path as of the Phase 1 CurriculumSession-retirement plan; the column
+  stays in the schema unread pending its Phase 2 drop).
 - **`QuestionAttempt`** — one row per answer submission; feeds
   `skillMatrix.ts`'s rule-based recompute and is the raw signal a future
   AI-weakness-detection feature would consume.
@@ -522,10 +522,12 @@ These are load-bearing constraints, not suggestions:
 - **No automated test suite** — verification has been `tsc --noEmit` +
   `next build` + manual/live-preview spot-checks, not unit/integration
   tests.
-- **4 of 24 curriculum sessions have no directly-linked questions** (rely
-  on `getPracticeQuestions()`'s topic-match/broad-sample fallback) — works,
-  but the 2 mock-exam sessions would benefit from purpose-built full-length
-  question sets once more content exists.
+- **4 of the 24 legacy curriculum sessions had no directly-linked
+  questions** and relied on a topic-match/broad-sample fallback
+  (`getPracticeQuestions()` in the now-deleted `lib/services/curriculum.ts`)
+  — moot since the CurriculumSession-only routes that called it were
+  retired; the equivalent gap for a Program slot with no linked questions
+  is unaddressed.
 - **`chunker.ts`'s document-splitting is convention-specific** — works for
   the one real reference document's `"PHẦN N – ĐỀ TEST..."` header style;
   a differently-structured document falls back to one undivided chunk.

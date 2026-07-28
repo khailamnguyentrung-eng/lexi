@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getCorrectMessage, getIncorrectIntro } from "@/lib/ai/encouragement";
 import { LensFloatingAssistant } from "@/components/lens/LensFloatingAssistant";
-import { AnswerInput } from "../../../practice/[sessionNumber]/AnswerInput";
+import { AnswerInput } from "./AnswerInput";
 import {
   describeResponse,
   describeCorrectAnswer,
@@ -47,8 +47,6 @@ export function PracticeQuiz({
   const [index, setIndex] = useState(0);
   const [feedback, setFeedback] = useState<AttemptFeedback | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [midExamPrompt, setMidExamPrompt] = useState(false);
-  const [midExamCountdown, setMidExamCountdown] = useState(5);
 
   const current = questions[index];
   // Pick once per question so the message doesn't shuffle on re-render.
@@ -75,22 +73,6 @@ export function PracticeQuiz({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!midExamPrompt) return;
-    setMidExamCountdown(5);
-    const interval = setInterval(() => {
-      setMidExamCountdown((n) => {
-        if (n <= 1) {
-          clearInterval(interval);
-          setMidExamPrompt(false);
-          return 0;
-        }
-        return n - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [midExamPrompt]);
 
   async function handleAnswer(response: QuestionResponse) {
     if (feedback || submitting) return;
@@ -132,25 +114,6 @@ export function PracticeQuiz({
   }
 
   const isUnderlineType = current.type === "PHONETICS_SOUND";
-
-  if (midExamPrompt) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 rounded-3xl border border-lexi-primary/20 bg-lexi-soft p-10 text-center">
-        <p className="text-4xl">🌬️</p>
-        <div className="flex flex-col gap-2">
-          <p className="text-lg font-semibold text-lexi-primary-dark">Nửa chặng đường rồi!</p>
-          <p className="text-sm text-zinc-600">Hít thở một chút. Kiểm tra tốc độ của em nhé.</p>
-        </div>
-        <p className="text-3xl font-bold text-lexi-primary">{midExamCountdown}</p>
-        <button
-          onClick={() => setMidExamPrompt(false)}
-          className="rounded-full bg-lexi-primary px-5 py-2 text-xs font-semibold text-white hover:bg-lexi-primary-dark"
-        >
-          Tiếp tục →
-        </button>
-      </div>
-    );
-  }
 
   // SINGLE_CHOICE-only bits AnswerInput needs for its click-to-submit UX.
   const selectedOptionId =
