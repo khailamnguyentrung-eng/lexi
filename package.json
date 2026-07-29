@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
+    "backfill:question-exam": "node --import tsx scripts/backfill-question-exam.mjs",
     "test:chat": "node --env-file=.env --import tsx ./scripts/test-chat.ts",
     "test:analytics": "node scripts/test-analytics.mjs",
     "test:analytics-scope": "node --import tsx scripts/test-analytics-scope.mjs",
@@ -52,6 +53,7 @@
     "test:lens-image": "node scripts/test-lens-image-understanding.mjs",
     "test:design-system": "node scripts/test-design-system.mjs",
     "test:exam-model": "node --import tsx scripts/test-exam-model.mjs",
+    "test:exam-backfill": "node --import tsx scripts/test-exam-backfill.mjs",
     "test:all": "node scripts/run-all-tests.mjs"
   },
   "prisma": {
