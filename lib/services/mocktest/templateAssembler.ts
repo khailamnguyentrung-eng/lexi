@@ -52,6 +52,21 @@ export async function assembleBlueprintTemplate(title: string): Promise<Assemble
   const blueprint = await loadExamBlueprint("hanoi-g10");
 
   for (const section of blueprint.sections) {
+    // Cast an toàn CHỈ VÌ hanoi-g10 được seed sao cho ExamSection.code trùng
+    // khít giá trị QuestionType (seedExams.ts tạo section thẳng từ
+    // ALL_SECTIONS). Đây là tính chất riêng của kỳ thi này, không phải bất
+    // biến của ExamBlueprintSection.code — kiểu của trường đó cố ý là
+    // `string` để chấp nhận kỳ thi khác có section code bất kỳ.
+    //
+    // Kỳ thi khác (vd ielts-academic) hoàn toàn có thể có section code nằm
+    // ngoài 8 giá trị QuestionType, và Prisma sẽ ném lỗi validate ngay khi
+    // query bên dưới. Muốn dùng hàm này cho kỳ thi khác thì phải đổi cả cơ
+    // chế chọn câu — không thể chỉ đổi slug "hanoi-g10" ở trên. Đường đi
+    // đúng khi đó là lọc theo Question.examSectionId (chưa tồn tại).
+    //
+    // KHÔNG thay bằng ExamSection.examSkillId: đó là kỹ năng CHÍNH của cả
+    // section, không phải của từng câu — section GRAMMAR_MCQ chứa cả câu
+    // COMMUNICATION, nên lọc theo skill sẽ bỏ sót chúng.
     const type = section.code as QuestionType;
     const needed = section.questionCount;
     const candidates = await prisma.question.findMany({
@@ -65,7 +80,7 @@ export async function assembleBlueprintTemplate(title: string): Promise<Assemble
     selectedQuestionIds.push(...picked.map((q) => q.id));
   }
 
-  const timeLimitMin = 60; // matches examBlueprint.ts's known fact for this exam
+  const timeLimitMin = blueprint.timeAllowedMin;
   const template = await prisma.mockTestTemplate.create({
     data: {
       title,
