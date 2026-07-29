@@ -51,6 +51,7 @@
     "test:lens-assistance": "node scripts/test-lens-assistance.mjs",
     "test:lens-image": "node scripts/test-lens-image-understanding.mjs",
     "test:design-system": "node scripts/test-design-system.mjs",
+    "test:exam-model": "node --import tsx scripts/test-exam-model.mjs",
     "test:all": "node scripts/run-all-tests.mjs"
   },
   "prisma": {

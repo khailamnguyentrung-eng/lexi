@@ -5,6 +5,7 @@ import path from "node:path";
 import { findMatchingKnowledgeUnitId } from "../lib/services/content-intelligence/questionKnowledgeMapping";
 import { seedDemoProgram } from "../lib/services/program/seedDemoProgram";
 import { assembleProgramGaps } from "../lib/services/program/assembleProgramGaps";
+import { seedHanoiG10Exam } from "../lib/services/exam/seedExams";
 
 const prisma = new PrismaClient();
 
@@ -275,6 +276,17 @@ async function linkQuestionsToKnowledgeUnits() {
 async function main() {
   await seedStudent();
   await seedAdmin();
+
+  // Kỳ thi (mô hình đa kỳ thi, A1) — chuyển hằng số examBlueprint.ts thành dữ
+  // liệu. Chạy sớm vì các bước sau (và tiểu dự án B/C/D) sẽ gắn nội dung vào
+  // một Exam. Idempotent.
+  const exam = await seedHanoiG10Exam();
+  console.log(
+    exam.alreadyExisted
+      ? `Exam "${exam.slug}" đã tồn tại, bỏ qua.`
+      : `Seeded Exam "${exam.slug}": ${exam.skillsCreated} kỹ năng, ${exam.sectionsCreated} section.`,
+  );
+
   await seedKnowledgeUnits();
   await seedQuestions();
   await linkQuestionsToKnowledgeUnits();
