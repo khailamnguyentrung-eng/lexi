@@ -82,10 +82,22 @@ async function main() {
     `enum ${commEnum} vs ExamSkill ${commAfter}`,
   );
 
-  console.log("\nMọi câu hỏi thuộc đúng kỳ thi hanoi-g10");
-  const total = await prisma.question.count();
+  console.log("\nMọi câu hỏi đã gán kỳ thi đều thuộc hanoi-g10");
+  const withExam = await prisma.question.count({ where: { examId: { not: null } } });
   const inExam = await prisma.question.count({ where: { examId: exam.id } });
-  ok(`toàn bộ ${total} câu hỏi thuộc hanoi-g10`, total === inExam, `thực tế ${inExam}`);
+  ok(
+    `mọi câu hỏi đã gán kỳ thi đều thuộc hanoi-g10 (${withExam})`,
+    withExam === inExam,
+    `có examId: ${withExam}, thuộc hanoi-g10: ${inExam}`,
+  );
+
+  console.log("\nKhông có câu hỏi nào trỏ examSkillId sang ExamSkill của kỳ thi khác");
+  // Question.examSkillId và Question.examId là hai FK độc lập — không ràng buộc
+  // DB nào bảo đảm examSkill.examId === examId. Kiểm trực tiếp bất biến này.
+  const crossExam = await prisma.question.count({
+    where: { examSkill: { examId: { not: exam.id } } },
+  });
+  ok("0 câu trỏ tới ExamSkill của kỳ thi khác", crossExam === 0, `thực tế ${crossExam}`);
 
   console.log(`\n${passed} passed, ${failed} failed`);
   await prisma.$disconnect();

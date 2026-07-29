@@ -31,6 +31,22 @@ async function main() {
     process.exit(1);
   }
 
+  // Script này gán MỌI câu hỏi chưa có examId về hanoi-g10, dựa trên giả định
+  // hanoi-g10 là kỳ thi DUY NHẤT có câu hỏi. Ngay khi tiểu dự án B nhập câu hỏi
+  // của kỳ thi khác (IELTS/SAT/THPT), giả định đó không còn đúng — chạy tiếp
+  // sẽ gắn nhãn sai câu hỏi của kỳ thi khác thành hanoi-g10 mà không ném lỗi
+  // nào. Dừng hẳn thay vì gán mù.
+  const examCount = await prisma.exam.count();
+  if (examCount > 1) {
+    console.error(
+      `DỪNG: có ${examCount} Exam trong DB. Script này gán MỌI câu hỏi chưa có examId về "${HANOI_G10_SLUG}",\n` +
+        `giả định hanoi-g10 là kỳ thi duy nhất có câu hỏi. Giả định đó không còn đúng.\n` +
+        `Câu hỏi của kỳ thi khác sẽ bị gắn nhãn sai mà không có lỗi nào báo.\n` +
+        `Hãy sửa script để nhận kỳ thi tường minh trước khi chạy tiếp.`,
+    );
+    process.exit(1);
+  }
+
   const skillIdByCode = new Map(exam.skills.map((s) => [s.code, s.id]));
 
   const pending = await prisma.question.findMany({
