@@ -146,4 +146,11 @@ async function main() {
   process.exit(failed > 0 ? 1 : 0);
 }
 
-main();
+main()
+  .catch((e) => {
+    console.error("test-exam-model thất bại:", e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

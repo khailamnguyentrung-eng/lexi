@@ -4,9 +4,14 @@
  * Bài test QUAN TRỌNG NHẤT của kế hoạch A1: chứng minh backfill không làm lệch
  * phân bố kỹ năng.
  *
- * Cách kiểm: đếm câu hỏi theo từng SkillCategory (enum cũ), đếm câu hỏi theo
- * từng ExamSkill.code (bảng mới), rồi so khớp TỪNG CẶP. Vì ExamSkill.code cố ý
- * giữ đúng tên enum SkillCategory, hai bảng đếm này PHẢI trùng khớp hoàn toàn.
+ * Cách kiểm: so hai TRỤC DỮ LIỆU ĐỘC LẬP, cả hai đọc SAU khi backfill đã chạy —
+ * cột enum cũ `Question.skill` (bySkillEnum) và cột FK mới `Question.examSkillId`
+ * đi qua quan hệ `ExamSkill` (byExamSkill). Đây KHÔNG phải so trước/sau backfill
+ * theo thời gian — cả hai phép đếm đều chạy trong cùng một cửa sổ, sau backfill.
+ * Phép so vẫn có giá trị vì backfill không bao giờ ghi vào `Question.skill`
+ * (script chỉ ghi examId/examSkillId), nên cột enum vẫn là bản ghi nguyên trạng,
+ * độc lập với cột FK, để đối chiếu. Vì ExamSkill.code cố ý giữ đúng tên enum
+ * SkillCategory, hai trục đếm này PHẢI trùng khớp hoàn toàn.
  *
  * Đây là thứ bắt được lỗi mà "chạy không báo lỗi" không bắt được: nếu backfill
  * suy examSkillId từ ExamSection thay vì từ Question.skill, các câu
@@ -42,12 +47,12 @@ async function main() {
   ok("0 câu hỏi có examId null", orphanExam === 0, `thực tế ${orphanExam}`);
   ok("0 câu hỏi có examSkillId null", orphanSkill === 0, `thực tế ${orphanSkill}`);
 
-  console.log("\nPhân bố kỹ năng giữ nguyên trước/sau backfill");
-  const bySkillEnum = await prisma.question.groupBy({
+  console.log("\nHai trục dữ liệu độc lập khớp nhau: cột enum vs cột FK qua ExamSkill");
+  const bySkillEnumRows = await prisma.question.groupBy({
     by: ["skill"],
     _count: { _all: true },
   });
-  const before = new Map(bySkillEnum.map((r) => [r.skill, r._count._all]));
+  const bySkillEnum = new Map(bySkillEnumRows.map((r) => [r.skill, r._count._all]));
 
   const exam = await prisma.exam.findUnique({
     where: { slug: HANOI_G10_SLUG },
@@ -59,18 +64,18 @@ async function main() {
     await prisma.$disconnect();
     process.exit(1);
   }
-  const after = new Map(exam.skills.map((s) => [s.code, s.questions.length]));
+  const byExamSkill = new Map(exam.skills.map((s) => [s.code, s.questions.length]));
 
-  const allCodes = new Set([...before.keys(), ...after.keys()]);
+  const allCodes = new Set([...bySkillEnum.keys(), ...byExamSkill.keys()]);
   for (const code of [...allCodes].sort()) {
-    const b = before.get(code) ?? 0;
-    const a = after.get(code) ?? 0;
+    const b = bySkillEnum.get(code) ?? 0;
+    const a = byExamSkill.get(code) ?? 0;
     ok(`${code}: enum ${b} === ExamSkill ${a}`, b === a);
   }
 
   console.log("\nBẫy COMMUNICATION (skill không có ExamSection nào)");
-  const commEnum = before.get("COMMUNICATION") ?? 0;
-  const commAfter = after.get("COMMUNICATION") ?? 0;
+  const commEnum = bySkillEnum.get("COMMUNICATION") ?? 0;
+  const commAfter = byExamSkill.get("COMMUNICATION") ?? 0;
   ok(
     "có ít nhất 1 câu COMMUNICATION để bài test này có ý nghĩa",
     commEnum > 0,
@@ -83,6 +88,11 @@ async function main() {
   );
 
   console.log("\nMọi câu hỏi đã gán kỳ thi đều thuộc hanoi-g10");
+  // TRIPWIRE CỐ Ý: assertion này giả định hanoi-g10 là kỳ thi DUY NHẤT có câu
+  // hỏi (đúng tại A1). Khi tiểu dự án B nhập kỳ thi thứ hai và gán câu hỏi cho
+  // nó, withExam sẽ > inExam và assertion này sẽ ĐỎ — đó là tín hiệu phải viết
+  // lại cả suite này cho đa kỳ thi (so khớp theo từng kỳ thi, không còn giả
+  // định "mọi câu hỏi = hanoi-g10"), KHÔNG phải dấu hiệu backfill bị lỗi.
   const withExam = await prisma.question.count({ where: { examId: { not: null } } });
   const inExam = await prisma.question.count({ where: { examId: exam.id } });
   ok(
@@ -94,14 +104,31 @@ async function main() {
   console.log("\nKhông có câu hỏi nào trỏ examSkillId sang ExamSkill của kỳ thi khác");
   // Question.examSkillId và Question.examId là hai FK độc lập — không ràng buộc
   // DB nào bảo đảm examSkill.examId === examId. Kiểm trực tiếp bất biến này.
-  const crossExam = await prisma.question.count({
-    where: { examSkill: { examId: { not: exam.id } } },
-  });
-  ok("0 câu trỏ tới ExamSkill của kỳ thi khác", crossExam === 0, `thực tế ${crossExam}`);
+  // Viết dạng không phụ thuộc kỳ thi nào (không đóng cứng theo `exam.id`) nên
+  // assertion này sống sót qua kỳ thi thứ hai, khác với assertion tripwire ở
+  // trên. $queryRaw trên SQLite trả COUNT(*) dạng BigInt — Number() để so sánh.
+  const crossRows = await prisma.$queryRaw`
+    SELECT COUNT(*) AS n FROM "Question" q
+    JOIN "ExamSkill" s ON q."examSkillId" = s."id"
+    WHERE q."examId" <> s."examId"
+  `;
+  const crossExam = Number(crossRows[0].n);
+  ok(
+    "0 câu có examSkill thuộc kỳ thi khác với examId của chính nó",
+    crossExam === 0,
+    `thực tế ${crossExam}`,
+  );
 
   console.log(`\n${passed} passed, ${failed} failed`);
   await prisma.$disconnect();
   process.exit(failed > 0 ? 1 : 0);
 }
 
-main();
+main()
+  .catch((e) => {
+    console.error("test-exam-backfill thất bại:", e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

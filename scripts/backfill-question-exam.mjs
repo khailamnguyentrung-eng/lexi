@@ -86,4 +86,11 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main();
+main()
+  .catch((e) => {
+    console.error("Backfill thất bại:", e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

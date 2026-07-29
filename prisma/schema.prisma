@@ -222,6 +222,8 @@ model Question {
 
   @@index([skill, topic])
   @@index([type])
+  @@index([examId])
+  @@index([examSkillId])
 }
 
 model QuestionAttempt {
@@ -581,6 +583,7 @@ model KnowledgeUnit {
   updatedAt DateTime @updatedAt
 
   @@index([topic]) // fast lookup during coverage computation
+  @@index([examId])
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -1095,6 +1098,8 @@ model MockTestTemplate {
 
   questions MockTestTemplateQuestion[]
   attempts  MockTestAttempt[]
+
+  @@index([examId])
 }
 
 // `order` is a plain column, not encoded in a JSON array on the template —
@@ -1209,6 +1214,7 @@ model ExamSection {
   timeAllowedMin Int? // set = luyện lẻ được; null = chỉ tồn tại trong bài thi đầy đủ
 
   @@unique([examId, code])
+  @@index([examSkillId])
 }
 
 // Vai trò của một FILE NGUỒN trong bộ đề. Đặt ở ContentSource chứ không phải
