@@ -121,3 +121,68 @@ export const ALL_SECTIONS: QuestionType[] = [
   "READING_COMPREHENSION" as QuestionType,
   "SENTENCE_TRANSFORMATION" as QuestionType,
 ];
+
+// ──────────────────────────────────────────────────────────────────
+// A2 — blueprint đọc từ DB
+// ──────────────────────────────────────────────────────────────────
+// docs/superpowers/specs/2026-07-29-a2-blueprint-from-db-design.md
+//
+// Các hằng số phía trên là blueprint của MỘT kỳ thi, đóng cứng trong code.
+// Ba kiểu Record<QuestionType, …> của chúng chính là thứ chặn việc thêm kỳ
+// thi mới: nới enum QuestionType là gãy tsc ngay tại 3 chỗ đó.
+//
+// ExamBlueprint dùng `code: string` thay cho QuestionType — đó là toàn bộ
+// điểm mấu chốt. Hằng số cũ vẫn còn trong cửa sổ migration này; Task 4 xoá
+// chúng sau khi mọi reader đã chuyển sang đây.
+
+import { prisma } from "@/lib/db/prisma";
+
+export interface ExamBlueprintSection {
+  code: string; // trước là QuestionType; giờ chỉ là chuỗi
+  label: string;
+  questionCount: number;
+  weight: number; // dẫn xuất: questionCount / totalQuestions
+}
+
+export interface ExamBlueprint {
+  slug: string;
+  totalQuestions: number;
+  timeAllowedMin: number;
+  sections: ExamBlueprintSection[];
+}
+
+/**
+ * Nạp blueprint của một kỳ thi từ bảng Exam/ExamSection.
+ *
+ * NÉM LỖI khi không tìm thấy kỳ thi, cố ý: trả về blueprint rỗng sẽ làm
+ * coverage/readiness báo 0% một cách âm thầm, và không ai truy được vì sao.
+ * Hỏng ồn ào tốt hơn hỏng im lặng.
+ *
+ * `weight` tính bằng questionCount / totalQuestions — đúng công thức
+ * EXAM_SECTION_WEIGHTS cũ dùng, để số liệu không đổi khi cắt nguồn.
+ */
+export async function loadExamBlueprint(slug: string): Promise<ExamBlueprint> {
+  const exam = await prisma.exam.findUnique({
+    where: { slug },
+    include: { sections: { orderBy: { order: "asc" } } },
+  });
+
+  if (!exam) {
+    throw new Error(
+      `loadExamBlueprint: không tìm thấy Exam có slug "${slug}". ` +
+        `Chạy \`npm run db:seed\` để seed kỳ thi, hoặc kiểm tra lại slug.`,
+    );
+  }
+
+  return {
+    slug: exam.slug,
+    totalQuestions: exam.totalQuestions,
+    timeAllowedMin: exam.timeAllowedMin,
+    sections: exam.sections.map((s) => ({
+      code: s.code,
+      label: s.label,
+      questionCount: s.questionCount,
+      weight: s.questionCount / exam.totalQuestions,
+    })),
+  };
+}

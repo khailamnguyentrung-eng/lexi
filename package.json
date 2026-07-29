@@ -54,6 +54,7 @@
     "test:design-system": "node scripts/test-design-system.mjs",
     "test:exam-model": "node --import tsx scripts/test-exam-model.mjs",
     "test:exam-backfill": "node --import tsx scripts/test-exam-backfill.mjs",
+    "test:exam-blueprint-parity": "node --import tsx scripts/test-exam-blueprint-parity.mjs",
     "test:all": "node scripts/run-all-tests.mjs"
   },
   "prisma": {
