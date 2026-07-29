@@ -5,15 +5,16 @@
  * known depths). That blueprint existed for readiness analytics only —
  * nothing ever turned it into a paper a learner could sit. This does.
  *
- * Deliberately reuses `EXAM_SECTION_DEPTH` rather than a new mock-test-
- * specific structure: it is already the one place in the codebase this
- * exam's real shape is recorded (and already carries its own caveat —
- * depths are estimated, not verified against an official paper — which
- * applies here identically and is not restated).
+ * Deliberately loads the blueprint via `loadExamBlueprint()` (backed by the
+ * `Exam`/`ExamSection` tables) rather than defining a new mock-test-specific
+ * structure: it is already the one place in the codebase this exam's real
+ * shape is recorded (and already carries its own caveat — depths are
+ * estimated, not verified against an official paper — which applies here
+ * identically and is not restated).
  */
 
 import { prisma } from "@/lib/db/prisma";
-import { EXAM_SECTION_DEPTH, ALL_SECTIONS } from "@/lib/analytics/examBlueprint";
+import { loadExamBlueprint } from "@/lib/analytics/examBlueprint";
 import type { QuestionType } from "@prisma/client";
 
 function shuffle<T>(items: T[]): T[] {
@@ -33,8 +34,9 @@ export interface AssembleResult {
 
 /**
  * Build one new MockTestTemplate by randomly selecting, per section, exactly
- * `EXAM_SECTION_DEPTH[type]` questions from the real bank (without
- * replacement), in the section order `ALL_SECTIONS` already defines.
+ * `section.questionCount` questions from the real bank (without
+ * replacement), in the section order `loadExamBlueprint()` returns (already
+ * sorted by `ExamSection.order`).
  *
  * If the bank has fewer questions of a type than the blueprint calls for,
  * takes whatever is available and reports the shortfall — never throws and
@@ -47,8 +49,11 @@ export async function assembleBlueprintTemplate(title: string): Promise<Assemble
   const shortfalls: AssembleResult["shortfalls"] = [];
   const selectedQuestionIds: string[] = [];
 
-  for (const type of ALL_SECTIONS) {
-    const needed = EXAM_SECTION_DEPTH[type];
+  const blueprint = await loadExamBlueprint("hanoi-g10");
+
+  for (const section of blueprint.sections) {
+    const type = section.code as QuestionType;
+    const needed = section.questionCount;
     const candidates = await prisma.question.findMany({
       where: { type },
       select: { id: true },
