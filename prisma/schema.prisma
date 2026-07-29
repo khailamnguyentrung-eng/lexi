@@ -1188,6 +1188,21 @@ model ExamSkill {
   label  String // nhãn hiển thị tiếng Việt
   order  Int
 
+  // Thời lượng và số câu của RIÊNG kỹ năng này, khi kỳ thi tính giờ theo
+  // từng module thay vì một buổi liền. IELTS là ca điển hình: Listening
+  // 30+10 phút, Reading 60 phút, Writing 60 phút, Speaking 11-14 phút —
+  // Exam.timeAllowedMin không biểu diễn nổi vì nó là con số của cả buổi.
+  //
+  // Nullable có chủ đích: kỳ thi thi liền một mạch (như hanoi-g10, 40 câu
+  // trong 60 phút) để null, và đọc con số từ Exam. Chỉ kỳ thi chia module
+  // mới điền vào đây.
+  //
+  // Cùng với ExamSection.timeAllowedMin, đây là thứ cho phép ba cấp phân
+  // phối: cả kỳ thi (Exam) → một kỹ năng/module (ExamSkill) → một phần lẻ
+  // (ExamSection). Xem §4.4 của spec.
+  timeAllowedMin Int?
+  questionCount  Int?
+
   sections  ExamSection[]
   questions Question[]
 

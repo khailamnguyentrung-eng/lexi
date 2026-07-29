@@ -121,6 +121,14 @@ async function main() {
       );
       ok("có đủ 5 ExamSkill", seeded.skills.length === 5, `thực tế ${seeded.skills.length}`);
       ok(
+        "hanoi-g10 thi liền một mạch nên mọi ExamSkill để null timeAllowedMin/questionCount (con số nằm ở Exam)",
+        seeded.skills.every((s) => s.timeAllowedMin === null && s.questionCount === null),
+        seeded.skills
+          .filter((s) => s.timeAllowedMin !== null || s.questionCount !== null)
+          .map((s) => `${s.code}: ${s.timeAllowedMin}/${s.questionCount}`)
+          .join(", "),
+      );
+      ok(
         "COMMUNICATION tồn tại dù không section nào thuộc về nó",
         seeded.skills.some((s) => s.code === "COMMUNICATION"),
       );
