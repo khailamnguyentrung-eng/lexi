@@ -11,6 +11,7 @@
     "backfill:question-exam": "node --import tsx scripts/backfill-question-exam.mjs",
     "test:chat": "node --env-file=.env --import tsx ./scripts/test-chat.ts",
     "test:analytics": "node scripts/test-analytics.mjs",
+    "test:analytics-engine": "node --import tsx scripts/test-analytics-engine.mjs",
     "test:analytics-scope": "node --import tsx scripts/test-analytics-scope.mjs",
     "test:user-program-progress": "node --import tsx scripts/test-user-program-progress.mjs",
     "test:recent-completed-scope": "node --import tsx scripts/test-recent-completed-scope.mjs",

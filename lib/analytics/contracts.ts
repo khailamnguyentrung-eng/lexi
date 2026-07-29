@@ -22,7 +22,7 @@
  * Structural changes (rename, remove, type-change) require frontend coordination.
  */
 
-import type { ExamBlueprint } from "./examBlueprint";
+import type { ExamBlueprint, ExamBlueprintSection } from "./examBlueprint";
 import type {
   SectionBreakdown,
   SectionCoverage,
@@ -57,7 +57,7 @@ export interface ReadinessSummary {
 
 /** One exam section's blueprint coverage status. */
 export interface BlueprintSectionItem {
-  section: string;            // QuestionType value (e.g. "GRAMMAR_MCQ")
+  section: string;            // ExamSection.code (e.g. "GRAMMAR_MCQ") — DB-driven, not a closed enum
   label: string;              // Vietnamese label (e.g. "Ngữ pháp / Từ vựng")
   attemptCount: number;
   expectedDepth: number;      // exam blueprint target (e.g. 15 for GRAMMAR_MCQ)
@@ -75,7 +75,7 @@ export interface BlueprintCoverageSummary {
 
 /** Per-section detail for tutor bar-chart view. */
 export interface SectionBreakdownItem {
-  section: string;         // QuestionType value
+  section: string;         // ExamSection.code — DB-driven, not a closed enum
   label: string;           // Vietnamese label
   accuracy: number;        // 0.0–1.0
   attemptCount: number;
@@ -163,9 +163,8 @@ export interface SessionAnalyticsResponse {
 
 function mapSectionBreakdown(
   bd: SectionBreakdown,
-  blueprint: ExamBlueprint,
+  byCode: Map<string, ExamBlueprintSection>,
 ): SectionBreakdownItem {
-  const byCode = new Map(blueprint.sections.map((s) => [s.code, s]));
   return {
     section: bd.section,
     label: byCode.get(bd.section)?.label ?? bd.section,
@@ -179,9 +178,8 @@ function mapSectionBreakdown(
 
 function mapSectionCoverage(
   sc: SectionCoverage,
-  blueprint: ExamBlueprint,
+  byCode: Map<string, ExamBlueprintSection>,
 ): BlueprintSectionItem {
-  const byCode = new Map(blueprint.sections.map((s) => [s.code, s]));
   return {
     section: sc.section,
     label: sc.label,
@@ -246,13 +244,19 @@ function mapWeaknessTopic(wt: WeaknessTopic): WeaknessSignalItem {
 
 /**
  * Convert service output → API contract for session analytics.
- * Called in GET /api/analytics/session/[sessionNumber].
+ *
+ * No live caller in app/+lib/ as of A2 — the route that used to call this
+ * (GET /api/analytics/session/[sessionNumber]) was removed in the
+ * CurriculumSession retirement. Kept for the frontend-facing contract shape
+ * and re-exported through the barrel; adding the `blueprint` parameter here
+ * does not require updating any call site.
  */
 export function toSessionAnalyticsResponse(
   output: SessionAnalyticsOutput,
   blueprint: ExamBlueprint,
 ): SessionAnalyticsResponse {
   const confidence = output.readiness.confidence as ConfidenceLevel;
+  const byCode = new Map(blueprint.sections.map((s) => [s.code, s]));
 
   return {
     sessionNumber: output.sessionNumber,
@@ -268,11 +272,11 @@ export function toSessionAnalyticsResponse(
       assessedCount: output.blueprintCoverage.assessedCount,
       partialCount: output.blueprintCoverage.partialCount,
       unassessedCount: output.blueprintCoverage.unassessedCount,
-      sections: output.blueprintCoverage.sections.map((sc) => mapSectionCoverage(sc, blueprint)),
+      sections: output.blueprintCoverage.sections.map((sc) => mapSectionCoverage(sc, byCode)),
     },
     weaknessSignals: output.weaknessTopics.map(mapWeaknessTopic),
     sectionBreakdown: output.readiness.sectionBreakdown.map((bd) =>
-      mapSectionBreakdown(bd, blueprint),
+      mapSectionBreakdown(bd, byCode),
     ),
   };
 }

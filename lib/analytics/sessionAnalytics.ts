@@ -254,12 +254,12 @@ export function computeWeaknessSignals(
   }
 
   const results: WeaknessTopic[] = [];
+  const weightByCode = new Map(blueprint.sections.map((s) => [s.code, s.weight]));
 
   for (const [topic, { totalAttempts, wrongAttempts, allAttempts }] of topicMap) {
     if (wrongAttempts.length === 0) continue;
 
     // riskScore: sum of section weights for wrong attempts
-    const weightByCode = new Map(blueprint.sections.map((s) => [s.code, s.weight]));
     const riskScore = wrongAttempts.reduce(
       (sum, a) => sum + (weightByCode.get(a.question.type) ?? 0),
       0
