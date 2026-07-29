@@ -199,8 +199,17 @@ model Question {
   passage   Passage? @relation(fields: [passageId], references: [id])
 
   // Content Intelligence (M3.1) — nullable; null for seeded/extracted questions
-  knowledgeUnitId   String?
-  knowledgeUnit     KnowledgeUnit?         @relation(fields: [knowledgeUnitId], references: [id])
+  knowledgeUnitId String?
+  knowledgeUnit   KnowledgeUnit? @relation(fields: [knowledgeUnitId], references: [id])
+
+  // Mô hình đa kỳ thi (A1). Nullable CHỈ trong cửa sổ migration — Task 3
+  // backfill toàn bộ về hanoi-g10, và test-exam-backfill.mjs assert 0 null.
+  // examSkillId suy từ Question.skill, KHÔNG suy từ ExamSection (xem plan).
+  examId      String?
+  exam        Exam?      @relation(fields: [examId], references: [id], onDelete: Restrict)
+  examSkillId String?
+  examSkill   ExamSkill? @relation(fields: [examSkillId], references: [id], onDelete: Restrict)
+
   generatedViaJobId String?
   generatedViaJob   QuestionGenerationJob? @relation("GeneratedQuestions", fields: [generatedViaJobId], references: [id])
 
@@ -443,6 +452,7 @@ model ContentSource {
   // URL (e.g. S3/Vercel Blob). Kept as a plain string so swapping storage
   // backends later doesn't require a schema change.
   storagePath String
+  sourceRole  SourceRole? // vai trò file trong bộ đề; null = chưa phân vai
   sourceLabel String? // e.g. "Hai Phong 2026 entrance exam" — free text, future tagging
 
   // Exam tagging metadata — supports the future multi-province/year exam
@@ -550,12 +560,17 @@ model ExtractedQuestionDraft {
 // by a job reuse the existing ExtractedQuestionDraft → approveDraft() flow.
 
 model KnowledgeUnit {
-  id                String @id @default(cuid())
-  topic             String @unique // must match Question.topic exactly (canonical snake_case)
+  id                String  @id @default(cuid())
+  topic             String  @unique // must match Question.topic exactly (canonical snake_case)
+  // null = đơn vị kiến thức DÙNG CHUNG mọi kỳ thi (present_perfect là ngữ pháp
+  // tiếng Anh — THPT/vào-10/IELTS đều dùng, không nhân bản 3 lần).
+  // Có giá trị = đơn vị riêng của kỳ thi đó (vd ielts_writing_task1_trends).
+  examId            String?
+  exam              Exam?   @relation(fields: [examId], references: [id], onDelete: Restrict)
   label             String // human-readable Vietnamese label
-  targetEasyCount   Int    @default(5)
-  targetMediumCount Int    @default(5)
-  targetHardCount   Int    @default(3)
+  targetEasyCount   Int     @default(5)
+  targetMediumCount Int     @default(5)
+  targetHardCount   Int     @default(3)
 
   questions         Question[]
   generatedDrafts   GeneratedQuestionDraft[]         @relation("GeneratedDraftsForUnit")
@@ -1074,6 +1089,8 @@ model MockTestTemplate {
   description    String?
   timeLimitMin   Int
   totalQuestions Int
+  examId         String?
+  exam           Exam?    @relation(fields: [examId], references: [id], onDelete: Restrict)
   createdAt      DateTime @default(now())
 
   questions MockTestTemplateQuestion[]
@@ -1123,6 +1140,86 @@ model MockTestAttempt {
   questionAttempts QuestionAttempt[]
 
   @@index([userId, status])
+}
+
+// ──────────────────────────────────────────────────────────────────
+// EXAM (mô hình đa kỳ thi — thay examBlueprint.ts's hardcoded constants)
+// ──────────────────────────────────────────────────────────────────
+// docs/superpowers/specs/2026-07-28-multi-exam-data-model-design.md
+//
+// Exam là với examBlueprint.ts đúng như Program đã là với CurriculumSession:
+// biến một kỳ thi đóng cứng trong code thành dữ liệu, để chứa được nhiều kỳ
+// thi (IELTS/SAT/THPT/vào-10) mà không phải sửa code cho mỗi kỳ thi mới.
+//
+// A1 (đợt này) chỉ DỰNG bảng và đổ dữ liệu vào. Không reader nào đọc chúng —
+// examBlueprint.ts vẫn là nguồn sự thật cho analytics cho tới đợt A2.
+
+model Exam {
+  id             String  @id @default(cuid())
+  slug           String  @unique // "hanoi-g10" | "ielts-academic" | "thpt-quoc-gia" | "sat-verbal"
+  name           String
+  description    String?
+  totalQuestions Int // thay TOTAL_EXAM_QUESTIONS
+  timeAllowedMin Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skills    ExamSkill[]
+  sections  ExamSection[]
+  questions Question[]
+  units     KnowledgeUnit[]
+  templates MockTestTemplate[]
+}
+
+// Thay enum SkillCategory. Là bảng chứ không phải enum vì mỗi kỳ thi có bộ
+// kỹ năng riêng — IELTS có LISTENING/SPEAKING, SAT có MATH, vào-10 thì không.
+// Một enum chung sẽ thành cái sọt đựng mọi khái niệm của mọi kỳ thi.
+model ExamSkill {
+  id     String @id @default(cuid())
+  examId String
+  exam   Exam   @relation(fields: [examId], references: [id], onDelete: Restrict)
+  code   String // "VOCAB_GRAMMAR" | "READING" | "LISTENING" | "SPEAKING" | "MATH" | ...
+  label  String // nhãn hiển thị tiếng Việt
+  order  Int
+
+  sections  ExamSection[]
+  questions Question[]
+
+  @@unique([examId, code])
+}
+
+// Thay EXAM_SECTION_DEPTH (Record<QuestionType, number> cứng trong code).
+// `code` dùng đúng giá trị QuestionType cho hanoi-g10, để A2 cắt reader sang
+// DB không cần bảng ánh xạ trung gian.
+//
+// LƯU Ý: examSkillId ở đây là kỹ năng CHÍNH của section, KHÔNG phải kỹ năng
+// của từng câu hỏi trong đó. Section GRAMMAR_MCQ có kỹ năng chính
+// VOCAB_GRAMMAR nhưng vẫn chứa câu COMMUNICATION — hai trục độc lập.
+model ExamSection {
+  id             String    @id @default(cuid())
+  examId         String
+  exam           Exam      @relation(fields: [examId], references: [id], onDelete: Restrict)
+  examSkillId    String
+  examSkill      ExamSkill @relation(fields: [examSkillId], references: [id], onDelete: Restrict)
+  code           String
+  label          String
+  order          Int
+  questionCount  Int // "độ sâu" — số câu section này chiếm trên đề thật
+  timeAllowedMin Int? // set = luyện lẻ được; null = chỉ tồn tại trong bài thi đầy đủ
+
+  @@unique([examId, code])
+}
+
+// Vai trò của một FILE NGUỒN trong bộ đề. Đặt ở ContentSource chứ không phải
+// Question vì đây là thuộc tính của file, không phải của câu hỏi: khảo sát kho
+// tài liệu thật tìm thấy 67 file key/transcript/explain nằm ở thư mục RIÊNG,
+// tách khỏi file đề bài. Bước ghép cặp thuộc tiểu dự án B.
+enum SourceRole {
+  QUESTION
+  ANSWER_KEY
+  TRANSCRIPT
+  EXPLANATION
 }
 
 // ──────────────────────────────────────────────────────────────────
