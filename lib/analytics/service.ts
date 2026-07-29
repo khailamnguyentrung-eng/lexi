@@ -23,6 +23,7 @@ import {
   computeReadiness,
   computeWeaknessSignals,
 } from "./sessionAnalytics";
+import { loadExamBlueprint } from "./examBlueprint";
 import type {
   BlueprintCoverage,
   ReadinessResult,
@@ -69,9 +70,17 @@ export async function getSessionAnalytics(
 ): Promise<SessionAnalyticsOutput> {
   const attempts = await fetchSessionAttempts(userId, programCurriculumId);
 
-  const readiness = computeReadiness(attempts, [sessionNumber]);
-  const blueprintCoverage = computeBlueprintCoverage(attempts);
-  const rawWeakness = computeWeaknessSignals(attempts, 3);
+  // A2: blueprint giờ là dữ liệu trong DB, không còn là hằng số trong code.
+  // Nạp ở tầng service (async) rồi truyền xuống các engine thuần — chúng phải
+  // giữ đồng bộ và test được không cần DB.
+  // Slug đóng cứng "hanoi-g10" là có chủ đích trong A2: mọi câu hỏi hiện có
+  // đều thuộc kỳ thi này (A1 đã backfill). Chọn kỳ thi theo ngữ cảnh người
+  // học là việc của tiểu dự án B, không phải A2.
+  const blueprint = await loadExamBlueprint("hanoi-g10");
+
+  const readiness = computeReadiness(attempts, [sessionNumber], blueprint);
+  const blueprintCoverage = computeBlueprintCoverage(attempts, blueprint);
+  const rawWeakness = computeWeaknessSignals(attempts, blueprint, 3);
 
   let weaknessTopics = rawWeakness;
 

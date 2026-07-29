@@ -20,6 +20,8 @@ export {
   SECTION_LABELS,
   ALL_SECTIONS,
 } from "./examBlueprint";
+export type { ExamBlueprint, ExamBlueprintSection } from "./examBlueprint";
+export { loadExamBlueprint } from "./examBlueprint";
 
 // Type definitions
 export type {

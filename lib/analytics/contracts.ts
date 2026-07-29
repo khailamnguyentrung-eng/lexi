@@ -22,7 +22,7 @@
  * Structural changes (rename, remove, type-change) require frontend coordination.
  */
 
-import { EXAM_SECTION_DEPTH, SECTION_LABELS } from "./examBlueprint";
+import type { ExamBlueprint } from "./examBlueprint";
 import type {
   SectionBreakdown,
   SectionCoverage,
@@ -161,24 +161,32 @@ export interface SessionAnalyticsResponse {
 // Mapping functions — engine/service output → API contract
 // ──────────────────────────────────────────────────────────────────
 
-function mapSectionBreakdown(bd: SectionBreakdown): SectionBreakdownItem {
+function mapSectionBreakdown(
+  bd: SectionBreakdown,
+  blueprint: ExamBlueprint,
+): SectionBreakdownItem {
+  const byCode = new Map(blueprint.sections.map((s) => [s.code, s]));
   return {
-    section: bd.section as string,
-    label: SECTION_LABELS[bd.section],
+    section: bd.section,
+    label: byCode.get(bd.section)?.label ?? bd.section,
     accuracy: bd.accuracy,
     attemptCount: bd.attemptCount,
-    expectedDepth: EXAM_SECTION_DEPTH[bd.section],
+    expectedDepth: byCode.get(bd.section)?.questionCount ?? 0,
     examWeight: bd.weight,
     depthRatio: bd.depthRatio,
   };
 }
 
-function mapSectionCoverage(sc: SectionCoverage): BlueprintSectionItem {
+function mapSectionCoverage(
+  sc: SectionCoverage,
+  blueprint: ExamBlueprint,
+): BlueprintSectionItem {
+  const byCode = new Map(blueprint.sections.map((s) => [s.code, s]));
   return {
-    section: sc.section as string,
+    section: sc.section,
     label: sc.label,
     attemptCount: sc.attemptCount,
-    expectedDepth: EXAM_SECTION_DEPTH[sc.section],
+    expectedDepth: byCode.get(sc.section)?.questionCount ?? 0,
     status: sc.status as SectionCoverageStatus,
     examWeight: sc.examWeight,
   };
@@ -241,7 +249,8 @@ function mapWeaknessTopic(wt: WeaknessTopic): WeaknessSignalItem {
  * Called in GET /api/analytics/session/[sessionNumber].
  */
 export function toSessionAnalyticsResponse(
-  output: SessionAnalyticsOutput
+  output: SessionAnalyticsOutput,
+  blueprint: ExamBlueprint,
 ): SessionAnalyticsResponse {
   const confidence = output.readiness.confidence as ConfidenceLevel;
 
@@ -259,9 +268,11 @@ export function toSessionAnalyticsResponse(
       assessedCount: output.blueprintCoverage.assessedCount,
       partialCount: output.blueprintCoverage.partialCount,
       unassessedCount: output.blueprintCoverage.unassessedCount,
-      sections: output.blueprintCoverage.sections.map(mapSectionCoverage),
+      sections: output.blueprintCoverage.sections.map((sc) => mapSectionCoverage(sc, blueprint)),
     },
     weaknessSignals: output.weaknessTopics.map(mapWeaknessTopic),
-    sectionBreakdown: output.readiness.sectionBreakdown.map(mapSectionBreakdown),
+    sectionBreakdown: output.readiness.sectionBreakdown.map((bd) =>
+      mapSectionBreakdown(bd, blueprint),
+    ),
   };
 }

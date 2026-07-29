@@ -12,12 +12,7 @@
  * satisfies structurally. This keeps the engine free of Prisma imports.
  */
 
-import {
-  EXAM_SECTION_WEIGHTS,
-  EXAM_SECTION_DEPTH,
-  SECTION_LABELS,
-  ALL_SECTIONS,
-} from "./examBlueprint";
+import type { ExamBlueprint } from "./examBlueprint";
 import {
   BlueprintCoverage,
   CoverageStatus,
@@ -89,7 +84,10 @@ function prettifyTopic(topic: string): string {
  * Used for UI display only — which sections were touched and at what depth.
  * Does NOT feed into the readiness score (CoverageDepthScore handles that).
  */
-export function computeBlueprintCoverage(attempts: AttemptInput[]): BlueprintCoverage {
+export function computeBlueprintCoverage(
+  attempts: AttemptInput[],
+  blueprint: ExamBlueprint,
+): BlueprintCoverage {
   const countByType = new Map<string, number>();
 
   for (const attempt of attempts) {
@@ -97,16 +95,16 @@ export function computeBlueprintCoverage(attempts: AttemptInput[]): BlueprintCov
     countByType.set(t, (countByType.get(t) ?? 0) + 1);
   }
 
-  const sections = ALL_SECTIONS.map((section) => {
-    const count = countByType.get(section) ?? 0;
+  const sections = blueprint.sections.map((s) => {
+    const count = countByType.get(s.code) ?? 0;
     const status: CoverageStatus =
       count >= 2 ? "ASSESSED" : count === 1 ? "PARTIAL" : "UNASSESSED";
     return {
-      section,
-      label: SECTION_LABELS[section],
+      section: s.code,
+      label: s.label,
       attemptCount: count,
       status,
-      examWeight: EXAM_SECTION_WEIGHTS[section],
+      examWeight: s.weight,
     };
   });
 
@@ -134,7 +132,8 @@ export function computeBlueprintCoverage(attempts: AttemptInput[]): BlueprintCov
  */
 export function computeReadiness(
   attempts: AttemptInput[],
-  sessionsIncluded: number[]
+  sessionsIncluded: number[],
+  blueprint: ExamBlueprint,
 ): ReadinessResult {
   const totalAttempts = attempts.length;
   const sessionCount = sessionsIncluded.length;
@@ -146,11 +145,11 @@ export function computeReadiness(
       readinessScore: 0,
       band: "NOT_READY",
       sessionsIncluded,
-      sectionBreakdown: ALL_SECTIONS.map((section) => ({
-        section,
+      sectionBreakdown: blueprint.sections.map((s) => ({
+        section: s.code,
         accuracy: 0,
         attemptCount: 0,
-        weight: EXAM_SECTION_WEIGHTS[section],
+        weight: s.weight,
         contribution: 0,
         depthRatio: 0,
       })),
@@ -171,21 +170,21 @@ export function computeReadiness(
   let weightedTopicMastery = 0;
   let coverageDepthScore = 0;
 
-  const sectionBreakdown: SectionBreakdown[] = ALL_SECTIONS.map((section) => {
-    const data = bySection.get(section);
+  const sectionBreakdown: SectionBreakdown[] = blueprint.sections.map((s) => {
+    const data = bySection.get(s.code);
     const accuracy = data && data.total > 0 ? data.correct / data.total : 0;
-    const weight = EXAM_SECTION_WEIGHTS[section];
+    const weight = s.weight;
     const attemptCount = data?.total ?? 0;
 
     const contribution = accuracy * weight;
     weightedTopicMastery += contribution;
 
-    const expectedDepth = EXAM_SECTION_DEPTH[section];
+    const expectedDepth = s.questionCount;
     const depthRatio =
       expectedDepth > 0 ? Math.min(attemptCount, expectedDepth) / expectedDepth : 0;
     coverageDepthScore += depthRatio * weight;
 
-    return { section, accuracy, attemptCount, weight, contribution, depthRatio };
+    return { section: s.code, accuracy, attemptCount, weight, contribution, depthRatio };
   });
 
   const readinessScore = Math.min(
@@ -228,7 +227,8 @@ function scoreToBand(score: number): ReadinessResult["band"] {
  */
 export function computeWeaknessSignals(
   attempts: AttemptInput[],
-  topN = 3
+  blueprint: ExamBlueprint,
+  topN = 3,
 ): WeaknessTopic[] {
   // Accumulate per canonical topic
   const topicMap = new Map<
@@ -259,11 +259,9 @@ export function computeWeaknessSignals(
     if (wrongAttempts.length === 0) continue;
 
     // riskScore: sum of section weights for wrong attempts
-    // Cast via Record<string, number> because a.question.type comes from the
-    // AttemptInput interface (string), not the Prisma QuestionType enum.
-    const weights = EXAM_SECTION_WEIGHTS as Record<string, number>;
+    const weightByCode = new Map(blueprint.sections.map((s) => [s.code, s.weight]));
     const riskScore = wrongAttempts.reduce(
-      (sum, a) => sum + (weights[a.question.type] ?? 0),
+      (sum, a) => sum + (weightByCode.get(a.question.type) ?? 0),
       0
     );
 

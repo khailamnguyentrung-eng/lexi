@@ -38,9 +38,13 @@ export type CoverageStatus = "ASSESSED" | "PARTIAL" | "UNASSESSED";
 /**
  * Coverage for one exam section.
  * Used in BlueprintCoverageGrid UI and in CoverageDepthScore calculation.
+ *
+ * `section` is a plain string (ExamBlueprintSection.code), not QuestionType —
+ * A2 moved the blueprint into the DB, where a section code is whatever the
+ * seeded Exam's ExamSection rows say, not a closed Prisma enum.
  */
 export interface SectionCoverage {
-  section: QuestionType;
+  section: string;
   label: string;
   attemptCount: number;
   status: CoverageStatus;
@@ -61,9 +65,12 @@ export interface BlueprintCoverage {
 /**
  * Detailed breakdown of accuracy per section for readiness calculation.
  * Used to compute both WeightedTopicMastery and CoverageDepthScore.
+ *
+ * `section` is a plain string (ExamBlueprintSection.code) — see SectionCoverage
+ * above for why this is no longer QuestionType.
  */
 export interface SectionBreakdown {
-  section: QuestionType;
+  section: string;
   accuracy: number; // 0.0–1.0
   attemptCount: number;
   weight: number; // exam section weight (0.050–0.375)
