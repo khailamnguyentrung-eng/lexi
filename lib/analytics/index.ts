@@ -13,13 +13,7 @@
  *   contracts       → examBlueprint, types, service (mapping only — no Prisma)
  */
 
-// Blueprint configuration
-export {
-  EXAM_SECTION_WEIGHTS,
-  EXAM_SECTION_DEPTH,
-  SECTION_LABELS,
-  ALL_SECTIONS,
-} from "./examBlueprint";
+// Blueprint configuration — reads from the Exam/ExamSection tables (A2)
 export type { ExamBlueprint, ExamBlueprintSection } from "./examBlueprint";
 export { loadExamBlueprint } from "./examBlueprint";
 

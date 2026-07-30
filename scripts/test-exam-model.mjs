@@ -5,26 +5,27 @@
  *   - @@unique([examId, code]) chặn trùng kỹ năng trong cùng kỳ thi
  *   - @@unique([examId, code]) chặn trùng section trong cùng kỳ thi
  *   - onDelete: Restrict chặn xoá Exam khi còn ExamSkill trỏ về
- *   - dữ liệu hanoi-g10 seed ra khớp ĐÚNG hằng số examBlueprint.ts
+ *   - dữ liệu hanoi-g10 seed ra khớp ĐÚNG HANOI_G10_SECTIONS
  *
  * Tự tạo và tự dọn fixture trong `finally`, theo đúng quy ước
  * test-ku1-partb-review.mjs.
  *
- * DEVIATION so với task-2-brief.md: brief import thẳng `TOTAL_EXAM_QUESTIONS`
- * từ examBlueprint.ts, nhưng hằng số đó trong file thật không có `export`
- * (chỉ EXAM_SECTION_DEPTH/EXAM_SECTION_WEIGHTS/SECTION_LABELS/ALL_SECTIONS
- * được export) và examBlueprint.ts không được sửa. Nên bài test này tính lại
- * tổng bằng cách cộng EXAM_SECTION_DEPTH (vẫn từ export thật của
- * examBlueprint.ts) — cùng cách seedExams.ts đã làm — thay vì import một tên
- * không tồn tại.
+ * CẬP NHẬT (A2 Task 4): trước đây file này import `EXAM_SECTION_DEPTH` và
+ * `ALL_SECTIONS` từ lib/analytics/examBlueprint.ts (xem DEVIATION cũ về
+ * TOTAL_EXAM_QUESTIONS không export — lý do đó vẫn đúng lúc đó). Task 4 di
+ * dời các hằng số này (và tổng số câu) sang lib/services/exam/seedExams.ts
+ * làm nguồn sự thật duy nhất — grep xác nhận reader trước khi xoá phát hiện
+ * chính file này là một reader thật ngoài phạm vi app/lib mà brief Task 4
+ * quét (grep gốc không bao scripts/*.mjs). Import lại đổi sang seedExams.ts,
+ * không hardcode song song — vai trò "hardcode độc lập để đối chiếu DB" đã
+ * có scripts/test-exam-blueprint-parity.mjs đảm nhiệm.
  *
  * Run: node --import tsx scripts/test-exam-model.mjs
  */
 import { PrismaClient } from "@prisma/client";
-import { EXAM_SECTION_DEPTH, ALL_SECTIONS } from "../lib/analytics/examBlueprint.ts";
-import { HANOI_G10_SLUG } from "../lib/services/exam/seedExams.ts";
+import { HANOI_G10_SLUG, HANOI_G10_SECTIONS, TOTAL_EXAM_QUESTIONS } from "../lib/services/exam/seedExams.ts";
 
-const TOTAL_EXAM_QUESTIONS = Object.values(EXAM_SECTION_DEPTH).reduce((sum, n) => sum + n, 0);
+const sectionByCode = new Map(HANOI_G10_SECTIONS.map((s) => [s.code, s]));
 
 const prisma = new PrismaClient();
 let passed = 0;
@@ -102,7 +103,7 @@ async function main() {
     }
     ok("xoá Exam khi còn ExamSkill/ExamSection bị chặn", deleteRejected);
 
-    console.log("\nhanoi-g10 khớp hằng số examBlueprint.ts");
+    console.log("\nhanoi-g10 khớp HANOI_G10_SECTIONS (seedExams.ts)");
     const seeded = await prisma.exam.findUnique({
       where: { slug: HANOI_G10_SLUG },
       include: { sections: true, skills: true },
@@ -115,8 +116,8 @@ async function main() {
         `thực tế ${seeded.totalQuestions}`,
       );
       ok(
-        `số section = số phần trong ALL_SECTIONS (${ALL_SECTIONS.length})`,
-        seeded.sections.length === ALL_SECTIONS.length,
+        `số section = số phần trong HANOI_G10_SECTIONS (${HANOI_G10_SECTIONS.length})`,
+        seeded.sections.length === HANOI_G10_SECTIONS.length,
         `thực tế ${seeded.sections.length}`,
       );
       ok("có đủ 5 ExamSkill", seeded.skills.length === 5, `thực tế ${seeded.skills.length}`);
@@ -133,10 +134,10 @@ async function main() {
         seeded.skills.some((s) => s.code === "COMMUNICATION"),
       );
       const depthMismatch = seeded.sections.filter(
-        (s) => s.questionCount !== EXAM_SECTION_DEPTH[s.code],
+        (s) => s.questionCount !== sectionByCode.get(s.code)?.questionCount,
       );
       ok(
-        "questionCount từng section khớp EXAM_SECTION_DEPTH",
+        "questionCount từng section khớp HANOI_G10_SECTIONS",
         depthMismatch.length === 0,
         depthMismatch.map((s) => `${s.code}=${s.questionCount}`).join(", "),
       );

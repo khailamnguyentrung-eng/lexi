@@ -25,8 +25,10 @@
  *
  * ⚠️  These estimates have NOT been verified against an official published
  *     Hà Nội Grade 10 English exam paper. When an official paper becomes
- *     available, update EXAM_SECTION_DEPTH (and nowhere else — weights are
- *     derived automatically as depth / TOTAL_EXAM_QUESTIONS).
+ *     available, update `HANOI_G10_SECTIONS` in
+ *     `lib/services/exam/seedExams.ts` (and nowhere else — weights are
+ *     derived automatically as questionCount / totalQuestions, both here in
+ *     `loadExamBlueprint()` and in the DB row itself).
  *
  * | Section                    | Estimated | Basis                              |
  * |----------------------------|-----------|------------------------------------|
@@ -43,97 +45,31 @@
  * HOW TO UPDATE
  * -------------
  * 1. Obtain an official exam paper or DOET-published section breakdown.
- * 2. Update EXAM_SECTION_DEPTH values below (must still sum to 40).
+ * 2. Update `HANOI_G10_SECTIONS` in `lib/services/exam/seedExams.ts` (must
+ *    still sum to 40 questionCount). This file no longer holds the numbers —
+ *    see "WHERE THE NUMBERS LIVE NOW" below.
  * 3. Remove or downgrade the ⚠️ estimate comment for verified sections.
- * 4. Run: npm run test:analytics  (weight-sum and depth-sum tests will catch errors)
+ * 4. Re-seed (or update existing rows) and run:
+ *    npm run test:exam-blueprint-parity  (checks the seeded DB against the
+ *    hardcoded expectations in scripts/test-exam-blueprint-parity.mjs —
+ *    update that file's expectations too when the real numbers change).
  *
  * Used by analytics to calculate CoverageDepthScore (how thoroughly each
  * section was sampled) and WeightedTopicMastery (accuracy weighted by section
  * importance).
- */
-
-import { QuestionType } from "@prisma/client";
-
-/** Total questions on the real Hanoi Grade 10 English entrance exam. */
-const TOTAL_EXAM_QUESTIONS = 40;
-
-/**
- * Expected number of questions per section on the real exam.
- * Must sum to TOTAL_EXAM_QUESTIONS (40). Each value is the depth target
- * used by CoverageDepthScore.
  *
- * ⚠️  Section depths are estimated — see file header for verification status.
+ * WHERE THE NUMBERS LIVE NOW (A2 Task 4)
+ * ---------------------------------------
+ * The constants that used to sit in this file (EXAM_SECTION_DEPTH,
+ * EXAM_SECTION_WEIGHTS, SECTION_LABELS, ALL_SECTIONS, plus the private
+ * TOTAL_EXAM_QUESTIONS) have been removed. The numbers above are no longer
+ * dead documentation — they now live as rows in the `Exam`/`ExamSection`
+ * tables, seeded by `lib/services/exam/seedExams.ts` (see
+ * `HANOI_G10_SECTIONS` there), and read at runtime via `loadExamBlueprint()`
+ * below. `scripts/test-exam-blueprint-parity.mjs` hardcodes this same table
+ * independently and checks it against the DB, so this file drifting from the
+ * seeded numbers would turn that test red.
  */
-export const EXAM_SECTION_DEPTH: Record<QuestionType, number> = {
-  PHONETICS_SOUND: 2,
-  PHONETICS_STRESS: 2,
-  GRAMMAR_MCQ: 15, // includes communicative-function MCQs (same format)
-  ERROR_IDENTIFICATION: 2,
-  WORD_FORMATION: 4,
-  CLOZE: 5,
-  READING_COMPREHENSION: 5,
-  SENTENCE_TRANSFORMATION: 5,
-};
-
-/**
- * Exam section weights — each section's proportion of the 40-question exam.
- * Derived directly from EXAM_SECTION_DEPTH / TOTAL_EXAM_QUESTIONS.
- * Guaranteed to sum to exactly 1.0 as long as depths sum to 40.
- * Never edit these directly — update EXAM_SECTION_DEPTH instead.
- */
-export const EXAM_SECTION_WEIGHTS: Record<QuestionType, number> = {
-  PHONETICS_SOUND: EXAM_SECTION_DEPTH.PHONETICS_SOUND / TOTAL_EXAM_QUESTIONS,
-  PHONETICS_STRESS: EXAM_SECTION_DEPTH.PHONETICS_STRESS / TOTAL_EXAM_QUESTIONS,
-  GRAMMAR_MCQ: EXAM_SECTION_DEPTH.GRAMMAR_MCQ / TOTAL_EXAM_QUESTIONS,
-  ERROR_IDENTIFICATION: EXAM_SECTION_DEPTH.ERROR_IDENTIFICATION / TOTAL_EXAM_QUESTIONS,
-  WORD_FORMATION: EXAM_SECTION_DEPTH.WORD_FORMATION / TOTAL_EXAM_QUESTIONS,
-  CLOZE: EXAM_SECTION_DEPTH.CLOZE / TOTAL_EXAM_QUESTIONS,
-  READING_COMPREHENSION: EXAM_SECTION_DEPTH.READING_COMPREHENSION / TOTAL_EXAM_QUESTIONS,
-  SENTENCE_TRANSFORMATION: EXAM_SECTION_DEPTH.SENTENCE_TRANSFORMATION / TOTAL_EXAM_QUESTIONS,
-};
-
-/**
- * Human-readable section labels in Vietnamese.
- * Used in UI to display which sections were covered.
- */
-export const SECTION_LABELS: Record<QuestionType, string> = {
-  PHONETICS_SOUND: "Ngữ âm — âm thanh",
-  PHONETICS_STRESS: "Ngữ âm — trọng âm",
-  GRAMMAR_MCQ: "Ngữ pháp / Từ vựng",
-  ERROR_IDENTIFICATION: "Nhận diện lỗi sai",
-  WORD_FORMATION: "Hình thành từ",
-  CLOZE: "Điền vào chỗ trống",
-  READING_COMPREHENSION: "Đọc hiểu",
-  SENTENCE_TRANSFORMATION: "Viết lại câu",
-};
-
-/**
- * All QuestionType values in the order they appear on the real exam.
- * Used for UI rendering and analytics iteration.
- */
-export const ALL_SECTIONS: QuestionType[] = [
-  "PHONETICS_SOUND" as QuestionType,
-  "PHONETICS_STRESS" as QuestionType,
-  "GRAMMAR_MCQ" as QuestionType,
-  "ERROR_IDENTIFICATION" as QuestionType,
-  "WORD_FORMATION" as QuestionType,
-  "CLOZE" as QuestionType,
-  "READING_COMPREHENSION" as QuestionType,
-  "SENTENCE_TRANSFORMATION" as QuestionType,
-];
-
-// ──────────────────────────────────────────────────────────────────
-// A2 — blueprint đọc từ DB
-// ──────────────────────────────────────────────────────────────────
-// docs/superpowers/specs/2026-07-29-a2-blueprint-from-db-design.md
-//
-// Các hằng số phía trên là blueprint của MỘT kỳ thi, đóng cứng trong code.
-// Ba kiểu Record<QuestionType, …> của chúng chính là thứ chặn việc thêm kỳ
-// thi mới: nới enum QuestionType là gãy tsc ngay tại 3 chỗ đó.
-//
-// ExamBlueprint dùng `code: string` thay cho QuestionType — đó là toàn bộ
-// điểm mấu chốt. Hằng số cũ vẫn còn trong cửa sổ migration này; Task 4 xoá
-// chúng sau khi mọi reader đã chuyển sang đây.
 
 import { prisma } from "@/lib/db/prisma";
 
