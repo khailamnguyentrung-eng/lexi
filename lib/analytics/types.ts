@@ -105,7 +105,7 @@ export interface WrongAttemptDetail {
   correctOption: string; // A/B/C/D
   explanationVi: string;
   commonMistake: string | null;
-  questionType: QuestionType;
+  questionType: QuestionType | null;
   difficulty: Difficulty;
   // Option texts for pattern observation
   optionA: string;

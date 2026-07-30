@@ -59,7 +59,7 @@ export const HANOI_G10_SECTIONS: { code: string; label: string; questionCount: n
  * Derived, không chép tay: tổng questionCount của HANOI_G10_SECTIONS.
  * Giữ bất biến "tổng section = tổng đề" mà không hardcode 40.
  */
-export const TOTAL_EXAM_QUESTIONS: number = HANOI_G10_SECTIONS.reduce(
+export const HANOI_G10_TOTAL_QUESTIONS: number = HANOI_G10_SECTIONS.reduce(
   (sum, s) => sum + s.questionCount,
   0,
 );
@@ -124,7 +124,7 @@ export async function seedHanoiG10Exam(): Promise<SeedExamResult> {
       name: "Thi vào 10 — Tiếng Anh — Hà Nội",
       description:
         "Kỳ thi tuyển sinh vào lớp 10 môn Tiếng Anh của Sở GD&ĐT Hà Nội. Cấu trúc đề định nghĩa ở HANOI_G10_SECTIONS trong chính file này.",
-      totalQuestions: TOTAL_EXAM_QUESTIONS,
+      totalQuestions: HANOI_G10_TOTAL_QUESTIONS,
       timeAllowedMin: 60,
     },
   });

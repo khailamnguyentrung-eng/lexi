@@ -54,9 +54,11 @@ export async function assembleBlueprintTemplate(title: string): Promise<Assemble
   for (const section of blueprint.sections) {
     // Cast an toàn CHỈ VÌ hanoi-g10 được seed sao cho ExamSection.code trùng
     // khít giá trị QuestionType (seedExams.ts tạo section thẳng từ
-    // ALL_SECTIONS). Đây là tính chất riêng của kỳ thi này, không phải bất
-    // biến của ExamBlueprintSection.code — kiểu của trường đó cố ý là
-    // `string` để chấp nhận kỳ thi khác có section code bất kỳ.
+    // HANOI_G10_SECTIONS — hằng số ALL_SECTIONS đã bị xoá ở Task 4, các con
+    // số giờ sống ở lib/services/exam/seedExams.ts). Đây là tính chất riêng
+    // của kỳ thi này, không phải bất biến của ExamBlueprintSection.code —
+    // kiểu của trường đó cố ý là `string` để chấp nhận kỳ thi khác có section
+    // code bất kỳ.
     //
     // Kỳ thi khác (vd ielts-academic) hoàn toàn có thể có section code nằm
     // ngoài 8 giá trị QuestionType, và Prisma sẽ ném lỗi validate ngay khi
@@ -64,13 +66,21 @@ export async function assembleBlueprintTemplate(title: string): Promise<Assemble
     // chế chọn câu — không thể chỉ đổi slug "hanoi-g10" ở trên. Đường đi
     // đúng khi đó là lọc theo Question.examSectionId (chưa tồn tại).
     //
+    // Chiều ngược lại (đây là lý do `where` có thêm `examId: blueprint.examId`
+    // bên dưới): nếu câu hỏi của MỘT KỲ THI KHÁC vô tình hoặc cố ý mang đúng
+    // một giá trị QuestionType hợp lệ — vd một câu IELTS Reading bị ánh xạ
+    // `type = "READING_COMPREHENSION"` để qua validator import (đường ít trở
+    // lực nhất khi 8 giá trị QuestionType cũ là lựa chọn duy nhất) — nó sẽ lọt
+    // vào đúng section đó của MỌI kỳ thi cùng dùng type này, không một lỗi nào
+    // được ném, nếu chỉ lọc theo `type`. Lọc thêm theo `examId` chặn đường này.
+    //
     // KHÔNG thay bằng ExamSection.examSkillId: đó là kỹ năng CHÍNH của cả
     // section, không phải của từng câu — section GRAMMAR_MCQ chứa cả câu
     // COMMUNICATION, nên lọc theo skill sẽ bỏ sót chúng.
     const type = section.code as QuestionType;
     const needed = section.questionCount;
     const candidates = await prisma.question.findMany({
-      where: { type },
+      where: { type, examId: blueprint.examId },
       select: { id: true },
     });
     const picked = shuffle(candidates).slice(0, needed);
@@ -84,7 +94,7 @@ export async function assembleBlueprintTemplate(title: string): Promise<Assemble
   const template = await prisma.mockTestTemplate.create({
     data: {
       title,
-      description: "Mô phỏng cấu trúc đề thi tuyển sinh vào lớp 10 (Hà Nội) — xem lib/analytics/examBlueprint.ts",
+      description: "Mô phỏng cấu trúc đề thi tuyển sinh vào lớp 10 (Hà Nội)",
       timeLimitMin,
       totalQuestions: selectedQuestionIds.length,
       questions: {

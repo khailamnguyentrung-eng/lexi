@@ -232,6 +232,66 @@ test("question.type='constructor' (prototype-pollution edge case) → riskScore 
 });
 
 // ──────────────────────────────────────────────────────────────────
+// 4. question.type = null — schema.prisma's documented semantics (A2 Task 5):
+//    a question with `type = null` must contribute 0 to coverage/mastery, not
+//    crash and not silently get miscounted into some other section's depth.
+// ──────────────────────────────────────────────────────────────────
+
+console.log("\ntype = null attempt — locked semantics: contributes nothing to readiness");
+
+test("mixing in a type=null attempt does not change readinessScore vs. the same data without it", () => {
+  const baseAttempts = blueprint.sections.flatMap((s) =>
+    [1, 2, 3].map(() => makeAttempt(s.code, "grammar", true)),
+  );
+  const baseline = computeReadiness(baseAttempts, [1], blueprint);
+
+  const nullTypeAttempt = makeAttempt(null, "grammar", true);
+  const withNullType = computeReadiness([...baseAttempts, nullTypeAttempt], [1], blueprint);
+
+  assert(
+    withNullType.readinessScore === baseline.readinessScore,
+    `expected readinessScore unchanged (${baseline.readinessScore}), got ${withNullType.readinessScore}`,
+  );
+  assert(
+    withNullType.weightedTopicMastery === baseline.weightedTopicMastery,
+    `expected weightedTopicMastery unchanged (${baseline.weightedTopicMastery}), got ${withNullType.weightedTopicMastery}`,
+  );
+  assert(
+    withNullType.coverageDepthScore === baseline.coverageDepthScore,
+    `expected coverageDepthScore unchanged (${baseline.coverageDepthScore}), got ${withNullType.coverageDepthScore}`,
+  );
+});
+
+test("mixing in a type=null attempt does not change computeBlueprintCoverage vs. the same data without it", () => {
+  const baseAttempts = [
+    makeAttempt("GRAMMAR_MCQ", "grammar", true),
+    makeAttempt("GRAMMAR_MCQ", "grammar", true),
+  ];
+  const baseline = computeBlueprintCoverage(baseAttempts, blueprint);
+
+  const nullTypeAttempt = makeAttempt(null, "grammar", true);
+  const withNullType = computeBlueprintCoverage([...baseAttempts, nullTypeAttempt], blueprint);
+
+  assert(
+    withNullType.assessedCount === baseline.assessedCount &&
+      withNullType.partialCount === baseline.partialCount &&
+      withNullType.unassessedCount === baseline.unassessedCount,
+    `expected identical section-status counts, got assessed=${withNullType.assessedCount} ` +
+      `partial=${withNullType.partialCount} unassessed=${withNullType.unassessedCount} ` +
+      `vs baseline assessed=${baseline.assessedCount} partial=${baseline.partialCount} ` +
+      `unassessed=${baseline.unassessedCount}`,
+  );
+  for (const s of blueprint.sections) {
+    const before = baseline.sections.find((x) => x.section === s.code);
+    const after = withNullType.sections.find((x) => x.section === s.code);
+    assert(
+      before.attemptCount === after.attemptCount,
+      `expected ${s.code} attemptCount unchanged (${before.attemptCount}), got ${after.attemptCount}`,
+    );
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

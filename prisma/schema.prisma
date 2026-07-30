@@ -107,9 +107,13 @@ enum SkillCategory {
   WRITING_TRANSFORMATION
   // A2: gỡ chặn cho kỳ thi ngoài vào-10. Nới enum thay vì làm cột nullable
   // vì nullable phải sửa 17 file để xử lý null, còn nới chỉ đụng 1 bảng nhãn
-  // (lib/services/skillMatrix.ts). An toàn về ngữ nghĩa: analytics lọc theo
-  // examId, nên câu IELTS mang LISTENING tự động không lọt vào coverage
-  // của kỳ thi vào-10.
+  // (lib/services/skillMatrix.ts). KHÔNG an toàn "vì analytics lọc theo
+  // examId" — tầng analytics (sessionAnalytics.ts/repository.ts) hiện lọc
+  // theo programCurriculumId, không theo examId, nên tự nó không chặn câu
+  // IELTS mang LISTENING lọt vào coverage của kỳ thi vào-10. Scope theo
+  // examId mới chỉ có ở ExamBlueprint.examId (dùng bởi
+  // templateAssembler.ts để lọc question theo đúng kỳ thi khi bốc đề mock
+  // test) — chưa lan tới sessionAnalytics.ts/repository.ts.
   LISTENING
   SPEAKING
   MATH

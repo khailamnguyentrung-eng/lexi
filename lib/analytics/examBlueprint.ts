@@ -81,6 +81,7 @@ export interface ExamBlueprintSection {
 }
 
 export interface ExamBlueprint {
+  examId: string; // dùng để scope các truy vấn khác theo đúng kỳ thi này (xem C-2/templateAssembler.ts)
   slug: string;
   totalQuestions: number;
   timeAllowedMin: number;
@@ -111,6 +112,7 @@ export async function loadExamBlueprint(slug: string): Promise<ExamBlueprint> {
   }
 
   return {
+    examId: exam.id,
     slug: exam.slug,
     totalQuestions: exam.totalQuestions,
     timeAllowedMin: exam.timeAllowedMin,

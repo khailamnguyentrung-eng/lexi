@@ -36,7 +36,7 @@ export interface AttemptWithQuestion {
   question: {
     id: string;
     questionCode: string;
-    type: string;
+    type: string | null;
     skill: string;
     topic: string;
     difficulty: string;

@@ -12,6 +12,7 @@
  * satisfies structurally. This keeps the engine free of Prisma imports.
  */
 
+import type { QuestionType } from "@prisma/client";
 import type { ExamBlueprint } from "./examBlueprint";
 import {
   BlueprintCoverage,
@@ -47,7 +48,7 @@ export interface AttemptInput {
   question: {
     id: string;
     questionCode: string;
-    type: string;
+    type: string | null;
     skill: string;
     topic: string;
     difficulty: string;
@@ -88,7 +89,7 @@ export function computeBlueprintCoverage(
   attempts: AttemptInput[],
   blueprint: ExamBlueprint,
 ): BlueprintCoverage {
-  const countByType = new Map<string, number>();
+  const countByType = new Map<string | null, number>();
 
   for (const attempt of attempts) {
     const t = attempt.question.type;
@@ -158,7 +159,7 @@ export function computeReadiness(
     };
   }
 
-  const bySection = new Map<string, { correct: number; total: number }>();
+  const bySection = new Map<string | null, { correct: number; total: number }>();
   for (const attempt of attempts) {
     const type = attempt.question.type;
     const existing = bySection.get(type) ?? { correct: 0, total: 0 };
@@ -254,7 +255,7 @@ export function computeWeaknessSignals(
   }
 
   const results: WeaknessTopic[] = [];
-  const weightByCode = new Map(blueprint.sections.map((s) => [s.code, s.weight]));
+  const weightByCode = new Map<string | null, number>(blueprint.sections.map((s) => [s.code, s.weight]));
 
   for (const [topic, { totalAttempts, wrongAttempts, allAttempts }] of topicMap) {
     if (wrongAttempts.length === 0) continue;
@@ -276,7 +277,7 @@ export function computeWeaknessSignals(
       correctOption: a.question.correctOption,
       explanationVi: a.question.explanationVi,
       commonMistake: a.question.commonMistake,
-      questionType: a.question.type as any,
+      questionType: a.question.type as QuestionType | null,
       difficulty: a.question.difficulty as any,
       optionA: a.question.optionA,
       optionB: a.question.optionB,

@@ -20,10 +20,15 @@
  * không hardcode song song — vai trò "hardcode độc lập để đối chiếu DB" đã
  * có scripts/test-exam-blueprint-parity.mjs đảm nhiệm.
  *
+ * CẬP NHẬT (đợt dọn cuối A2, Sửa 5): hằng số đổi tên
+ * `TOTAL_EXAM_QUESTIONS` → `HANOI_G10_TOTAL_QUESTIONS` trong seedExams.ts —
+ * cho đối xứng với HANOI_G10_SECTIONS/HANOI_G10_SLUG. Import ở dưới cập
+ * nhật theo.
+ *
  * Run: node --import tsx scripts/test-exam-model.mjs
  */
 import { PrismaClient } from "@prisma/client";
-import { HANOI_G10_SLUG, HANOI_G10_SECTIONS, TOTAL_EXAM_QUESTIONS } from "../lib/services/exam/seedExams.ts";
+import { HANOI_G10_SLUG, HANOI_G10_SECTIONS, HANOI_G10_TOTAL_QUESTIONS } from "../lib/services/exam/seedExams.ts";
 
 const sectionByCode = new Map(HANOI_G10_SECTIONS.map((s) => [s.code, s]));
 
@@ -111,8 +116,8 @@ async function main() {
     ok("Exam hanoi-g10 tồn tại (db:seed đã chạy)", seeded !== null);
     if (seeded) {
       ok(
-        `totalQuestions = TOTAL_EXAM_QUESTIONS (${TOTAL_EXAM_QUESTIONS})`,
-        seeded.totalQuestions === TOTAL_EXAM_QUESTIONS,
+        `totalQuestions = HANOI_G10_TOTAL_QUESTIONS (${HANOI_G10_TOTAL_QUESTIONS})`,
+        seeded.totalQuestions === HANOI_G10_TOTAL_QUESTIONS,
         `thực tế ${seeded.totalQuestions}`,
       );
       ok(
@@ -142,7 +147,7 @@ async function main() {
         depthMismatch.map((s) => `${s.code}=${s.questionCount}`).join(", "),
       );
       const sum = seeded.sections.reduce((acc, s) => acc + s.questionCount, 0);
-      ok(`tổng questionCount = ${TOTAL_EXAM_QUESTIONS}`, sum === TOTAL_EXAM_QUESTIONS, `thực tế ${sum}`);
+      ok(`tổng questionCount = ${HANOI_G10_TOTAL_QUESTIONS}`, sum === HANOI_G10_TOTAL_QUESTIONS, `thực tế ${sum}`);
     }
   } finally {
     await prisma.examSection.deleteMany({ where: { examId: exam.id } });
