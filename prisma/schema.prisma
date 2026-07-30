@@ -161,11 +161,15 @@ model Passage {
 model Question {
   id           String        @id @default(cuid())
   questionCode String        @unique // human-readable, e.g. "DIAG36_Q01"
-  // Nullable từ A2. Chỉ còn 2 call site sống đọc trường này, cả hai là
-  // `=== "PHONETICS_SOUND"` để bật gạch chân khi render — với null cho ra
-  // false, tức đã an toàn sẵn, không cần sửa gì. Kỹ năng thật giờ nằm ở
-  // examSkillId; type là di sản (xem docs/superpowers/specs/
-  // 2026-07-28-multi-exam-data-model-design.md §4.6).
+  // Nullable từ A2. Hai call site render (`isUnderlineType === "PHONETICS_SOUND"`)
+  // đã an toàn với null. Còn 4 chỗ đọc trong lib/analytics/sessionAnalytics.ts
+  // (dòng 94, 163, 264, 279 — bị `as` cast ở lib/analytics/repository.ts:123 che
+  // khỏi tsc) dùng `type` làm key gộp nhóm — null không crash (không bao giờ được
+  // đọc lại vì section code không bao giờ null) nhưng làm câu đó góp 0 vào depth
+  // của mọi section thay vì được đánh dấu đúng. Chưa vá vì sessionAnalytics.ts
+  // đang đóng băng ở A2; theo dõi ở follow-up khi có dữ liệu type = null thật.
+  // Kỹ năng thật giờ nằm ở examSkillId; type là di sản (xem docs/superpowers/
+  // specs/2026-07-28-multi-exam-data-model-design.md §4.6).
   type         QuestionType?
   skill        SkillCategory
   difficulty   Difficulty    @default(MEDIUM)
