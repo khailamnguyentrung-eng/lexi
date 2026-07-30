@@ -17,7 +17,9 @@ import {
 
 interface QuizQuestion {
   id: string;
-  type: string;
+  // Nullable từ A2 (di sản — xem prisma/schema.prisma trên Question.type).
+  // `current.type === "PHONETICS_SOUND"` cho ra false khi null, đã an toàn.
+  type: string | null;
   topic: string;
   promptText: string;
   responseFormat: ResponseFormatName;

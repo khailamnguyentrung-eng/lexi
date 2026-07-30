@@ -105,6 +105,14 @@ enum SkillCategory {
   COMMUNICATION
   READING
   WRITING_TRANSFORMATION
+  // A2: gỡ chặn cho kỳ thi ngoài vào-10. Nới enum thay vì làm cột nullable
+  // vì nullable phải sửa 17 file để xử lý null, còn nới chỉ đụng 1 bảng nhãn
+  // (lib/services/skillMatrix.ts). An toàn về ngữ nghĩa: analytics lọc theo
+  // examId, nên câu IELTS mang LISTENING tự động không lọt vào coverage
+  // của kỳ thi vào-10.
+  LISTENING
+  SPEAKING
+  MATH
 }
 
 enum Difficulty {
@@ -153,7 +161,12 @@ model Passage {
 model Question {
   id           String        @id @default(cuid())
   questionCode String        @unique // human-readable, e.g. "DIAG36_Q01"
-  type         QuestionType
+  // Nullable từ A2. Chỉ còn 2 call site sống đọc trường này, cả hai là
+  // `=== "PHONETICS_SOUND"` để bật gạch chân khi render — với null cho ra
+  // false, tức đã an toàn sẵn, không cần sửa gì. Kỹ năng thật giờ nằm ở
+  // examSkillId; type là di sản (xem docs/superpowers/specs/
+  // 2026-07-28-multi-exam-data-model-design.md §4.6).
+  type         QuestionType?
   skill        SkillCategory
   difficulty   Difficulty    @default(MEDIUM)
   topic        String // e.g. "reported_speech" — required, normalized

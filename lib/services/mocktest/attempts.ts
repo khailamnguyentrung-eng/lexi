@@ -32,7 +32,8 @@ export class MockTestStateError extends Error {}
 export interface AttemptQuestionView {
   slotOrder: number;
   questionId: string;
-  type: string;
+  // Nullable từ A2 (di sản — xem prisma/schema.prisma trên Question.type).
+  type: string | null;
   topic: string;
   promptText: string;
   responseFormat: ResponseFormatName;
@@ -83,7 +84,7 @@ export async function resumeAttempt(userId: string, attemptId: string): Promise<
 }
 
 function buildQuestionViews(
-  slots: { order: number; question: QuestionFormatFields & { id: string; type: string; topic: string; promptText: string } }[]
+  slots: { order: number; question: QuestionFormatFields & { id: string; type: string | null; topic: string; promptText: string } }[]
 ): AttemptQuestionView[] {
   return slots.flatMap(({ order, question }) => {
     const payload = getQuestionPayload(question);

@@ -7,6 +7,9 @@ export const SKILL_LABELS_VI: Record<SkillCategory, string> = {
   COMMUNICATION: "Giao tiếp",
   READING: "Đọc hiểu",
   WRITING_TRANSFORMATION: "Viết & Biến đổi câu",
+  LISTENING: "Nghe",
+  SPEAKING: "Nói",
+  MATH: "Toán",
 };
 
 const ALL_SKILLS = Object.keys(SKILL_LABELS_VI) as SkillCategory[];
