@@ -58,6 +58,7 @@
     "test:exam-backfill": "node --import tsx scripts/test-exam-backfill.mjs",
     "test:exam-blueprint-parity": "node --import tsx scripts/test-exam-blueprint-parity.mjs",
     "test:exam-widening": "node --import tsx scripts/test-exam-widening.mjs",
+    "test:content-import-validator": "node --import tsx scripts/test-content-import-validator.mjs",
     "test:all": "node scripts/run-all-tests.mjs"
   },
   "prisma": {
