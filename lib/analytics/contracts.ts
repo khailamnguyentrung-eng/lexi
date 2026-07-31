@@ -112,7 +112,7 @@ export interface WrongAnswerItem {
   questionCode: string;
   promptText: string;
   selectedOption: string;   // A / B / C / D
-  correctOption: string;    // A / B / C / D
+  correctOption: string | null;    // A / B / C / D (null for non-legacy response formats — see Question.correctOption)
   explanationVi: string;
   commonMistake: string | null;
 }

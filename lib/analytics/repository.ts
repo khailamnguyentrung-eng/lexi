@@ -41,11 +41,11 @@ export interface AttemptWithQuestion {
     topic: string;
     difficulty: string;
     promptText: string;
-    optionA: string;
-    optionB: string;
-    optionC: string;
-    optionD: string;
-    correctOption: string;
+    optionA: string | null;
+    optionB: string | null;
+    optionC: string | null;
+    optionD: string | null;
+    correctOption: string | null;
     explanationVi: string;
     commonMistake: string | null;
   };
