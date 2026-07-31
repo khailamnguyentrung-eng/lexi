@@ -14,7 +14,7 @@
  * Run: npm run test:draft-answer-summary
  */
 import { renderToStaticMarkup } from "react-dom/server";
-import { DraftAnswerSummary } from "../app/admin/content-import/DraftAnswerSummary.tsx";
+import { DraftAnswerSummary } from "../app/admin/content-import/DraftAnswerSummary";
 
 let passed = 0;
 let failed = 0;
