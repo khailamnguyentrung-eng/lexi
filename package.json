@@ -59,6 +59,7 @@
     "test:exam-blueprint-parity": "node --import tsx scripts/test-exam-blueprint-parity.mjs",
     "test:exam-widening": "node --import tsx scripts/test-exam-widening.mjs",
     "test:content-import-validator": "node --import tsx scripts/test-content-import-validator.mjs",
+    "test:content-import-approve": "node --import tsx scripts/test-content-import-approve.mjs",
     "test:all": "node scripts/run-all-tests.mjs"
   },
   "prisma": {

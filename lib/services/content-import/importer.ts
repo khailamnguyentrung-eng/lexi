@@ -140,21 +140,26 @@ export async function approveDraft(draftId: string, reviewedByUserId: string) {
   const created = await prisma.question.create({
     data: {
       questionCode: data.questionCode,
-      type: data.type as never,
+      type: null,
       skill: data.skill as never,
       difficulty: data.difficulty as never,
       topic: data.topic,
       promptText: data.promptText,
-      optionA: data.optionA,
-      optionB: data.optionB,
-      optionC: data.optionC,
-      optionD: data.optionD,
-      correctOption: data.correctOption,
+      responseFormat: data.responseFormat as never,
+      payload: data.payload ?? null,
+      optionA: null,
+      optionB: null,
+      optionC: null,
+      optionD: null,
+      correctOption: null,
       explanationVi: data.explanationVi,
       commonMistake: data.commonMistake,
       learningObjective: data.learningObjective,
       source: data.source,
       sourceExam: data.sourceExam,
+      // examId/examSkillId left unset (null) — imported content goes into
+      // the general question bank, not a specific Exam. See spec
+      // docs/superpowers/specs/2026-07-30-b-import-multiformat-design.md non-goals.
     },
   });
 
