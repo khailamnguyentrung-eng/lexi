@@ -59,7 +59,7 @@ export async function normalizeLargeDocument(
   // back to mock, the whole run reports isFallback. A run that is 90% real and
   // 10% fabricated is not a clean run — reporting it as one would recreate the
   // exact bug this change fixes. First reason wins; they share a root cause.
-  let servedByAny: "claude" | "gemini" | "mock" | null = null;
+  let servedByAny: "claude" | "gemini" | "ollama" | "mock" | null = null;
   let runFallbackReason: string | null = null;
 
   for (const chunk of chunks) {

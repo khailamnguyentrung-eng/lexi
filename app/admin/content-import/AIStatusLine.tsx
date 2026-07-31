@@ -1,7 +1,7 @@
 import { providerLabel } from "@/lib/ai/providerLabel";
 
 export interface AIStatus {
-  name: "claude" | "gemini" | "mock";
+  name: "claude" | "gemini" | "ollama" | "mock";
   model: string | null;
   requestedProvider: string | null;
   isFallback: boolean;

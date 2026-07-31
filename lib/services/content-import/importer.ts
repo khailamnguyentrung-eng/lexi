@@ -47,7 +47,7 @@ export interface PersistDraftsSummary {
   validCount: number;
   invalidCount: number;
   retryCount: number;
-  servedBy: "claude" | "gemini" | "mock";
+  servedBy: "claude" | "gemini" | "ollama" | "mock";
   fallbackReason: string | null;
 }
 

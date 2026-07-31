@@ -54,7 +54,7 @@ export interface TaxonomyJobSummary {
   duplicatesSkipped: number; // matched an existing PENDING_REVIEW proposal
   alreadyInRegistry: number; // the model proposed a topic that already has a KnowledgeUnit
   rejectedByVerification: number; // evidenceQuote didn't check out — see taxonomyCore.ts
-  servedBy: "claude" | "gemini" | "mock";
+  servedBy: "claude" | "gemini" | "ollama" | "mock";
   fallbackReason: string | null;
   retryCount: number;
 }

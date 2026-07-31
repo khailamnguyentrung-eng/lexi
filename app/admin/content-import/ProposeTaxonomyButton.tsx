@@ -10,7 +10,7 @@ interface TaxonomyJobResult {
   duplicatesSkipped: number;
   alreadyInRegistry: number;
   rejectedByVerification: number;
-  servedBy: "claude" | "gemini" | "mock";
+  servedBy: "claude" | "gemini" | "ollama" | "mock";
   fallbackReason: string | null;
   retryCount: number;
 }
