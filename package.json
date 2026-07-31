@@ -31,6 +31,7 @@
     "test:learning-signals": "node scripts/test-learning-signals.mjs",
     "test:profile-v2": "node scripts/test-profile-v2.mjs",
     "test:question-formats": "node --import tsx scripts/test-question-formats.mjs",
+    "test:draft-answer-summary": "node --import tsx scripts/test-draft-answer-summary.tsx",
     "test:ku1-partb-review": "node --import tsx scripts/test-ku1-partb-review.mjs",
     "test:next-mission": "node --import tsx scripts/test-next-mission.mjs",
     "test:program-progress-summary": "node --import tsx scripts/test-program-progress-summary.mjs",
