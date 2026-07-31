@@ -41,14 +41,61 @@ function ok(name, condition, detail = "") {
 }
 
 async function main() {
-  console.log("\nKhông còn câu hỏi mồ côi");
-  const orphanExam = await prisma.question.count({ where: { examId: null } });
-  const orphanSkill = await prisma.question.count({ where: { examSkillId: null } });
-  ok("0 câu hỏi có examId null", orphanExam === 0, `thực tế ${orphanExam}`);
-  ok("0 câu hỏi có examSkillId null", orphanSkill === 0, `thực tế ${orphanSkill}`);
+  console.log("\nKhông còn câu hỏi mồ côi (chỉ tính trong phạm vi thế giới hanoi-g10 cũ)");
+  // RESCOPED sau tiểu dự án B (2026-07-31): assertion gốc đếm TOÀN BỘ bảng
+  // Question, đúng tại A1 vì khi đó mọi câu hỏi đều thuộc thế giới hanoi-g10 và
+  // PHẢI có examId/examSkillId sau backfill. Thiết kế đã duyệt của tiểu dự án B
+  // (content-import) cố ý để examId/examSkillId = null cho câu hỏi nhập vào kho
+  // chung (không gắn với Exam nào) — đó KHÔNG phải câu hỏi mồ côi, đó là trạng
+  // thái hợp lệ theo thiết kế. Đếm toàn bộ bảng như cũ sẽ luôn đỏ kể từ lần
+  // import thật đầu tiên, mãi mãi — không phải regression của backfill.
+  //
+  // Phân biệt hai tập bằng `Question.type`: approveDraft() (luồng import,
+  // lib/services/content-import/importer.ts) ghi `type: null` một cách tường
+  // minh cho MỌI câu hỏi nó tạo ra; luồng generate (aiDraftGenerator.ts) và
+  // toàn bộ câu hỏi hanoi-g10 cũ luôn có `type` khác null (xác nhận bằng truy
+  // vấn trực tiếp dev.db trước khi sửa: 120/120 câu type-not-null đều đã có
+  // examId + examSkillId; câu type-null duy nhất từng tồn tại — do live-check
+  // của Task 9 tạo ra — có examId null, đúng như thiết kế). Vậy `type IS NOT
+  // NULL` là ranh giới đáng tin cho "thuộc thế giới hanoi-g10 cũ, phải được
+  // backfill"; bất biến mồ côi CHỈ áp dụng cho tập con này.
+  const legacyWorld = { type: { not: null } };
+  const orphanExam = await prisma.question.count({ where: { ...legacyWorld, examId: null } });
+  const orphanSkill = await prisma.question.count({ where: { ...legacyWorld, examSkillId: null } });
+  ok(
+    "0 câu hỏi (type khác null, tức thế giới hanoi-g10 cũ) có examId null",
+    orphanExam === 0,
+    `thực tế ${orphanExam}`,
+  );
+  ok(
+    "0 câu hỏi (type khác null, tức thế giới hanoi-g10 cũ) có examSkillId null",
+    orphanSkill === 0,
+    `thực tế ${orphanSkill}`,
+  );
+
+  console.log("\nCâu hỏi type=null (kho chung, tiểu dự án B) không lẫn examId/examSkillId bất ngờ");
+  // Bổ sung: xác nhận TẤT CẢ câu hỏi type=null đều đúng là "kho chung" (examId
+  // null) — nếu một câu type=null lại có examId, đó là dữ liệu bất thường đáng
+  // xem lại (không khớp giả định approveDraft() ghi cả hai cùng null).
+  const typeNullTotal = await prisma.question.count({ where: { type: null } });
+  const typeNullWithExam = await prisma.question.count({ where: { type: null, examId: { not: null } } });
+  ok(
+    `mọi câu hỏi type=null (${typeNullTotal}) đều thuộc kho chung (examId null), không câu nào có examId bất ngờ`,
+    typeNullWithExam === 0,
+    `type=null: ${typeNullTotal}, trong đó có examId: ${typeNullWithExam}`,
+  );
 
   console.log("\nHai trục dữ liệu độc lập khớp nhau: cột enum vs cột FK qua ExamSkill");
+  // Cùng lỗi với orphan check ở trên, RESCOPED cùng đợt (2026-07-31): groupBy
+  // gốc đếm TOÀN BỘ bảng Question theo skill, nhưng byExamSkill (bên dưới)
+  // chỉ đếm qua quan hệ ExamSkill của riêng exam hanoi-g10 — tức đã bị giới
+  // hạn trong thế giới hanoi-g10 cũ. Nếu có câu hỏi kho chung (content-import,
+  // type=null) trùng skill với câu hỏi hanoi-g10, bySkillEnumRows sẽ đếm dư so
+  // với byExamSkill dù không có gì sai — false positive. Áp cùng ranh giới
+  // `legacyWorld` (type khác null) đã xác lập ở trên để hai trục so cùng một
+  // tập con.
   const bySkillEnumRows = await prisma.question.groupBy({
+    where: legacyWorld,
     by: ["skill"],
     _count: { _all: true },
   });

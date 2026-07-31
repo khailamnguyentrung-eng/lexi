@@ -1,14 +1,16 @@
 import { isClaudeConfigured, CLAUDE_MODEL } from "@/lib/ai/claudeClient";
 import { isGeminiConfigured, GEMINI_MODEL } from "@/lib/ai/geminiClient";
+import { isOllamaConfigured, OLLAMA_MODEL } from "@/lib/ai/ollamaClient";
 import { claudeProvider } from "./claudeProvider";
 import { geminiProvider } from "./geminiProvider";
+import { ollamaProvider } from "./ollamaProvider";
 import { mockProvider } from "./mockProvider";
 import { withRuntimeFallback } from "./withRuntimeFallback";
 import type { AIProvider } from "./types";
 
 export interface AIProviderStatus {
   provider: AIProvider;
-  name: "claude" | "gemini" | "mock";
+  name: "claude" | "gemini" | "ollama" | "mock";
   model: string | null; // null for mock — there's no real model behind it
   requestedProvider: string | null; // raw AI_PROVIDER value, or null if unset
   isFallback: boolean; // true if we couldn't honor what was requested/expected
@@ -61,13 +63,23 @@ export function getAIProviderStatus(): AIProviderStatus {
     );
   }
 
+  if (raw === "ollama" && isOllamaConfigured()) {
+    // No key to check — Ollama is local. Reachability (is the server
+    // actually running) is NOT checked here; a real call failing is
+    // handled the same way a dead Gemini quota is, by
+    // withRuntimeFallback.ts. Never auto-detected (see below) — must be
+    // opted into explicitly, since it's slow/CPU-bound and shouldn't
+    // silently become the default just because no cloud key is set.
+    return status(ollamaProvider, "ollama", OLLAMA_MODEL, raw, false, null);
+  }
+
   if (raw === "mock") {
     return status(mockProvider, "mock", null, raw, false, null);
   }
 
   if (raw) {
     // Unrecognized value — fall through to auto-detect, but say so.
-    const note = `AI_PROVIDER="${raw}" không hợp lệ (chỉ hỗ trợ mock|gemini|anthropic) — tự nhận diện theo API key sẵn có.`;
+    const note = `AI_PROVIDER="${raw}" không hợp lệ (chỉ hỗ trợ mock|gemini|anthropic|ollama) — tự nhận diện theo API key sẵn có.`;
     if (isGeminiConfigured()) return status(geminiProvider, "gemini", GEMINI_MODEL, raw, true, note);
     if (isClaudeConfigured()) return status(claudeProvider, "claude", CLAUDE_MODEL, raw, true, note);
     return status(mockProvider, "mock", null, raw, true, `${note} Không có API key nào được cấu hình.`);

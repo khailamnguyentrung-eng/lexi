@@ -53,11 +53,11 @@ export interface AttemptInput {
     topic: string;
     difficulty: string;
     promptText: string;
-    optionA: string;
-    optionB: string;
-    optionC: string;
-    optionD: string;
-    correctOption: string;
+    optionA: string | null;
+    optionB: string | null;
+    optionC: string | null;
+    optionD: string | null;
+    correctOption: string | null;
     explanationVi: string;
     commonMistake: string | null;
   };
@@ -353,10 +353,10 @@ function detectPatternObservation(
 
 function optionText(attempt: AttemptInput, option: string): string {
   switch (option) {
-    case "A": return attempt.question.optionA;
-    case "B": return attempt.question.optionB;
-    case "C": return attempt.question.optionC;
-    case "D": return attempt.question.optionD;
+    case "A": return attempt.question.optionA ?? option;
+    case "B": return attempt.question.optionB ?? option;
+    case "C": return attempt.question.optionC ?? option;
+    case "D": return attempt.question.optionD ?? option;
     default: return option;
   }
 }

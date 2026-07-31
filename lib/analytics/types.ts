@@ -102,16 +102,16 @@ export interface WrongAttemptDetail {
   questionCode: string;
   promptText: string;
   selectedOption: string; // A/B/C/D
-  correctOption: string; // A/B/C/D
+  correctOption: string | null; // A/B/C/D
   explanationVi: string;
   commonMistake: string | null;
   questionType: QuestionType | null;
   difficulty: Difficulty;
   // Option texts for pattern observation
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
+  optionA: string | null;
+  optionB: string | null;
+  optionC: string | null;
+  optionD: string | null;
 }
 
 /**

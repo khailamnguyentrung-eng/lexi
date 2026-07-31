@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { requireAdmin } from "@/lib/auth/admin";
-import { createContentSource } from "@/lib/services/content-import/importer";
+import { createContentSource, runImportJob } from "@/lib/services/content-import/importer";
 import { resolveStoragePath, toStoragePath } from "@/lib/services/content-import/storagePath";
 import type { ContentFileType } from "@prisma/client";
 
@@ -77,5 +77,19 @@ export async function POST(request: Request) {
     subject: typeof subject === "string" && subject ? subject : undefined,
   });
 
-  return NextResponse.json({ contentSource }, { status: 201 });
+  // Sub-project B: auto-run extraction synchronously on upload instead of
+  // requiring a separate manual "Chạy trích xuất" click. Accepted latency
+  // tradeoff, same precedent as M4.5 (see DECISION_LOG) — no background job
+  // queue exists in this Next.js serverless setup, so a large document's
+  // chunked AI calls (Task 6) run sequentially within this one request.
+  // A failure here does not fail the upload itself — the ContentSource row
+  // already exists and RunExtractionButton remains available to retry.
+  let job = null;
+  try {
+    job = await runImportJob(contentSource.id);
+  } catch (err) {
+    console.error(`Auto-extraction failed for ContentSource ${contentSource.id}:`, err);
+  }
+
+  return NextResponse.json({ contentSource, job }, { status: 201 });
 }

@@ -65,6 +65,13 @@ async function main() {
     }
 
     const payload = payloadFromLegacyColumns(q as QuestionFormatFields);
+    if (payload === null) {
+      // SINGLE_CHOICE but one or more legacy columns are null (sub-project B
+      // widened them) — nothing to derive from, and no payload already present
+      // (checked above), so this row genuinely has no answer key to backfill.
+      invalid.push({ code: q.questionCode, issues: ["responseFormat=SINGLE_CHOICE but legacy A/B/C/D columns are null"] });
+      continue;
+    }
     const result = validatePayload("SINGLE_CHOICE", payload);
 
     if (!result.valid) {

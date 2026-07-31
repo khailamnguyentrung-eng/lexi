@@ -31,6 +31,7 @@
     "test:learning-signals": "node scripts/test-learning-signals.mjs",
     "test:profile-v2": "node scripts/test-profile-v2.mjs",
     "test:question-formats": "node --import tsx scripts/test-question-formats.mjs",
+    "test:draft-answer-summary": "node --import tsx scripts/test-draft-answer-summary.tsx",
     "test:ku1-partb-review": "node --import tsx scripts/test-ku1-partb-review.mjs",
     "test:next-mission": "node --import tsx scripts/test-next-mission.mjs",
     "test:program-progress-summary": "node --import tsx scripts/test-program-progress-summary.mjs",
@@ -38,6 +39,7 @@
     "test:taxonomy-reader": "node --import tsx scripts/test-taxonomy-reader.mjs",
     "test:knowledge-coverage": "node scripts/test-knowledge-coverage.mjs",
     "test:knowledge-mapping": "node scripts/test-knowledge-mapping.mjs",
+    "test:content-import-parse-drafts": "node --import tsx scripts/test-content-import-parse-drafts.mjs",
     "test:content-validation": "node scripts/test-content-validation.mjs",
     "test:question-generation": "node scripts/test-question-generation-foundation.mjs",
     "test:ai-generation": "node scripts/test-ai-generation-integration.mjs",
@@ -57,6 +59,10 @@
     "test:exam-backfill": "node --import tsx scripts/test-exam-backfill.mjs",
     "test:exam-blueprint-parity": "node --import tsx scripts/test-exam-blueprint-parity.mjs",
     "test:exam-widening": "node --import tsx scripts/test-exam-widening.mjs",
+    "test:content-import-validator": "node --import tsx scripts/test-content-import-validator.mjs",
+    "test:content-import-approve": "node --import tsx scripts/test-content-import-approve.mjs",
+    "test:content-import-chunker": "node --import tsx scripts/test-content-import-chunker.mjs",
+    "test:content-import-cross-chunk": "node --import tsx scripts/test-content-import-cross-chunk.mjs",
     "test:all": "node scripts/run-all-tests.mjs"
   },
   "prisma": {

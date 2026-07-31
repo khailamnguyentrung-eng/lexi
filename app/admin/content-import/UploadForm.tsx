@@ -111,7 +111,7 @@ export function UploadForm() {
         disabled={!file || uploading}
         className="self-start rounded-xl bg-lexi-primary px-4 py-2 text-sm font-semibold text-white hover:bg-lexi-primary-dark disabled:opacity-60"
       >
-        {uploading ? "Đang tải lên..." : "Tải lên"}
+        {uploading ? "Đang tải lên và trích xuất... (có thể mất vài phút với file dài)" : "Tải lên"}
       </button>
     </form>
   );

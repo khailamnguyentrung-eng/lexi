@@ -30,7 +30,7 @@ export interface GenerateExplanationInput {
 export interface NormalizeQuestionsResult {
   drafts: NormalizedQuestionDraft[];
   retryCount: number; // how many JSON-repair retries this call needed (0 or 1)
-  servedBy: "claude" | "gemini" | "mock"; // who actually produced `drafts`
+  servedBy: "claude" | "gemini" | "ollama" | "mock"; // who actually produced `drafts`
   fallbackReason: string | null; // non-null only when a real provider failed and mock took over
 }
 
@@ -47,7 +47,7 @@ export interface GenerateQuestionsInput {
 export interface GenerateQuestionsResult {
   drafts: NormalizedQuestionDraft[];
   retryCount: number;
-  servedBy: "claude" | "gemini" | "mock"; // who actually produced `drafts`
+  servedBy: "claude" | "gemini" | "ollama" | "mock"; // who actually produced `drafts`
   fallbackReason: string | null; // non-null only when a real provider failed and mock took over
 }
 
@@ -80,7 +80,7 @@ export interface ProposedTaxonomyUnit {
 export interface ProposeTaxonomyResult {
   proposals: ProposedTaxonomyUnit[];
   retryCount: number;
-  servedBy: "claude" | "gemini" | "mock";
+  servedBy: "claude" | "gemini" | "ollama" | "mock";
   fallbackReason: string | null;
   // Count only, not the rejected items themselves — the reasons are
   // internal QA detail (see taxonomyCore.ts's verifyEvidenceQuotes), but
@@ -92,7 +92,7 @@ export interface ProposeTaxonomyResult {
 }
 
 export interface AIProvider {
-  name: "claude" | "gemini" | "mock";
+  name: "claude" | "gemini" | "ollama" | "mock";
   chat(params: { system: string; messages: ChatMessageInput[] }): Promise<string>;
   // Admin content-import only — never called from the student chatbot.
   // Returns *candidate* drafts; nothing in this layer ever creates a real

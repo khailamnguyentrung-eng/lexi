@@ -43,16 +43,16 @@ import type { GeneratedQuestionDraft, GenerationResult } from "./types";
 export function toGeneratedDraft(normalized: NormalizedQuestionDraft): GeneratedQuestionDraft {
   return {
     questionCode: normalized.questionCode,
-    type: normalized.type,
+    type: normalized.type!, // generation path always sets this — see normalizer.ts's NormalizedQuestionDraft split
     skill: normalized.skill,
     topic: normalized.topic,
     difficulty: normalized.difficulty as "EASY" | "MEDIUM" | "HARD",
     promptText: normalized.promptText,
-    optionA: normalized.optionA,
-    optionB: normalized.optionB,
-    optionC: normalized.optionC,
-    optionD: normalized.optionD,
-    correctOption: normalized.correctOption,
+    optionA: normalized.optionA!, // generation path always sets this — see normalizer.ts's NormalizedQuestionDraft split
+    optionB: normalized.optionB!, // generation path always sets this — see normalizer.ts's NormalizedQuestionDraft split
+    optionC: normalized.optionC!, // generation path always sets this — see normalizer.ts's NormalizedQuestionDraft split
+    optionD: normalized.optionD!, // generation path always sets this — see normalizer.ts's NormalizedQuestionDraft split
+    correctOption: normalized.correctOption!, // generation path always sets this — see normalizer.ts's NormalizedQuestionDraft split
     explanationVi: normalized.explanationVi,
     commonMistake: normalized.commonMistake,
     learningObjective: normalized.learningObjective,

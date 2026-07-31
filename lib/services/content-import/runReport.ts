@@ -4,7 +4,7 @@
 // API key — only ever carries provider name/model/counts/timing.
 export interface AIRunReport {
   aiStatus: {
-    name: "claude" | "gemini" | "mock";
+    name: "claude" | "gemini" | "ollama" | "mock";
     model: string | null;
     requestedProvider: string | null;
     isFallback: boolean;

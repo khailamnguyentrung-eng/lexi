@@ -204,11 +204,15 @@ model Question {
   // reform is additive on purpose. `payload` is authoritative once backfilled.
   // Drop these only after every reader moves to getQuestionPayload() — tracked
   // in docs/QUESTION_MODEL_REFORM.md §6, deliberately NOT done in one step.
-  optionA           String
-  optionB           String
-  optionC           String
-  optionD           String
-  correctOption     String // "A" | "B" | "C" | "D"
+  // Nullable từ sub-project B — nới cho câu hỏi không phải MCQ 4 lựa chọn
+  // (MATCHING/SHORT_TEXT/ORDERING/MULTI_CHOICE khác 4 lựa chọn). Vẫn ghi
+  // đủ 4 cột cho câu SINGLE_CHOICE do luồng generate tạo ra (không đổi);
+  // luồng import (content-import) ghi null, đọc qua getQuestionPayload().
+  optionA           String?
+  optionB           String?
+  optionC           String?
+  optionD           String?
+  correctOption     String? // "A" | "B" | "C" | "D" — null khi không phải legacy MCQ
   explanationVi     String
   commonMistake     String? // explicit normalization field
   learningObjective String? // explicit normalization field

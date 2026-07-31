@@ -73,7 +73,7 @@ export function validateQuestionCompleteness(q: QuestionValidationInput): Valida
     });
   }
 
-  if (!VALID_OPTIONS.has(q.correctOption)) {
+  if (!q.correctOption || !VALID_OPTIONS.has(q.correctOption)) {
     issues.push({
       type: "INVALID_CORRECT_OPTION",
       severity: "HIGH",

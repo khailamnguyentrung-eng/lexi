@@ -37,11 +37,14 @@ export interface QuestionValidationInput {
   id: string;
   topic: string;
   promptText: string;
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
-  correctOption: string;
+  // Nullable từ sub-project B — validateQuestionCompleteness() already treats
+  // null the same as missing/empty (?.toString().trim() / VALID_OPTIONS.has),
+  // so this is a mechanical type-widening, not a behavior change.
+  optionA: string | null;
+  optionB: string | null;
+  optionC: string | null;
+  optionD: string | null;
+  correctOption: string | null;
   explanationVi: string;
   difficulty: "EASY" | "MEDIUM" | "HARD";
   knowledgeUnitId: string | null;

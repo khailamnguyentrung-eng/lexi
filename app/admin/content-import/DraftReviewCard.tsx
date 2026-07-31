@@ -2,15 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { DraftAnswerSummary } from "./DraftAnswerSummary";
 
 interface DraftPreview {
   promptText: string;
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
-  correctOption: string;
   topic: string;
+  responseFormat?: string;
+  payload?: string;
 }
 
 export function DraftReviewCard({ draftId, data }: { draftId: string; data: DraftPreview }) {
@@ -35,13 +33,7 @@ export function DraftReviewCard({ draftId, data }: { draftId: string; data: Draf
     <div className="rounded-2xl border border-zinc-100 bg-white p-4">
       <p className="text-xs uppercase tracking-wide text-zinc-400">{data.topic}</p>
       <p className="mt-1 text-sm text-foreground">{data.promptText}</p>
-      <ul className="mt-2 grid grid-cols-2 gap-1 text-xs text-zinc-600">
-        <li>A. {data.optionA}</li>
-        <li>B. {data.optionB}</li>
-        <li>C. {data.optionC}</li>
-        <li>D. {data.optionD}</li>
-      </ul>
-      <p className="mt-1 text-xs text-emerald-600">Đáp án đúng: {data.correctOption}</p>
+      <DraftAnswerSummary responseFormat={data.responseFormat} payload={data.payload} />
       <div className="mt-3 flex gap-2">
         <button
           onClick={handleApprove}
