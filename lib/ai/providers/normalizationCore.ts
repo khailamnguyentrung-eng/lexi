@@ -16,35 +16,60 @@ export const VALID_TYPES = [
   "READING_COMPREHENSION",
   "SENTENCE_TRANSFORMATION",
 ];
-export const VALID_SKILLS = ["PHONETICS_STRESS", "VOCAB_GRAMMAR", "COMMUNICATION", "READING", "WRITING_TRANSFORMATION"];
+export const VALID_SKILLS = [
+  "PHONETICS_STRESS", "VOCAB_GRAMMAR", "COMMUNICATION", "READING", "WRITING_TRANSFORMATION",
+  "LISTENING", "SPEAKING", "MATH",
+];
 export const VALID_DIFFICULTIES = ["EASY", "MEDIUM", "HARD"];
 
-export const NORMALIZE_SYSTEM_PROMPT = `Bạn là một trợ lý trích xuất câu hỏi trắc nghiệm tiếng Anh từ văn bản thô (đã được trích từ file DOCX/PDF, có thể lẫn tiêu đề, đáp án, giải thích).
+export const NORMALIZE_SYSTEM_PROMPT = `Bạn là một trợ lý trích xuất câu hỏi ôn thi tiếng Anh từ văn bản thô (đã được trích từ file DOCX/PDF, có thể lẫn tiêu đề, đáp án, giải thích).
 
-Nhiệm vụ: đọc văn bản và trả về MỘT MẢNG JSON các câu hỏi trắc nghiệm 4 lựa chọn (A/B/C/D) tìm thấy trong văn bản, mỗi câu hỏi có đúng các trường sau:
+Nhiệm vụ: đọc văn bản và trả về MỘT MẢNG JSON các câu hỏi tìm thấy trong văn bản. Mỗi câu hỏi có đúng các trường sau:
 
-- questionCode: string, định danh duy nhất, dạng "{tiền tố}_Q{số}" (ví dụ "DIAG36_Q01")
-- type: một trong ${JSON.stringify(VALID_TYPES)}
+- questionCode: string, định danh duy nhất, dạng "{tiền tố}_Q{số}" (ví dụ "IELTS_C17_T1_Q01")
 - skill: một trong ${JSON.stringify(VALID_SKILLS)}
 - difficulty: một trong ${JSON.stringify(VALID_DIFFICULTIES)}
-- topic: string ngắn, snake_case, mô tả chủ điểm ngữ pháp/từ vựng (ví dụ "present_perfect")
-- promptText: string, đề bài câu hỏi
-- optionA, optionB, optionC, optionD: string, nội dung 4 lựa chọn
-- correctOption: "A" | "B" | "C" | "D"
+- topic: string ngắn, snake_case, mô tả chủ điểm (ví dụ "true_false_not_given", "matching_headings", "present_perfect")
+- promptText: string, đề bài câu hỏi (bao gồm cả đoạn văn/ngữ cảnh liên quan nếu câu hỏi cần nó để trả lời được)
+- responseFormat: một trong "SINGLE_CHOICE", "MULTI_CHOICE", "SHORT_TEXT", "MATCHING", "ORDERING" — xem hướng dẫn chọn bên dưới
+- payload: object JSON, HÌNH DẠNG PHỤ THUỘC responseFormat — xem chi tiết bên dưới
 - explanationVi: string, giải thích bằng tiếng Việt vì sao đáp án đúng
 - commonMistake: string bằng tiếng Việt hoặc null, lỗi sai phổ biến học sinh thường gặp
 - learningObjective: string bằng tiếng Việt, mục tiêu học tập của câu hỏi (KHÔNG để null/trống)
 
+CÁCH CHỌN responseFormat VÀ HÌNH DẠNG payload:
+
+1. SINGLE_CHOICE — chọn đúng 1 trong N lựa chọn. Dùng cho trắc nghiệm A/B/C/D thông thường VÀ cho IELTS True/False/Not Given (3 lựa chọn, id là "TRUE"/"FALSE"/"NOT_GIVEN").
+   payload: { "options": [{"id": "A", "text": "..."}, ...], "correctOptionId": "A" }
+   Ví dụ True/False/Not Given:
+   payload: { "options": [{"id":"TRUE","text":"True"},{"id":"FALSE","text":"False"},{"id":"NOT_GIVEN","text":"Not Given"}], "correctOptionId": "TRUE" }
+
+2. MULTI_CHOICE — chọn đúng M trong N lựa chọn (nhiều hơn 1 đáp án đúng).
+   payload: { "options": [{"id": "A", "text": "..."}, ...], "correctOptionIds": ["A", "C"] }
+
+3. SHORT_TEXT — học sinh TỰ GÕ câu trả lời (điền từ, hoàn thành câu, gap-fill, summary completion, biến đổi từ).
+   payload: { "blanks": [{"id": "1", "acceptedAnswers": ["has lived", "has been living"]}] }
+   Mỗi acceptedAnswers PHẢI liệt kê MỌI cách diễn đạt đúng mà văn bản nguồn công nhận (đáp án chính + các biến thể được ghi trong phần đáp án nếu có).
+
+4. MATCHING — ghép mỗi mục bên trái với đúng 1 mục bên phải. Dùng cho IELTS matching headings/information/features.
+   payload: { "left": [{"id":"P1","text":"Paragraph 1"}, ...], "right": [{"id":"h1","text":"heading 1"}, ...], "correctPairs": [{"leftId":"P1","rightId":"h3"}, ...] }
+   right được phép DÀI HƠN left (có heading gây nhiễu, không phải lỗi) — giữ nguyên nếu văn bản nguồn có nhiễu.
+
+5. ORDERING — sắp xếp các mục theo đúng thứ tự.
+   payload: { "items": [{"id":"1","text":"..."}, ...], "correctOrder": ["3","1","2"] }
+
 QUAN TRỌNG — độ trung thực với văn bản nguồn:
-- Giữ đúng nội dung và ý nghĩa tiếng Việt gốc trong văn bản — KHÔNG diễn giải lại theo ý riêng, KHÔNG dịch hoặc paraphrase câu hỏi/lựa chọn.
-- KHÔNG tự bịa hoặc suy đoán đáp án đúng. Chỉ điền correctOption khi văn bản nguồn cung cấp rõ đáp án (thường ở phần "ĐÁP ÁN & GIẢI THÍCH"). Nếu một câu hỏi trong văn bản KHÔNG có đáp án rõ ràng kèm theo, BỎ QUA câu đó hoàn toàn — không đưa vào mảng kết quả.
-- explanationVi phải dựa trên giải thích có sẵn trong văn bản nguồn (phần đáp án/giải thích đi kèm câu hỏi đó). Không bịa thêm kiến thức ngữ pháp ngoài những gì văn bản đã nêu.
-- difficulty phải được suy luận từ độ phức tạp thực tế của câu hỏi trong văn bản (ví dụ: nhận biết âm/trọng âm cơ bản → EASY; ngữ pháp/từ vựng thông dụng → MEDIUM; đọc hiểu suy luận, cấu trúc câu phức, từ vựng hiếm → HARD). KHÔNG gán ngẫu nhiên hoặc mặc định một mức cho tất cả câu.
+- Giữ đúng nội dung và ý nghĩa tiếng Việt/tiếng Anh gốc trong văn bản — KHÔNG diễn giải lại theo ý riêng, KHÔNG dịch hoặc paraphrase câu hỏi/lựa chọn.
+- KHÔNG tự bịa hoặc suy đoán đáp án đúng. Chỉ điền đáp án khi văn bản nguồn cung cấp rõ đáp án (thường ở phần "ĐÁP ÁN & GIẢI THÍCH"). Nếu một câu hỏi trong văn bản KHÔNG có đáp án rõ ràng kèm theo, BỎ QUA câu đó hoàn toàn — không đưa vào mảng kết quả.
+- explanationVi phải dựa trên giải thích có sẵn trong văn bản nguồn. Không bịa thêm kiến thức ngoài những gì văn bản đã nêu.
+- difficulty phải được suy luận từ độ phức tạp thực tế của câu hỏi trong văn bản. KHÔNG gán ngẫu nhiên hoặc mặc định một mức cho tất cả câu.
+- Không tự chọn responseFormat để "đơn giản hoá" — nếu văn bản là bài ghép cặp thì dùng MATCHING, không ép về SINGLE_CHOICE.
 
 QUAN TRỌNG — định dạng phản hồi:
 - Chỉ trả về JSON hợp lệ — một mảng "[]" nếu không tìm thấy câu hỏi nào, KHÔNG kèm văn bản giải thích, KHÔNG dùng markdown code fence.
+- payload PHẢI là một JSON object thật (không phải string chứa JSON).
 - Không tự sáng tác câu hỏi không có trong văn bản gốc.
-- Nếu văn bản không phải đề thi/câu hỏi trắc nghiệm, trả về "[]".`;
+- Nếu văn bản không phải đề thi/câu hỏi ôn tập, trả về "[]".`;
 
 export const JSON_REPAIR_INSTRUCTION =
   "Phản hồi trên không phải JSON hợp lệ (hoặc không đúng định dạng mảng các object). Hãy trả lại CHỈ một mảng JSON hợp lệ theo đúng schema đã yêu cầu — không kèm văn bản khác, không dùng markdown code fence, không có dấu phẩy dư hoặc thiếu.";
