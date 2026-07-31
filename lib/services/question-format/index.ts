@@ -50,12 +50,14 @@ import type {
 export interface QuestionFormatFields {
   responseFormat: ResponseFormatName;
   payload: string | null;
-  // Legacy MCQ columns — the fallback source before/if payload is absent.
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
-  correctOption: string;
+  // Nullable từ sub-project B — null cho mọi câu hỏi không phải SINGLE_CHOICE
+  // 4-lựa-chọn ghi bởi luồng generate cũ, và cho mọi câu do content-import
+  // ghi (luôn null, đọc qua payload).
+  optionA: string | null;
+  optionB: string | null;
+  optionC: string | null;
+  optionD: string | null;
+  correctOption: string | null;
 }
 
 export const LEGACY_OPTION_IDS = ["A", "B", "C", "D"] as const;
@@ -66,8 +68,14 @@ export const LEGACY_OPTION_IDS = ["A", "B", "C", "D"] as const;
  * Exported because the backfill and the accessor must derive it identically —
  * two implementations of "what did these four columns mean" is precisely the
  * kind of drift this reform exists to end.
+ *
+ * Returns null when any legacy column is null (content imported after
+ * sub-project B never populates them).
  */
-export function payloadFromLegacyColumns(q: QuestionFormatFields): SingleChoicePayload {
+export function payloadFromLegacyColumns(q: QuestionFormatFields): SingleChoicePayload | null {
+  if (q.optionA === null || q.optionB === null || q.optionC === null || q.optionD === null || q.correctOption === null) {
+    return null;
+  }
   return {
     options: [
       { id: "A", text: q.optionA },

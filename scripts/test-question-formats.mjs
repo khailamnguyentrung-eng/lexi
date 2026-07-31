@@ -359,6 +359,48 @@ for (const [name, format, payload] of [
   );
 }
 
+// ── Nullable legacy columns (sub-project B) ────────────────────────
+section("payloadFromLegacyColumns with null legacy columns");
+
+const nullLegacyRow = {
+  responseFormat: "SINGLE_CHOICE",
+  payload: null,
+  optionA: null,
+  optionB: null,
+  optionC: null,
+  optionD: null,
+  correctOption: null,
+};
+
+check(
+  "payloadFromLegacyColumns returns null when columns are null",
+  payloadFromLegacyColumns(nullLegacyRow),
+  null
+);
+check(
+  "getQuestionPayload returns null when payload absent and legacy columns are null",
+  getQuestionPayload(nullLegacyRow),
+  null
+);
+
+const populatedLegacyRow = {
+  responseFormat: "SINGLE_CHOICE",
+  payload: null,
+  optionA: "live",
+  optionB: "lives",
+  optionC: "living",
+  optionD: "lived",
+  correctOption: "A",
+};
+check(
+  "payloadFromLegacyColumns still works when columns are populated",
+  payloadFromLegacyColumns(populatedLegacyRow),
+  { options: [
+      { id: "A", text: "live" }, { id: "B", text: "lives" },
+      { id: "C", text: "living" }, { id: "D", text: "lived" },
+    ], correctOptionId: "A" }
+);
+
 console.log(`\n${"─".repeat(50)}`);
 console.log(`  passed: ${passed}   failed: ${failed}`);
 if (failed > 0) process.exitCode = 1;
