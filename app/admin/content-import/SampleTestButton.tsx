@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RunReportPanel } from "./RunReportPanel";
 import { EvaluationChecklist } from "./EvaluationChecklist";
+import { DraftAnswerSummary } from "./DraftAnswerSummary";
 import type { AIRunReport } from "@/lib/services/content-import/runReport";
 
 interface SampleDraft {
@@ -73,17 +74,11 @@ export function SampleTestButton({ contentSourceId }: { contentSourceId: string 
                     {draft.questionCode} — {isRejected ? "❌ Không hợp lệ" : "✅ Hợp lệ (chờ duyệt)"}
                   </p>
                   <p className="text-[11px] text-zinc-500">
-                    topic: {draft.topic} · type: {draft.type} · skill: {draft.skill} · difficulty:{" "}
+                    topic: {draft.topic} · skill: {draft.skill} · difficulty:{" "}
                     {draft.difficulty}
                   </p>
                   <p className="mt-1 text-zinc-700">{draft.promptText}</p>
-                  <ul className="mt-1 grid grid-cols-2 gap-x-2 text-zinc-600">
-                    <li>A. {draft.optionA}</li>
-                    <li>B. {draft.optionB}</li>
-                    <li>C. {draft.optionC}</li>
-                    <li>D. {draft.optionD}</li>
-                  </ul>
-                  <p className="mt-1 text-emerald-700">Đáp án AI chọn: {draft.correctOption}</p>
+                  <DraftAnswerSummary responseFormat={draft.responseFormat} payload={draft.payload} />
                   <p className="mt-1 text-zinc-600">Giải thích: {draft.explanationVi}</p>
                   {draft.learningObjective && (
                     <p className="mt-1 text-zinc-500">Mục tiêu học: {draft.learningObjective}</p>
