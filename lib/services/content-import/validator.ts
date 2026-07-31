@@ -53,7 +53,11 @@ export async function validateDrafts(drafts: NormalizedQuestionDraft[]): Promise
     if (!correctOption || !VALID_OPTIONS.includes(correctOption)) {
       errors.push(`correctOption không hợp lệ: "${draft.correctOption}" (phải là A/B/C/D)`);
     } else {
-      const optionByLetter: Record<string, string> = {
+      // Task 2 note: optionA-D are now optional on NormalizedQuestionDraft
+      // (see normalizer.ts) since the extraction path may populate
+      // responseFormat/payload instead. This validator still only checks
+      // the legacy MCQ shape — Task 4 widens it for responseFormat/payload.
+      const optionByLetter: Record<string, string | undefined> = {
         A: draft.optionA,
         B: draft.optionB,
         C: draft.optionC,

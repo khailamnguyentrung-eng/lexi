@@ -75,23 +75,26 @@ export function parseDrafts(rawResponse: string, sourceFileName: string): Normal
       throw new Error(`Model response item ${i} is not an object`);
     }
     const obj = item as Record<string, unknown>;
+    const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
     return {
       questionCode: String(obj.questionCode ?? ""),
-      type: typeof obj.type === "string" ? obj.type : "",
-      skill: typeof obj.skill === "string" ? obj.skill : "",
-      difficulty: typeof obj.difficulty === "string" ? obj.difficulty : "",
-      topic: typeof obj.topic === "string" ? obj.topic : "",
-      promptText: typeof obj.promptText === "string" ? obj.promptText : "",
-      optionA: typeof obj.optionA === "string" ? obj.optionA : "",
-      optionB: typeof obj.optionB === "string" ? obj.optionB : "",
-      optionC: typeof obj.optionC === "string" ? obj.optionC : "",
-      optionD: typeof obj.optionD === "string" ? obj.optionD : "",
-      correctOption: typeof obj.correctOption === "string" ? obj.correctOption.toUpperCase() : "",
-      explanationVi: typeof obj.explanationVi === "string" ? obj.explanationVi : "",
-      commonMistake: typeof obj.commonMistake === "string" ? obj.commonMistake : null,
-      learningObjective: typeof obj.learningObjective === "string" ? obj.learningObjective : null,
+      skill: str(obj.skill) ?? "",
+      difficulty: str(obj.difficulty) ?? "",
+      topic: str(obj.topic) ?? "",
+      promptText: str(obj.promptText) ?? "",
+      explanationVi: str(obj.explanationVi) ?? "",
+      commonMistake: str(obj.commonMistake) ?? null,
+      learningObjective: str(obj.learningObjective) ?? null,
       source: sourceFileName,
       sourceExam: null,
+      responseFormat: str(obj.responseFormat),
+      payload: str(obj.payload) ?? (obj.payload && typeof obj.payload === "object" ? JSON.stringify(obj.payload) : undefined),
+      type: str(obj.type),
+      optionA: str(obj.optionA),
+      optionB: str(obj.optionB),
+      optionC: str(obj.optionC),
+      optionD: str(obj.optionD),
+      correctOption: str(obj.correctOption) ? str(obj.correctOption)!.toUpperCase() : undefined,
     };
   });
 }

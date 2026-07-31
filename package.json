@@ -38,6 +38,7 @@
     "test:taxonomy-reader": "node --import tsx scripts/test-taxonomy-reader.mjs",
     "test:knowledge-coverage": "node scripts/test-knowledge-coverage.mjs",
     "test:knowledge-mapping": "node scripts/test-knowledge-mapping.mjs",
+    "test:content-import-parse-drafts": "node --import tsx scripts/test-content-import-parse-drafts.mjs",
     "test:content-validation": "node scripts/test-content-validation.mjs",
     "test:question-generation": "node scripts/test-question-generation-foundation.mjs",
     "test:ai-generation": "node scripts/test-ai-generation-integration.mjs",
