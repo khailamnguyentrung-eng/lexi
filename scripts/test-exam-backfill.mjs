@@ -86,7 +86,16 @@ async function main() {
   );
 
   console.log("\nHai trục dữ liệu độc lập khớp nhau: cột enum vs cột FK qua ExamSkill");
+  // Cùng lỗi với orphan check ở trên, RESCOPED cùng đợt (2026-07-31): groupBy
+  // gốc đếm TOÀN BỘ bảng Question theo skill, nhưng byExamSkill (bên dưới)
+  // chỉ đếm qua quan hệ ExamSkill của riêng exam hanoi-g10 — tức đã bị giới
+  // hạn trong thế giới hanoi-g10 cũ. Nếu có câu hỏi kho chung (content-import,
+  // type=null) trùng skill với câu hỏi hanoi-g10, bySkillEnumRows sẽ đếm dư so
+  // với byExamSkill dù không có gì sai — false positive. Áp cùng ranh giới
+  // `legacyWorld` (type khác null) đã xác lập ở trên để hai trục so cùng một
+  // tập con.
   const bySkillEnumRows = await prisma.question.groupBy({
+    where: legacyWorld,
     by: ["skill"],
     _count: { _all: true },
   });
