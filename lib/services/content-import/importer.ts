@@ -7,7 +7,7 @@
 import { prisma } from "@/lib/db/prisma";
 import type { ContentFileType, ContentSource } from "@prisma/client";
 import { fileExtractor } from "./extractor";
-import { normalizeWithAI } from "./ai-normalizer";
+import { normalizeLargeDocument } from "./normalizeLargeDocument";
 import type { NormalizedQuestionDraft } from "./normalizer";
 import { autoAssignKnowledgeUnit } from "@/lib/services/content-intelligence/questionKnowledgeMapping";
 
@@ -59,6 +59,9 @@ export interface PersistDraftsSummary {
 // means the REJECTED-on-invalid logic only lives in one place. Returns a
 // small summary (counts + retryCount) so callers can build a run report
 // (Task 4 in PROJECT_STATUS.md) without re-deriving it from the drafts.
+// As of sub-project B, this chunks the document (normalizeLargeDocument.ts)
+// instead of sending it as one AI call — see that file for the chunking
+// strategy.
 async function normalizeAndPersistDrafts(
   jobId: string,
   rawText: string,
@@ -69,12 +72,13 @@ async function normalizeAndPersistDrafts(
     data: { status: "EXTRACTED", rawExtractedText: rawText },
   });
 
-  const { results, retryCount, servedBy, fallbackReason } = await normalizeWithAI(rawText, contentSource);
+  const { batches, report } = await normalizeLargeDocument(rawText, contentSource);
+  const allResults = batches.flatMap((b) => b.drafts);
 
   await prisma.importJob.update({ where: { id: jobId }, data: { status: "REVIEWING" } });
 
   await prisma.extractedQuestionDraft.createMany({
-    data: results.map(({ draft, isValid, errors }) => ({
+    data: allResults.map(({ draft, isValid, errors }) => ({
       importJobId: jobId,
       normalizedData: JSON.stringify(draft),
       reviewStatus: isValid ? "PENDING_REVIEW" : "REJECTED",
@@ -83,11 +87,11 @@ async function normalizeAndPersistDrafts(
   });
 
   return {
-    validCount: results.filter((r) => r.isValid).length,
-    invalidCount: results.filter((r) => !r.isValid).length,
-    retryCount,
-    servedBy,
-    fallbackReason,
+    validCount: report.validCount,
+    invalidCount: report.invalidCount,
+    retryCount: report.retryCount,
+    servedBy: report.aiStatus.name,
+    fallbackReason: report.aiStatus.fallbackReason,
   };
 }
 

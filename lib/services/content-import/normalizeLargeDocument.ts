@@ -15,7 +15,7 @@
 // split an individual chunk further (that would require sub-splitting
 // mid-exam-part, which risks separating a question from its answer key).
 import type { ContentSource } from "@prisma/client";
-import { chunkBySections } from "./chunker";
+import { chunkDocument } from "./chunker";
 import { normalizeWithAI } from "./ai-normalizer";
 import type { ValidatedDraft } from "./validator";
 import { getAIProviderStatus } from "@/lib/ai/providers";
@@ -52,7 +52,7 @@ export async function normalizeLargeDocument(
   // knowable here — it comes back per-chunk on each normalizeWithAI result below.
   const { model, requestedProvider } = getAIProviderStatus();
   const overallStart = Date.now();
-  const chunks = chunkBySections(rawText);
+  const chunks = chunkDocument(rawText);
   const batches: BatchResult[] = [];
 
   // Aggregate the per-chunk truth. Rule, stated deliberately: if ANY chunk fell
