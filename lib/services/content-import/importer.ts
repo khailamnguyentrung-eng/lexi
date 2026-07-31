@@ -72,18 +72,55 @@ async function normalizeAndPersistDrafts(
     data: { status: "EXTRACTED", rawExtractedText: rawText },
   });
 
-  const { batches, report } = await normalizeLargeDocument(rawText, contentSource);
+  const { batches, report, duplicateQuestionCodesAcrossBatches, failedBatchCount } = await normalizeLargeDocument(
+    rawText,
+    contentSource,
+  );
   const allResults = batches.flatMap((b) => b.drafts);
+
+  // Finding 2 (final whole-branch review): if every chunk failed, this is a
+  // whole-run AI failure, not "no questions found" — propagate to
+  // runImportJob's catch block so the ImportJob is marked FAILED with a
+  // visible errorMessage, matching pre-chunking behavior. Partial failure
+  // (some but not all chunks failed) intentionally does NOT throw here —
+  // the successful chunks' drafts should still surface for review. TODO
+  // (future task): partial-failure chunk errors aren't currently recorded
+  // anywhere visible to the admin (e.g. on the ImportJob) — only a total
+  // failure is surfaced today.
+  if (batches.length > 0 && failedBatchCount === batches.length) {
+    const detail = batches
+      .filter((b) => b.error)
+      .map((b) => `${b.label}: ${b.error}`)
+      .join("; ");
+    throw new Error(`Toàn bộ các lô trích xuất đều thất bại: ${detail}`);
+  }
+
+  const duplicateCodes = new Set(duplicateQuestionCodesAcrossBatches);
 
   await prisma.importJob.update({ where: { id: jobId }, data: { status: "REVIEWING" } });
 
   await prisma.extractedQuestionDraft.createMany({
-    data: allResults.map(({ draft, isValid, errors }) => ({
-      importJobId: jobId,
-      normalizedData: JSON.stringify(draft),
-      reviewStatus: isValid ? "PENDING_REVIEW" : "REJECTED",
-      reviewNote: isValid ? null : `Tự động từ chối do lỗi kiểm tra: ${errors.join("; ")}`,
-    })),
+    data: allResults.map(({ draft, isValid, errors }) => {
+      // Finding 1 (final whole-branch review): validateDrafts() only dedupes
+      // questionCode within a single chunk. normalizeLargeDocument() already
+      // computes cross-chunk duplicates — force REJECTED for those even if
+      // the per-chunk validator considered the draft otherwise valid, or the
+      // second copy will hit the DB's unique constraint on approval.
+      if (duplicateCodes.has(draft.questionCode)) {
+        return {
+          importJobId: jobId,
+          normalizedData: JSON.stringify(draft),
+          reviewStatus: "REJECTED" as const,
+          reviewNote: `Tự động từ chối do trùng questionCode giữa nhiều lô trích xuất: ${draft.questionCode}`,
+        };
+      }
+      return {
+        importJobId: jobId,
+        normalizedData: JSON.stringify(draft),
+        reviewStatus: isValid ? "PENDING_REVIEW" : "REJECTED",
+        reviewNote: isValid ? null : `Tự động từ chối do lỗi kiểm tra: ${errors.join("; ")}`,
+      };
+    }),
   });
 
   return {
@@ -139,7 +176,29 @@ export async function approveDraft(draftId: string, reviewedByUserId: string) {
     where: { id: draftId },
     include: { importJob: { select: { contentSourceId: true } } },
   });
+
+  // Finding 4 (final whole-branch review): validator.ts's header comment
+  // claims "importer.ts marks them REJECTED on creation so they can never
+  // be approved into a real Question" — but that guarantee was previously
+  // enforced only by the admin UI not listing rejected drafts, not by this
+  // function. Enforce it here directly.
+  if (draft.reviewStatus !== "PENDING_REVIEW") {
+    throw new Error(
+      `Không thể duyệt draft ở trạng thái "${draft.reviewStatus}" — chỉ duyệt được draft đang chờ duyệt (PENDING_REVIEW)`,
+    );
+  }
+
   const data: NormalizedQuestionDraft = JSON.parse(draft.normalizedData);
+
+  // Guard against a legacy-shape or malformed draft silently creating an
+  // answerless Question (responseFormat defaulting via schema default,
+  // payload null, all legacy columns also null — getQuestionPayload()
+  // would return null for it forever with no error raised anywhere).
+  if (!data.responseFormat || !data.payload) {
+    throw new Error(
+      `Draft thiếu responseFormat hoặc payload, không thể tạo Question: ${draftId}`,
+    );
+  }
 
   const created = await prisma.question.create({
     data: {

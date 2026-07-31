@@ -62,6 +62,7 @@
     "test:content-import-validator": "node --import tsx scripts/test-content-import-validator.mjs",
     "test:content-import-approve": "node --import tsx scripts/test-content-import-approve.mjs",
     "test:content-import-chunker": "node --import tsx scripts/test-content-import-chunker.mjs",
+    "test:content-import-cross-chunk": "node --import tsx scripts/test-content-import-cross-chunk.mjs",
     "test:all": "node scripts/run-all-tests.mjs"
   },
   "prisma": {

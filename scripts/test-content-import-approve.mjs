@@ -78,6 +78,17 @@ async function main() {
     check("examSkillId is null", created.examSkillId, null);
     check("responseFormat is SINGLE_CHOICE", created.responseFormat, "SINGLE_CHOICE");
     check("payload round-trips via getQuestionPayload", getQuestionPayload(created), draftPayload);
+
+    // Finding 4 (final whole-branch review): re-approving the same draft
+    // must now throw instead of silently no-op-ing or double-creating —
+    // its reviewStatus is APPROVED after the call above.
+    let rejectedGuardThrew = false;
+    try {
+      await approveDraft(draft.id, admin.id);
+    } catch {
+      rejectedGuardThrew = true;
+    }
+    check("re-approving an already-APPROVED draft throws", rejectedGuardThrew, true);
   } finally {
     await prisma.extractedQuestionDraft.deleteMany({ where: { importJobId: importJob.id } });
     const q = await prisma.question.findFirst({ where: { questionCode: { startsWith: "TESTAPPROVE_" } } });
@@ -89,6 +100,58 @@ async function main() {
     await prisma.pendingKnowledgeUnit.deleteMany({ where: { contentSourceId: contentSource.id } });
     await prisma.importJob.delete({ where: { id: importJob.id } });
     await prisma.contentSource.delete({ where: { id: contentSource.id } });
+  }
+
+  // Finding 4b (final whole-branch review): a malformed draft (legacy-shape
+  // or corrupted normalizedData missing responseFormat/payload) must throw
+  // on approve instead of silently creating an answerless Question.
+  const contentSource2 = await createContentSource({
+    userId: admin.id,
+    fileName: "test-content-import-approve-malformed-fixture.docx",
+    fileType: "DOCX",
+    storagePath: "test/does-not-exist.docx",
+  });
+  const importJob2 = await prisma.importJob.create({
+    data: { contentSourceId: contentSource2.id, status: "REVIEWING" },
+  });
+  const malformedData = JSON.stringify({
+    questionCode: `TESTAPPROVE_MALFORMED_${Date.now()}`,
+    skill: "READING",
+    difficulty: "MEDIUM",
+    topic: "true_false_not_given",
+    promptText: "test prompt",
+    // responseFormat and payload deliberately omitted
+    explanationVi: "test explanation",
+    commonMistake: null,
+    learningObjective: "test objective",
+    source: "test",
+    sourceExam: null,
+  });
+  const malformedDraft = await prisma.extractedQuestionDraft.create({
+    data: { importJobId: importJob2.id, normalizedData: malformedData, reviewStatus: "PENDING_REVIEW" },
+  });
+  try {
+    let malformedGuardThrew = false;
+    try {
+      await approveDraft(malformedDraft.id, admin.id);
+    } catch {
+      malformedGuardThrew = true;
+    }
+    check("approving a draft missing responseFormat/payload throws", malformedGuardThrew, true);
+
+    const leaked = await prisma.question.findFirst({
+      where: { questionCode: { startsWith: "TESTAPPROVE_MALFORMED_" } },
+    });
+    check("no Question was created for the malformed draft", leaked, null);
+  } finally {
+    await prisma.extractedQuestionDraft.deleteMany({ where: { importJobId: importJob2.id } });
+    const leaked = await prisma.question.findFirst({
+      where: { questionCode: { startsWith: "TESTAPPROVE_MALFORMED_" } },
+    });
+    if (leaked) await prisma.question.delete({ where: { id: leaked.id } });
+    await prisma.pendingKnowledgeUnit.deleteMany({ where: { contentSourceId: contentSource2.id } });
+    await prisma.importJob.delete({ where: { id: importJob2.id } });
+    await prisma.contentSource.delete({ where: { id: contentSource2.id } });
   }
 
   console.log(`\n${"─".repeat(50)}`);
