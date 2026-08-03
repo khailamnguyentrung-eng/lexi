@@ -10,6 +10,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "backfill:question-exam": "node --import tsx scripts/backfill-question-exam.mjs",
     "test:chat": "node --env-file=.env --import tsx ./scripts/test-chat.ts",
+    "test:classify-source-file": "node --import tsx scripts/test-classify-source-file.mjs",
     "test:analytics": "node scripts/test-analytics.mjs",
     "test:analytics-engine": "node --import tsx scripts/test-analytics-engine.mjs",
     "test:analytics-scope": "node --import tsx scripts/test-analytics-scope.mjs",
