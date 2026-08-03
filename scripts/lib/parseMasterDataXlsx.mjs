@@ -77,11 +77,23 @@ export async function parseMasterDataXlsx(xlsxFilePath) {
   const headerRow = rows[0] ?? {};
   const columnFor = {};
   for (const [key, label] of Object.entries(HEADER_LABELS)) {
-    const found = Object.entries(headerRow).find(([, value]) => value === label);
+    const found = Object.entries(headerRow).find(([, value]) => value?.trim() === label);
     if (found) columnFor[key] = found[0];
   }
   if (!columnFor.name) {
     throw new Error(`${xlsxFilePath}: could not find a "${HEADER_LABELS.name}" header column`);
+  }
+  // domain/skill/difficulty/status are informational hints, not required —
+  // don't throw if their header is missing/renamed, but don't fail silently
+  // either: warn so a renamed/reordered/whitespace-mismatched column shows
+  // up as an obvious signal instead of every row quietly getting `null`.
+  for (const [key, label] of Object.entries(HEADER_LABELS)) {
+    if (key === "name") continue;
+    if (!columnFor[key]) {
+      console.warn(
+        `parseMasterDataXlsx: could not find a "${label}" header column in ${xlsxFilePath} — all rows will get null for "${key}"`,
+      );
+    }
   }
 
   const hints = new Map();

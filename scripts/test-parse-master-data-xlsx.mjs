@@ -39,7 +39,8 @@ async function main() {
   check("known real row: 00. FILE FULL TUẦN 4.pdf exists", knownRow !== undefined, true);
   check("known real row: domain is THPT", knownRow?.domain, "THPT");
   check("known real row: skill is VERBAL", knownRow?.skill, "VERBAL");
-  check("known real row: DOMAIN column is READING", knownRow?.difficulty !== undefined, true);
+  check("known real row: difficulty is Level 2 - Medium", knownRow?.difficulty, "Level 2 - Medium");
+  check("known real row: status is Cần rà soát", knownRow?.status, "Cần rà soát");
 
   console.log(`\n${"─".repeat(50)}`);
   console.log(`  passed: ${passed}   failed: ${failed}`);
