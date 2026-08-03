@@ -15,6 +15,22 @@ const SPREADSHEET_EXTENSIONS = new Set([".xlsx", ".xls"]);
 const DOC_EXTENSIONS = new Set([".docx", ".doc"]);
 const PDF_TEXT_LAYER_MIN_CHARS = 50;
 
+// pdf-parse's joined getText() output inserts a "-- N of M --" separator
+// between every page's text, even for pages with zero real text content —
+// for a genuinely scanned multi-page PDF this boilerplate alone can exceed
+// PDF_TEXT_LAYER_MIN_CHARS (measured: a 24-page scanned PDF returns 423 raw
+// characters that are 100% separator noise, none of it real text). Strip
+// the separators before measuring length so "has a text layer" reflects
+// actual extracted content, not how many pages the scanned file happens to
+// have.
+const PDF_PAGE_SEPARATOR_RE = /--\s*\d+\s*of\s*\d+\s*--/g;
+
+// Pure — no I/O. Strips pdf-parse's page-separator boilerplate and returns
+// the length of what's left, trimmed.
+export function measureRealTextLength(text) {
+  return text.replace(PDF_PAGE_SEPARATOR_RE, "").trim().length;
+}
+
 function extensionOf(relativePath) {
   const dot = relativePath.lastIndexOf(".");
   return dot === -1 ? "" : relativePath.slice(dot).toLowerCase();

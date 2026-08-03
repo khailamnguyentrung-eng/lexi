@@ -5,7 +5,7 @@
  *
  * Run: npm run test:classify-source-file
  */
-import { classifySourceFile } from "./lib/classifySourceFile.mjs";
+import { classifySourceFile, measureRealTextLength } from "./lib/classifySourceFile.mjs";
 
 let passed = 0;
 let failed = 0;
@@ -90,6 +90,17 @@ check(
   "extension matching is case-insensitive",
   classifySourceFile({ relativePath: "a/b/UPPER.PDF", extractedTextLength: 100 }),
   { status: "pending", reason: null }
+);
+
+check(
+  "measureRealTextLength: pure separator boilerplate measures to 0",
+  measureRealTextLength("-- 1 of 24 --\n-- 2 of 24 --"),
+  0
+);
+check(
+  "measureRealTextLength: separator boilerplate plus real content measures to just the content",
+  measureRealTextLength("-- 1 of 2 --\nHello world\n-- 2 of 2 --"),
+  "Hello world".length
 );
 
 console.log(`\n${"─".repeat(50)}`);
