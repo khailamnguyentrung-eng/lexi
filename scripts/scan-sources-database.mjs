@@ -6,8 +6,9 @@
 //
 // Run: node --import tsx scripts/scan-sources-database.mjs
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import path from "node:path";
-import { classifySourceFile } from "./lib/classifySourceFile.mjs";
+import { classifySourceFile, measureRealTextLength } from "./lib/classifySourceFile.mjs";
 import { parseMasterDataXlsx } from "./lib/parseMasterDataXlsx.mjs";
 import { extractPdfText } from "../lib/services/content-import/adapters/pdf.ts";
 
@@ -20,16 +21,6 @@ const OUTPUT_PATH = path.join(
   "state",
   "2026-07-31-c-import-progress.json"
 );
-
-// pdf-parse's joined getText() output inserts a "-- N of M --" separator
-// between every page's text, even for pages with zero real text content —
-// for a genuinely scanned multi-page PDF this boilerplate alone can exceed
-// classifySourceFile's PDF_TEXT_LAYER_MIN_CHARS threshold (measured: a
-// 24-page scanned PDF returns 423 raw characters that are 100% separator
-// noise, none of it real text). Strip the separators before measuring
-// length so "has a text layer" reflects actual extracted content, not
-// how many pages the scanned file happens to have.
-const PDF_PAGE_SEPARATOR_RE = /--\s*\d+\s*of\s*\d+\s*--/g;
 
 async function walkFiles(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -46,13 +37,31 @@ async function walkFiles(dir) {
 }
 
 async function main() {
+  if (fsSync.existsSync(OUTPUT_PATH) && !process.argv.includes("--force")) {
+    console.error(
+      `Output already exists at ${OUTPUT_PATH} — refusing to overwrite accumulated progress. ` +
+        `Pass --force to overwrite anyway.`
+    );
+    return;
+  }
+
   console.log(`Scanning ${SOURCE_ROOT} ...`);
   const allFiles = await walkFiles(SOURCE_ROOT);
   console.log(`Found ${allFiles.length} files.`);
 
+  // How many real on-disk files share each normalized basename — needed to
+  // detect basename collisions (e.g. "Test 1.pdf" existing in 7 different
+  // folders) so a hint isn't silently misattached to unrelated files.
+  const basenameCounts = new Map();
+  for (const fullPath of allFiles) {
+    const key = path.basename(fullPath).toLowerCase().trim();
+    basenameCounts.set(key, (basenameCounts.get(key) ?? 0) + 1);
+  }
+
   console.log(`Reading Master_Data.xlsx hints ...`);
   const hints = await parseMasterDataXlsx(MASTER_DATA_PATH);
   console.log(`Loaded ${hints.size} hint rows.`);
+  const matchedHintKeys = new Set();
 
   const files = [];
   let pdfChecked = 0;
@@ -65,7 +74,7 @@ async function main() {
       pdfChecked++;
       try {
         const text = await extractPdfText(fullPath);
-        extractedTextLength = text.replace(PDF_PAGE_SEPARATOR_RE, "").trim().length;
+        extractedTextLength = measureRealTextLength(text);
       } catch (err) {
         console.warn(`  ! failed to extract text from ${relativePath}: ${err.message}`);
         extractedTextLength = 0;
@@ -74,16 +83,26 @@ async function main() {
     }
 
     const { status, reason } = classifySourceFile({ relativePath, extractedTextLength });
-    const fileName = path.basename(fullPath);
-    const hint = hints.get(fileName);
+    // Case-insensitive lookup: Windows filenames are case-insensitive, and
+    // the spreadsheet's names sometimes differ from the on-disk basename
+    // only in case (e.g. on-disk "test 1.pdf" vs. spreadsheet "Test 1.pdf").
+    const fileNameKey = path.basename(fullPath).toLowerCase().trim();
+    const hint = hints.get(fileNameKey);
+
+    let masterDataHint = null;
+    if (hint) {
+      matchedHintKeys.add(fileNameKey);
+      const isAmbiguous = (basenameCounts.get(fileNameKey) ?? 0) > 1;
+      masterDataHint = isAmbiguous
+        ? { domain: hint.domain, skill: hint.skill, difficulty: hint.difficulty, ambiguousMatch: true }
+        : { domain: hint.domain, skill: hint.skill, difficulty: hint.difficulty };
+    }
 
     files.push({
       relativePath,
       status,
       reason,
-      masterDataHint: hint
-        ? { domain: hint.domain, skill: hint.skill, difficulty: hint.difficulty }
-        : null,
+      masterDataHint,
       questionCodes: [],
       contentSourceId: null,
       processedAt: null,
@@ -114,6 +133,12 @@ async function main() {
     byReason[f.reason] = (byReason[f.reason] ?? 0) + 1;
   }
   console.log("Skipped breakdown:", byReason);
+
+  const unmatchedHintRows = hints.size - matchedHintKeys.size;
+  console.log(
+    `Hint rows matched to a real file: ${matchedHintKeys.size}/${hints.size}  ` +
+      `(unmatched: ${unmatchedHintRows})`
+  );
 }
 
 main();

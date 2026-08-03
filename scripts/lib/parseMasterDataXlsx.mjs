@@ -56,7 +56,6 @@ const HEADER_LABELS = {
   domain: "MÔN",
   skill: "KỸ NĂNG",
   difficulty: "MỨC ĐỘ",
-  status: "TRẠNG THÁI",
 };
 
 export async function parseMasterDataXlsx(xlsxFilePath) {
@@ -100,11 +99,14 @@ export async function parseMasterDataXlsx(xlsxFilePath) {
   for (const row of rows.slice(1)) {
     const fileName = row[columnFor.name]?.trim();
     if (!fileName) continue;
-    hints.set(fileName, {
+    // Keyed on a case/whitespace-normalized basename: Windows filenames are
+    // case-insensitive, and the spreadsheet's file names sometimes differ
+    // from the on-disk basename only in case — normalize both sides of the
+    // lookup the same way (see scan-sources-database.mjs's hints.get call).
+    hints.set(fileName.toLowerCase().trim(), {
       domain: row[columnFor.domain]?.trim() || null,
       skill: row[columnFor.skill]?.trim() || null,
       difficulty: row[columnFor.difficulty]?.trim() || null,
-      status: row[columnFor.status]?.trim() || null,
     });
   }
   return hints;
