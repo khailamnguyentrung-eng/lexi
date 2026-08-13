@@ -14,6 +14,7 @@
 // qualifying group, since the idempotency check is per-title, not a fixed
 // list.
 import { prisma } from "@/lib/db/prisma";
+import { getQuestionPayload } from "@/lib/services/question-format";
 import { classifySourceExam } from "./realExamClassifier";
 
 const MIN_QUESTIONS_FOR_REAL_PAPER = 40;
@@ -54,22 +55,48 @@ export async function assembleRealExamTemplates(): Promise<AssembleRealExamsResu
 
     const questions = await prisma.question.findMany({
       where: { sourceExam },
-      select: { id: true, questionCode: true },
+      select: {
+        id: true,
+        questionCode: true,
+        responseFormat: true,
+        payload: true,
+        optionA: true,
+        optionB: true,
+        optionC: true,
+        optionD: true,
+        correctOption: true,
+      },
       orderBy: { questionCode: "asc" },
     });
+
+    // The 40-question threshold above gates on the raw row count (a property
+    // of the source exam), but the player (buildQuestionViews in attempts.ts)
+    // silently drops any question getQuestionPayload() can't grade. Filter
+    // here so totalQuestions/the created rows match what a learner actually
+    // sees — a group that cleared the threshold can still end up with fewer
+    // gradeable questions, and that's fine; we don't re-check the threshold.
+    const gradeableQuestions = questions.filter((q) => getQuestionPayload(q) !== null);
+
+    if (gradeableQuestions.length === 0) {
+      skipped.push({
+        title: sourceExam,
+        reason: "no gradeable questions remain after filtering (check Question.payload / legacy option columns for this source)",
+      });
+      continue;
+    }
 
     await prisma.mockTestTemplate.create({
       data: {
         title: sourceExam,
         timeLimitMin: classification.timeLimitMin,
-        totalQuestions: questions.length,
+        totalQuestions: gradeableQuestions.length,
         questions: {
-          create: questions.map((q, i) => ({ questionId: q.id, order: i + 1 })),
+          create: gradeableQuestions.map((q, i) => ({ questionId: q.id, order: i + 1 })),
         },
       },
     });
 
-    created.push({ title: sourceExam, totalQuestions: questions.length, timeLimitMin: classification.timeLimitMin });
+    created.push({ title: sourceExam, totalQuestions: gradeableQuestions.length, timeLimitMin: classification.timeLimitMin });
   }
 
   return { created, skipped };
