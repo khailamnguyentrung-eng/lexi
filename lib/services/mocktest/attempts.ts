@@ -38,6 +38,7 @@ export interface AttemptQuestionView {
   promptText: string;
   responseFormat: ResponseFormatName;
   publicPayload: PublicQuestionPayload;
+  passage: { id: string; title: string | null; bodyText: string } | null;
 }
 
 export interface StartedAttempt {
@@ -56,7 +57,12 @@ export interface StartedAttempt {
 export async function startAttempt(userId: string, templateId: string): Promise<StartedAttempt> {
   const template = await prisma.mockTestTemplate.findUniqueOrThrow({
     where: { id: templateId },
-    include: { questions: { orderBy: { order: "asc" }, include: { question: true } } },
+    include: {
+      questions: {
+        orderBy: { order: "asc" },
+        include: { question: { include: { passage: { select: { id: true, title: true, bodyText: true } } } } },
+      },
+    },
   });
 
   const attempt = await prisma.mockTestAttempt.create({
@@ -73,7 +79,14 @@ export async function resumeAttempt(userId: string, attemptId: string): Promise<
   const attempt = await prisma.mockTestAttempt.findUniqueOrThrow({
     where: { id: attemptId },
     include: {
-      template: { include: { questions: { orderBy: { order: "asc" }, include: { question: true } } } },
+      template: {
+        include: {
+          questions: {
+            orderBy: { order: "asc" },
+            include: { question: { include: { passage: { select: { id: true, title: true, bodyText: true } } } } },
+          },
+        },
+      },
     },
   });
   if (attempt.userId !== userId) throw new MockTestStateError("Not your attempt");
@@ -84,7 +97,16 @@ export async function resumeAttempt(userId: string, attemptId: string): Promise<
 }
 
 function buildQuestionViews(
-  slots: { order: number; question: QuestionFormatFields & { id: string; type: string | null; topic: string; promptText: string } }[]
+  slots: {
+    order: number;
+    question: QuestionFormatFields & {
+      id: string;
+      type: string | null;
+      topic: string;
+      promptText: string;
+      passage: { id: string; title: string | null; bodyText: string } | null;
+    };
+  }[]
 ): AttemptQuestionView[] {
   return slots.flatMap(({ order, question }) => {
     const payload = getQuestionPayload(question);
@@ -98,6 +120,7 @@ function buildQuestionViews(
         promptText: question.promptText,
         responseFormat: question.responseFormat,
         publicPayload: toPublicPayload(question.responseFormat, payload),
+        passage: question.passage,
       },
     ];
   });
