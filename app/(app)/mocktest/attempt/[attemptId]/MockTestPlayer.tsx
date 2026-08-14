@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnswerInput } from "../../../program/[slug]/[order]/AnswerInput";
+import { PassagePanel } from "./PassagePanel";
 import type { QuestionResponse } from "@/lib/services/question-format";
 // Type-only import from a server module (attempts.ts touches Prisma) — erased
 // at compile time, so this stays safe from a "use client" file. Reusing the
@@ -39,6 +40,7 @@ export function MockTestPlayer({
   const [answers, setAnswers] = useState<Record<string, QuestionResponse>>({});
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [collapsedPassageId, setCollapsedPassageId] = useState<string | null>(null);
   const autoSubmittedRef = useRef(false);
 
   const deadline = useMemo(() => new Date(startedAt).getTime() + timeLimitMin * 60_000, [startedAt, timeLimitMin]);
@@ -128,72 +130,87 @@ export function MockTestPlayer({
         })}
       </div>
 
-      <div className="rounded-3xl border border-zinc-100 bg-white p-6">
-        <p className="mb-4 text-foreground">{current.promptText}</p>
-
-        <AnswerInput
-          key={current.questionId}
-          responseFormat={current.responseFormat}
-          payload={current.publicPayload}
-          onSubmit={handleAnswer}
-          disabled={false}
-          // Never revealed mid-test — correctOptionId stays null until results.
-          selectedOptionId={
-            current.responseFormat === "SINGLE_CHOICE"
-              ? ((answers[current.questionId] as { optionId?: string } | undefined)?.optionId ?? null)
-              : null
-          }
-          correctOptionId={null}
-          isUnderlineType={current.type === "PHONETICS_SOUND"}
-          underlineTopic={current.topic}
-          initialResponse={answers[current.questionId] ?? null}
-        />
-
-        <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-4">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setIndex((i) => Math.max(0, i - 1))}
-              disabled={index === 0}
-              className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-600 disabled:opacity-40"
-            >
-              ← Câu trước
-            </button>
-            <button
-              onClick={() => setIndex((i) => Math.min(questions.length - 1, i + 1))}
-              disabled={index === questions.length - 1}
-              className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-600 disabled:opacity-40"
-            >
-              Câu tiếp →
-            </button>
+      <div className={`flex flex-col gap-4 ${current.passage ? "md:flex-row md:items-start" : ""}`}>
+        {current.passage && (
+          <div className="md:w-1/2 md:shrink-0">
+            <PassagePanel
+              title={current.passage.title}
+              bodyText={current.passage.bodyText}
+              collapsed={collapsedPassageId === current.passage.id}
+              onToggleCollapsed={() =>
+                setCollapsedPassageId((prev) => (prev === current.passage!.id ? null : current.passage!.id))
+              }
+            />
           </div>
+        )}
 
-          {!confirmingSubmit ? (
-            <button
-              onClick={() => setConfirmingSubmit(true)}
-              className="rounded-full bg-lexi-primary px-5 py-2 text-xs font-semibold text-white hover:bg-lexi-primary-dark"
-            >
-              Nộp bài
-            </button>
-          ) : (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-zinc-500">
-                Đã trả lời {Object.keys(answers).length}/{questions.length} câu. Chắc chắn nộp?
-              </span>
+        <div className={`rounded-3xl border border-zinc-100 bg-white p-6 ${current.passage ? "md:flex-1" : ""}`}>
+          <p className="mb-4 text-foreground">{current.promptText}</p>
+
+          <AnswerInput
+            key={current.questionId}
+            responseFormat={current.responseFormat}
+            payload={current.publicPayload}
+            onSubmit={handleAnswer}
+            disabled={false}
+            // Never revealed mid-test — correctOptionId stays null until results.
+            selectedOptionId={
+              current.responseFormat === "SINGLE_CHOICE"
+                ? ((answers[current.questionId] as { optionId?: string } | undefined)?.optionId ?? null)
+                : null
+            }
+            correctOptionId={null}
+            isUnderlineType={current.type === "PHONETICS_SOUND"}
+            underlineTopic={current.topic}
+            initialResponse={answers[current.questionId] ?? null}
+          />
+
+          <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-4">
+            <div className="flex gap-2">
               <button
-                onClick={submitTest}
-                disabled={submitting}
-                className="rounded-full bg-rose-500 px-4 py-2 font-semibold text-white disabled:opacity-50"
+                onClick={() => setIndex((i) => Math.max(0, i - 1))}
+                disabled={index === 0}
+                className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-600 disabled:opacity-40"
               >
-                {submitting ? "Đang nộp..." : "Xác nhận nộp bài"}
+                ← Câu trước
               </button>
               <button
-                onClick={() => setConfirmingSubmit(false)}
-                className="rounded-full border border-zinc-200 px-3 py-2 text-zinc-500"
+                onClick={() => setIndex((i) => Math.min(questions.length - 1, i + 1))}
+                disabled={index === questions.length - 1}
+                className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-600 disabled:opacity-40"
               >
-                Huỷ
+                Câu tiếp →
               </button>
             </div>
-          )}
+
+            {!confirmingSubmit ? (
+              <button
+                onClick={() => setConfirmingSubmit(true)}
+                className="rounded-full bg-lexi-primary px-5 py-2 text-xs font-semibold text-white hover:bg-lexi-primary-dark"
+              >
+                Nộp bài
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-zinc-500">
+                  Đã trả lời {Object.keys(answers).length}/{questions.length} câu. Chắc chắn nộp?
+                </span>
+                <button
+                  onClick={submitTest}
+                  disabled={submitting}
+                  className="rounded-full bg-rose-500 px-4 py-2 font-semibold text-white disabled:opacity-50"
+                >
+                  {submitting ? "Đang nộp..." : "Xác nhận nộp bài"}
+                </button>
+                <button
+                  onClick={() => setConfirmingSubmit(false)}
+                  className="rounded-full border border-zinc-200 px-3 py-2 text-zinc-500"
+                >
+                  Huỷ
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
