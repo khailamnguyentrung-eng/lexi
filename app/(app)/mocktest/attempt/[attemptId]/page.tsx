@@ -30,7 +30,7 @@ export default async function MockTestAttemptPage({
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <MockTestPlayer
         attemptId={attempt.attemptId}
         timeLimitMin={attempt.timeLimitMin}

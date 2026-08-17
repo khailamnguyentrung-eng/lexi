@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { AssembleTemplateButton } from "./AssembleTemplateButton";
+import { AssembleRealExamsButton } from "./AssembleRealExamsButton";
 
 export default async function AdminMockTestPage() {
   const templates = await prisma.mockTestTemplate.findMany({
@@ -19,13 +19,13 @@ export default async function AdminMockTestPage() {
       <div>
         <h1 className="text-xl font-semibold text-lexi-primary-dark">Thi thử — quản lý đề</h1>
         <p className="text-sm text-zinc-500">
-          Tạo đề thi thử mới bằng cách đóng gói câu hỏi có sẵn theo cấu trúc đề thi thật
-          (lib/analytics/examBlueprint.ts). Không dùng AI, không cần tài liệu mới — chỉ chọn câu hỏi
-          đã có trong ngân hàng theo đúng tỉ lệ từng phần của đề thật.
+          Gom các câu hỏi đã duyệt trong ngân hàng theo đề gốc (sourceExam) và tạo một đề thi thử
+          cho mỗi đề thật đầy đủ (từ 40 câu trở lên) — ví dụ THPT, IELTS Reading, SAT. Bấm lại an
+          toàn: đề đã tồn tại sẽ tự động được bỏ qua, chỉ đề mới đủ điều kiện mới được tạo thêm.
         </p>
       </div>
 
-      <AssembleTemplateButton />
+      <AssembleRealExamsButton />
 
       <div className="flex flex-col gap-3">
         {templates.map((t) => (
